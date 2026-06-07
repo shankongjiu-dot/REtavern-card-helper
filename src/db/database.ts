@@ -12,6 +12,8 @@ interface CardRecord {
   name: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Soft delete timestamp — null means not deleted */
+  deletedAt?: Date | null;
   [key: string]: unknown; // Allow dynamic V2 spec fields
 }
 
@@ -40,6 +42,8 @@ export interface AISettings {
   temperature: number;
   /** Whether the key has been verified (models fetched successfully) */
   keyVerified: boolean;
+  /** Max retry attempts for transient API failures (0 = no retry) */
+  retryCount: number;
 }
 
 /** Auto-saved wizard draft (survives page navigation) */
@@ -58,8 +62,8 @@ export const db = new Dexie('TavernCardHelper') as Dexie & {
   wizard_drafts: EntityTable<WizardDraftRecord, 'id'>;
 };
 
-db.version(3).stores({
-  cards: '++id, name, updatedAt, createdAt',
+db.version(4).stores({
+  cards: '++id, name, updatedAt, createdAt, deletedAt',
   chat_sessions: '++id, cardId',
   ai_settings: 'id',
   creator_chats: '++id, updatedAt',
@@ -89,6 +93,7 @@ export async function getAISettings(): Promise<AISettings> {
       maxTokens: 2000,
       temperature: 0.8,
       keyVerified: false,
+      retryCount: 3,
     };
     await db.ai_settings.put(settings);
   }

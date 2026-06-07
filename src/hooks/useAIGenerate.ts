@@ -18,6 +18,9 @@ import {
   ORGANIZE_ENTRIES_PROMPT,
   GENERATE_KEYS_PROMPT,
   MVU_VARIABLES_PROMPT,
+  NAME_GENERATOR_PROMPT,
+  TRANSLATE_CARD_PROMPT,
+  CARD_DIAGNOSIS_PROMPT,
   parseAIJson,
 } from '../constants/prompts';
 import type {
@@ -281,6 +284,109 @@ export function useAIGenerate() {
     };
   }, []);
 
+  /**
+   * Generate character name candidates using AI.
+   * Returns an array of { name, style } objects.
+   */
+  const generateNames = useCallback(async (hint: string, genre: string) => {
+    const prompts = NAME_GENERATOR_PROMPT(hint, genre);
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 1.0, max_tokens: 1500 });
+    const parsed = parseAIJson(text) as Array<{ name: string; style: string }> | null;
+    return parsed || [];
+  }, []);
+
+  /**
+   * Translate a character card's text fields between Chinese and English.
+   * @param cardData - The card's data object containing text fields
+   * @param targetLang - 'zh' for Chinese, 'en' for English
+   * @returns Translated card data object
+   */
+  const translateCard = useCallback(async (
+    cardData: Record<string, unknown>,
+    targetLang: 'zh' | 'en',
+  ): Promise<Record<string, unknown> | null> => {
+    // Extract translatable fields
+    const translatable: Record<string, unknown> = {};
+    const fields = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example',
+      'system_prompt', 'post_history_instructions', 'creator_notes'];
+
+    for (const key of fields) {
+      if (cardData[key] && typeof cardData[key] === 'string' && (cardData[key] as string).trim()) {
+        translatable[key] = cardData[key];
+      }
+    }
+
+    // Also translate world book entry content/comments
+    const charBook = cardData.character_book as Record<string, unknown> | undefined;
+    if (charBook?.entries && Array.isArray(charBook.entries)) {
+      translatable._worldbook_entries = (charBook.entries as Array<Record<string, unknown>>).map(e => ({
+        name: e.name || '',
+        comment: e.comment || '',
+        content: e.content || '',
+        keys: e.keys || [],
+      }));
+    }
+
+    if (Object.keys(translatable).length === 0) return null;
+
+    const prompts = TRANSLATE_CARD_PROMPT(targetLang);
+    const userPrompt = prompts.user.replace('{cardContent}', JSON.stringify(translatable, null, 2));
+
+    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.3, max_tokens: 12000 });
+    const parsed = parseAIJson(text) as Record<string, unknown> | null;
+    return parsed;
+  }, []);
+
+  /**
+   * Diagnose a character card using AI.
+   * Returns a structured diagnosis report with scores, issues, and suggestions.
+   */
+  const diagnoseCard = useCallback(async (
+    cardData: Record<string, unknown>,
+  ): Promise<{
+    overall_score: number;
+    summary: string;
+    categories: Array<{
+      name: string;
+      score: number;
+      issues: string[];
+      suggestions: string[];
+    }>;
+    highlights: string[];
+  } | null> => {
+    // Build a concise summary of the card for diagnosis
+    const diagContent: Record<string, unknown> = {};
+    const fields = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example',
+      'system_prompt', 'post_history_instructions'];
+
+    for (const key of fields) {
+      if (cardData[key] && typeof cardData[key] === 'string') {
+        // Truncate very long fields to save tokens
+        const val = cardData[key] as string;
+        diagContent[key] = val.length > 2000 ? val.slice(0, 2000) + '...(截断)' : val;
+      }
+    }
+
+    // Include worldbook summary
+    const charBook = cardData.character_book as Record<string, unknown> | undefined;
+    if (charBook?.entries && Array.isArray(charBook.entries)) {
+      diagContent._worldbook_count = (charBook.entries as unknown[]).length;
+      diagContent._worldbook_entries = (charBook.entries as Array<Record<string, unknown>>).slice(0, 10).map(e => ({
+        name: e.name || '',
+        comment: e.comment || '',
+        content: ((e.content as string) || '').slice(0, 300),
+        keys: e.keys || [],
+        constant: e.constant || false,
+      }));
+    }
+
+    const prompts = CARD_DIAGNOSIS_PROMPT();
+    const userPrompt = prompts.user.replace('{cardContent}', JSON.stringify(diagContent, null, 2));
+
+    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.4, max_tokens: 4000 });
+    return parseAIJson(text) as ReturnType<typeof diagnoseCard> extends Promise<infer T> ? T : never;
+  }, []);
+
   return {
     generateCharacter,
     generateCharacterStreaming,
@@ -299,5 +405,8 @@ export function useAIGenerate() {
     generateEntryKeys,
     generateMvuVariables,
     expandLorebookEntry,
+    generateNames,
+    translateCard,
+    diagnoseCard,
   };
 }

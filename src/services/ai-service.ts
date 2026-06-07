@@ -81,6 +81,7 @@ function injectPreset(messages: AIMessage[]): AIMessage[] {
 /**
  * Call the AI API through the Express proxy (non-streaming).
  * Credentials are read from IndexedDB and forwarded to the backend proxy.
+ * Automatically retries on transient failures (5xx, network errors, 429 rate limit).
  */
 export async function callAI(options: AIRequestOptions): Promise<string> {
   const settings = await getAISettings();
@@ -90,34 +91,62 @@ export async function callAI(options: AIRequestOptions): Promise<string> {
   }
 
   const messages = injectPreset(options.messages);
+  const maxRetries = settings.retryCount ?? 3;
 
-  const response = await fetch('/api/ai/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages,
-      apiUrl: normalizeApiUrl(settings.apiUrl),
-      apiKey: settings.apiKey,
-      model: settings.model,
-      temperature: options.temperature ?? settings.temperature,
-      max_tokens: options.max_tokens ?? settings.maxTokens,
-    }),
-  });
+  const payload = {
+    messages,
+    apiUrl: normalizeApiUrl(settings.apiUrl),
+    apiKey: settings.apiKey,
+    model: settings.model,
+    temperature: options.temperature ?? settings.temperature,
+    max_tokens: options.max_tokens ?? settings.maxTokens,
+  };
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-    throw new Error(err.error || `AI API 调用失败 (${response.status})`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        const errMsg = err.error || `AI API 调用失败 (${response.status})`;
+
+        // Retry on 429 (rate limit) and 5xx (server errors)
+        if (attempt < maxRetries && (response.status === 429 || response.status >= 500)) {
+          lastError = new Error(errMsg);
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw new Error(errMsg);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('AI 响应没有内容，模型可能拒绝了请求');
+      }
+      return content;
+    } catch (err: unknown) {
+      // Retry on network errors (TypeError: Failed to fetch, etc.)
+      if (attempt < maxRetries && err instanceof TypeError) {
+        lastError = err;
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      // Don't retry on non-transient errors
+      if (err instanceof Error && err.message.includes('请先在')) throw err;
+      throw err;
+    }
   }
 
-  const data = await response.json();
-
-  // OpenAI-compatible response format
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('AI 响应没有内容，模型可能拒绝了请求');
-  }
-
-  return content;
+  throw lastError || new Error('AI 调用失败，已重试 ' + maxRetries + ' 次');
 }
 
 /**
@@ -129,6 +158,7 @@ export type StreamCallback = (chunk: string, fullText: string) => void;
  * Call AI with streaming via Server-Sent Events.
  * Returns a Promise that resolves with the full text when streaming completes.
  * The onChunk callback is called with each new token as it arrives.
+ * Retries on transient connection failures before the stream starts.
  */
 export async function callAIStreaming(
   options: AIRequestOptions,
@@ -141,59 +171,88 @@ export async function callAIStreaming(
   }
 
   const messages = injectPreset(options.messages);
+  const maxRetries = settings.retryCount ?? 3;
 
-  const response = await fetch('/api/ai/chat/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages,
-      apiUrl: normalizeApiUrl(settings.apiUrl),
-      apiKey: settings.apiKey,
-      model: settings.model,
-      temperature: options.temperature ?? settings.temperature,
-      max_tokens: options.max_tokens ?? settings.maxTokens,
-    }),
-  });
+  const payload = {
+    messages,
+    apiUrl: normalizeApiUrl(settings.apiUrl),
+    apiKey: settings.apiKey,
+    model: settings.model,
+    temperature: options.temperature ?? settings.temperature,
+    max_tokens: options.max_tokens ?? settings.maxTokens,
+  };
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-    throw new Error(err.error || `AI API 流式调用失败 (${response.status})`);
-  }
+  let lastError: Error | null = null;
 
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  let fullText = '';
-  let buffer = '';
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch('/api/ai/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        const errMsg = err.error || `AI API 流式调用失败 (${response.status})`;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || ''; // keep incomplete line in buffer
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') {
-          return fullText;
+        if (attempt < maxRetries && (response.status === 429 || response.status >= 500)) {
+          lastError = new Error(errMsg);
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
         }
-        try {
-          const parsed = JSON.parse(data);
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) {
-            fullText += content;
-            onChunk(content, fullText);
+        throw new Error(errMsg);
+      }
+
+      // Stream established — no more retries from here
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') {
+              return fullText;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                fullText += content;
+                onChunk(content, fullText);
+              }
+            } catch {
+              // skip malformed JSON
+            }
           }
-        } catch {
-          // skip malformed JSON
         }
       }
+
+      return fullText;
+    } catch (err: unknown) {
+      if (attempt < maxRetries && err instanceof TypeError) {
+        lastError = err;
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      if (err instanceof Error && err.message.includes('请先在')) throw err;
+      throw err;
     }
   }
 
-  return fullText;
+  throw lastError || new Error('AI 流式调用失败，已重试 ' + maxRetries + ' 次');
 }
 
 /**

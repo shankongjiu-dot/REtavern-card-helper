@@ -1,10 +1,13 @@
 /**
  * Step 6: Review & Save - preview of all card fields aligned with V2 spec.
  * Shows JSON preview (spec-compliant export) and allows saving to the library.
+ * Includes AI Card Diagnosis (小皮医生) feature.
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { assembleCard, exportAsJson, exportAsPng } from '../../services/card-exporter';
 import { validateCard } from '../../services/card-validator';
+import { useAIGenerate } from '../../hooks/useAIGenerate';
+import { useToast } from '../shared/Toast';
 import { Button } from '../shared/Button';
 import type { WizardDraft } from '../../constants/defaults';
 
@@ -12,9 +15,25 @@ interface StepReviewProps {
   draft: WizardDraft;
 }
 
+interface DiagnosisReport {
+  overall_score: number;
+  summary: string;
+  categories: Array<{
+    name: string;
+    score: number;
+    issues: string[];
+    suggestions: string[];
+  }>;
+  highlights: string[];
+}
+
 export function StepReview({ draft }: StepReviewProps) {
   const [showJson, setShowJson] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnosisReport, setDiagnosisReport] = useState<DiagnosisReport | null>(null);
+  const { diagnoseCard } = useAIGenerate();
+  const { addToast } = useToast();
 
   // Assemble card preview
   const card = assembleCard(draft);
@@ -28,6 +47,24 @@ export function StepReview({ draft }: StepReviewProps) {
   const handleCopyJson = async () => {
     await navigator.clipboard.writeText(jsonString);
   };
+
+  const handleDiagnose = useCallback(async () => {
+    setDiagnosing(true);
+    setDiagnosisReport(null);
+    try {
+      const report = await diagnoseCard(card.data as Record<string, unknown>);
+      if (report) {
+        setDiagnosisReport(report);
+      } else {
+        addToast('error', 'AI 诊断未返回有效结果，请重试');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '诊断失败';
+      addToast('error', `AI 诊断失败：${msg}`);
+    } finally {
+      setDiagnosing(false);
+    }
+  }, [diagnoseCard, card.data, addToast]);
 
   return (
     <div>
@@ -202,6 +239,81 @@ export function StepReview({ draft }: StepReviewProps) {
             <Field label="creator" value={draft.creator} hint="创建者名称" />
             <Field label="character_version" value={draft.character_version} hint="角色版本" />
             <Field label="creator_notes" value={draft.creator_notes} hint="创建者备注（不出现在提示词中）" multiline />
+          </div>
+        )}
+      </div>
+
+      {/* AI Diagnosis section */}
+      <div className="mt-6">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleDiagnose}
+          disabled={diagnosing}
+        >
+          {diagnosing ? '⏳ AI 诊断中...' : '🩺 AI 角色卡诊断'}
+        </Button>
+        {diagnosisReport && (
+          <div className="mt-4 rounded-xl border border-slate-700 bg-slate-800/50 p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">🩺</span>
+              <div>
+                <h3 className="text-sm font-semibold text-white">AI 诊断报告</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{diagnosisReport.summary}</p>
+              </div>
+              <div className="ml-auto text-right">
+                <span className={`text-2xl font-bold ${
+                  diagnosisReport.overall_score >= 80 ? 'text-emerald-400' :
+                  diagnosisReport.overall_score >= 60 ? 'text-amber-400' : 'text-red-400'
+                }`}>
+                  {diagnosisReport.overall_score}
+                </span>
+                <span className="text-xs text-slate-500 block">/100</span>
+              </div>
+            </div>
+
+            {/* Highlights */}
+            {diagnosisReport.highlights.length > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-emerald-900/20 border border-emerald-800/30">
+                <p className="text-xs font-medium text-emerald-300 mb-1">✨ 亮点</p>
+                {diagnosisReport.highlights.map((h, i) => (
+                  <p key={i} className="text-xs text-emerald-200/80">• {h}</p>
+                ))}
+              </div>
+            )}
+
+            {/* Categories */}
+            <div className="space-y-3">
+              {diagnosisReport.categories.map((cat, i) => (
+                <div key={i} className="p-3 rounded-lg bg-slate-900/50 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-white">{cat.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      cat.score >= 80 ? 'bg-emerald-800/40 text-emerald-300' :
+                      cat.score >= 60 ? 'bg-amber-800/40 text-amber-300' : 'bg-red-800/40 text-red-300'
+                    }`}>
+                      {cat.score}分
+                    </span>
+                  </div>
+                  {cat.issues.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-[10px] text-red-400 font-medium mb-0.5">问题</p>
+                      {cat.issues.map((issue, j) => (
+                        <p key={j} className="text-xs text-slate-400">• {issue}</p>
+                      ))}
+                    </div>
+                  )}
+                  {cat.suggestions.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-indigo-400 font-medium mb-0.5">建议</p>
+                      {cat.suggestions.map((s, j) => (
+                        <p key={j} className="text-xs text-slate-300">• {s}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

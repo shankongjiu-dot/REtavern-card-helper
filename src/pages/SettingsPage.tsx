@@ -225,8 +225,8 @@ export function SettingsPage() {
           )}
         </div>
 
-        {/* Row 4: Temperature + Max Tokens */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Row 4: Temperature + Max Tokens + Retry */}
+        <div className="grid grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-300">
               温度: <span className="text-indigo-400">{settings.temperature.toFixed(1)}</span>
@@ -257,6 +257,21 @@ export function SettingsPage() {
               className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 w-full"
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-300">
+              重试次数 <span className="text-slate-500">({settings.retryCount ?? 3})</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step={1}
+              value={settings.retryCount ?? 3}
+              onChange={(e) => setSettings({ ...settings, retryCount: parseInt(e.target.value) || 0 })}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 w-full"
+            />
+            <p className="text-[10px] text-slate-500">网络波动时自动重试</p>
+          </div>
         </div>
 
         {/* Save button */}
@@ -268,6 +283,7 @@ export function SettingsPage() {
               model: settings.model,
               temperature: settings.temperature,
               maxTokens: settings.maxTokens,
+              retryCount: settings.retryCount,
               ...(editingKey ? { apiKey: tempKey } : {}),
             })}
           >

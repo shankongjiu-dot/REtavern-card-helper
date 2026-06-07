@@ -478,6 +478,86 @@ ${firstMessageExcerpt ? `开场白摘要: ${firstMessageExcerpt.slice(0, 300)}` 
 });
 
 /**
+ * AI Name Generator prompt.
+ * Generates creative character name candidates for the user to choose from.
+ */
+export const NAME_GENERATOR_PROMPT = (hint: string, genre: string) => ({
+  system: `你是一位富有创意的角色命名专家。根据用户提供的提示，生成多个风格多样的角色名候选。
+
+规则：
+- 生成 8 个候选名字
+- 每个名字简短有力（2-4个字或1-3个英文单词）
+- 风格多样化：古典、现代、幻想、写实、中性等不同风格混搭
+- 名字要有辨识度和记忆点
+- 如果用户给了类型/风格提示，优先匹配该风格，但仍保留一些出其不意的选择
+
+返回 JSON 数组：[{"name": "名字", "style": "风格标签"}]`,
+  user: `${hint ? `角色提示：${hint}` : '请自由发挥，生成适合奇幻/现代/科幻等多种风格的角色名'}
+${genre ? `卡片标签：${genre}` : ''}
+
+请生成 8 个候选名字。只输出 JSON 数组。`,
+});
+
+/**
+ * Card Translation prompt.
+ * Translates all text fields of a character card between Chinese and English.
+ */
+export const TRANSLATE_CARD_PROMPT = (targetLang: 'zh' | 'en') => ({
+  system: `你是一位专业的角色卡翻译。将角色卡内容翻译为${targetLang === 'zh' ? '简体中文' : 'English'}。
+
+翻译规则：
+- 保持原文的格式结构（## 标题、列表、键值对等）
+- 专有名词保持原文或在括号中注明（如“霜落(Frostfall)”）
+- {{user}} 和 {{char}} 占位符保持不变
+- 对话示例中的 <START> 标记保持不变
+- 翻译要自然流畅，不要机翻味
+- 保持原文的信息密度和长度
+
+返回 JSON 对象，包含翻译后的所有文本字段。`,
+  user: `将以下角色卡内容翻译为${targetLang === 'zh' ? '简体中文' : 'English'}：
+
+{cardContent}
+
+返回同样结构的 JSON 对象，所有文本字段翻译为${targetLang === 'zh' ? '简体中文' : 'English'}。只输出 JSON。`,
+});
+
+/**
+ * AI Card Diagnosis prompt.
+ * Analyzes a character card and provides structured diagnostic report.
+ */
+export const CARD_DIAGNOSIS_PROMPT = () => ({
+  system: `你是一位资深的 SillyTavern 角色卡诊断师。你的任务是全面分析一张角色卡，发现潜在问题并给出具体改进建议。
+
+诊断维度：
+1. **设定完整性** — description 是否涵盖基本信息、外貌、性格、背景、关系
+2. **人设一致性** — description/personality/first_mes 之间是否自洽
+3. **剧情逻辑** — 开场白是否合理、示例对话是否体现人设
+4. **世界观逻辑** — 世界书条目之间是否矛盾、是否覆盖关键设定
+5. **OOC 风险** — 哪些设定可能导致 AI 扮演时偏离人设
+6. **Token 效率** — 是否有冗余内容、是否可以更精简
+
+输出格式：返回 JSON 对象
+{
+  "overall_score": 0-100, // 总体评分
+  "summary": "一句话总体评价",
+  "categories": [
+    {
+      "name": "维度名称",
+      "score": 0-100,
+      "issues": ["具体问题1", "具体问题2"],
+      "suggestions": ["具体改进建议1", "具体改进建议2"]
+    }
+  ],
+  "highlights": ["做得好的地方1", "做得好的地方2"]
+}`, 
+  user: `请诊断以下角色卡：
+
+{cardContent}
+
+请从设定完整性、人设一致性、剧情逻辑、世界观逻辑、OOC风险、Token效率六个维度进行全面诊断。只输出 JSON。`,
+});
+
+/**
  * Utility: strip markdown code fences from AI responses.
  * AI models often wrap JSON in ```json ... ``` blocks.
  */
@@ -489,25 +569,80 @@ export function stripMarkdownFences(text: string): string {
 }
 
 /**
- * Attempt to parse AI response as JSON with fallback extraction.
- * If direct parse fails, tries to find JSON substring.
+ * Sanitize common JSON issues in AI responses before parsing:
+ * - Trailing commas before } or ]
+ * - Single quotes instead of double quotes (simple heuristic)
+ * - Unescaped newlines inside string values
+ */
+function sanitizeJsonString(raw: string): string {
+  let s = raw;
+  // Remove trailing commas: ,} or ,]
+  s = s.replace(/,\s*([}\]])/g, '$1');
+  // Replace single-quoted keys/values with double-quoted (simple cases)
+  // Only if the string has no double quotes at all (heuristic to avoid breaking valid JSON)
+  if (!s.includes('"') && s.includes("'")) {
+    s = s.replace(/'([^']*)'/g, '"$1"');
+  }
+  return s;
+}
+
+/**
+ * Attempt to parse AI response as JSON with multi-layer fallback.
+ *
+ * Strategy:
+ * 1. Strip markdown fences, direct parse
+ * 2. Sanitize common AI quirks (trailing commas, single quotes), retry
+ * 3. Extract first JSON object/array substring, sanitize and retry
+ * 4. Try to find multiple JSON objects/arrays and return the largest
+ * 5. Return null if all attempts fail
  */
 export function parseAIJson(text: string): unknown | null {
   const cleaned = stripMarkdownFences(text);
+
+  // Attempt 1: Direct parse
   try {
     return JSON.parse(cleaned);
-  } catch {
-    // Try to extract JSON object or array
-    const objMatch = cleaned.match(/\{[\s\S]*\}/);
-    const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-    const candidate = objMatch?.[0] || arrMatch?.[0];
-    if (candidate) {
-      try {
-        return JSON.parse(candidate);
-      } catch {
-        return null;
-      }
-    }
-    return null;
+  } catch { /* continue */ }
+
+  // Attempt 2: Sanitize and retry
+  const sanitized = sanitizeJsonString(cleaned);
+  try {
+    return JSON.parse(sanitized);
+  } catch { /* continue */ }
+
+  // Attempt 3: Extract first JSON object or array
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+  const candidates = [objMatch?.[0], arrMatch?.[0]].filter(Boolean) as string[];
+
+  // Sort by length descending — prefer larger matches
+  candidates.sort((a, b) => b.length - a.length);
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch { /* try sanitized */ }
+    try {
+      return JSON.parse(sanitizeJsonString(candidate));
+    } catch { /* continue */ }
   }
+
+  // Attempt 4: Find all JSON objects/arrays and pick the largest valid one
+  const allMatches = [
+    ...cleaned.matchAll(/\{[\s\S]*?\}/g),
+    ...cleaned.matchAll(/\[[\s\S]*?\]/g),
+  ]
+    .map(m => m[0])
+    .sort((a, b) => b.length - a.length);
+
+  for (const m of allMatches.slice(0, 5)) {
+    try {
+      return JSON.parse(m);
+    } catch { /* skip */ }
+    try {
+      return JSON.parse(sanitizeJsonString(m));
+    } catch { /* skip */ }
+  }
+
+  return null;
 }

@@ -2,9 +2,10 @@
  * LibraryPage - Character card library management.
  * Lists all saved cards with search, sort, edit, delete, and JSON/PNG export/import.
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCardLibrary } from '../hooks/useCardLibrary';
+import { useAIGenerate } from '../hooks/useAIGenerate';
 import { db } from '../db/database';
 import { useToast } from '../components/shared/Toast';
 import { Button } from '../components/shared/Button';
@@ -13,14 +14,18 @@ import { Modal } from '../components/shared/Modal';
 import { exportAsJson, exportAsPng, importFromPng } from '../services/card-exporter';
 
 export function LibraryPage() {
-  const { cards, loading, deleteCard, loadCards } = useCardLibrary();
+  const { cards, trashCards, loading, deleteCard, restoreCard, permanentDelete, emptyTrash, loadCards } = useCardLibrary();
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'updatedAt' | 'name'>('updatedAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState<number | null>(null);
   const [exportMenuCard, setExportMenuCard] = useState<Record<string, unknown> | null>(null);
+  const [translatingId, setTranslatingId] = useState<number | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const { translateCard } = useAIGenerate();
 
   // Filter and sort cards
   const filteredCards = useMemo(() => {
@@ -46,8 +51,26 @@ export function LibraryPage() {
 
   const handleDelete = async (id: number) => {
     await deleteCard(id);
-    addToast('success', '卡片已删除');
+    addToast('success', '卡片已移至回收站');
     setDeleteConfirm(null);
+  };
+
+  const handleRestore = async (id: number) => {
+    await restoreCard(id);
+    addToast('success', '卡片已恢复');
+  };
+
+  const handlePermanentDelete = async (id: number) => {
+    await permanentDelete(id);
+    addToast('success', '卡片已彻底删除');
+    setPermanentDeleteConfirm(null);
+  };
+
+  const handleEmptyTrash = async () => {
+    if (confirm('确定要清空回收站吗？此操作无法撤销。')) {
+      await emptyTrash();
+      addToast('success', '回收站已清空');
+    }
   };
 
   const handleExportJson = (card: Record<string, unknown>) => {
@@ -89,6 +112,62 @@ export function LibraryPage() {
     input.click();
     setExportMenuCard(null);
   };
+
+  const handleTranslateCard = useCallback(async (card: Record<string, unknown>, targetLang: 'zh' | 'en') => {
+    const cardId = card.id as number;
+    setTranslatingId(cardId);
+    setExportMenuCard(null);
+    try {
+      const cardData = (card.data || card) as Record<string, unknown>;
+      const translated = await translateCard(cardData, targetLang);
+      if (!translated) {
+        addToast('error', '卡片内容为空，无法翻译');
+        return;
+      }
+
+      // Apply translated fields back to card data
+      const updatedData = { ...cardData };
+      const fields = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example',
+        'system_prompt', 'post_history_instructions', 'creator_notes'];
+      for (const key of fields) {
+        if (translated[key] && typeof translated[key] === 'string') {
+          updatedData[key] = translated[key];
+        }
+      }
+
+      // Apply translated worldbook entries back
+      const wbEntries = translated._worldbook_entries as Array<Record<string, unknown>> | undefined;
+      if (wbEntries && updatedData.character_book) {
+        const charBook = updatedData.character_book as Record<string, unknown>;
+        const entries = charBook.entries as Array<Record<string, unknown>> | undefined;
+        if (entries && Array.isArray(entries)) {
+          for (let i = 0; i < Math.min(wbEntries.length, entries.length); i++) {
+            if (wbEntries[i].name) entries[i].name = wbEntries[i].name;
+            if (wbEntries[i].comment) entries[i].comment = wbEntries[i].comment;
+            if (wbEntries[i].content) entries[i].content = wbEntries[i].content;
+            if (wbEntries[i].keys) entries[i].keys = wbEntries[i].keys;
+          }
+        }
+      }
+
+      // Update the card name at top level too
+      const updatedCard = {
+        ...card,
+        name: (translated.name as string) || card.name,
+        data: updatedData,
+        updatedAt: new Date(),
+      };
+
+      await db.cards.put(updatedCard as Record<string, unknown>);
+      await loadCards();
+      addToast('success', `卡片「${updatedCard.name}」已翻译为${targetLang === 'zh' ? '中文' : '英文'}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '翻译失败';
+      addToast('error', `翻译失败: ${msg}`);
+    } finally {
+      setTranslatingId(null);
+    }
+  }, [translateCard, loadCards, addToast]);
 
   const handleImport = async () => {
     const input = document.createElement('input');
@@ -149,18 +228,94 @@ export function LibraryPage() {
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">卡片库</h1>
-          <p className="text-sm text-slate-400 mt-1">库中共有 {cards.length} 张卡片</p>
+          <h1 className="text-2xl font-bold text-white">
+            {showTrash ? '回收站' : '卡片库'}
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            {showTrash
+              ? `回收站中有 ${trashCards.length} 张卡片`
+              : `库中共有 ${cards.length} 张卡片`}
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={handleImport}>📥 导入</Button>
-          <Button onClick={() => navigate('/wizard')}>✨ 创建新卡</Button>
+          {!showTrash && (
+            <>
+              <Button variant="secondary" onClick={handleImport}>📥 导入</Button>
+              <Button onClick={() => navigate('/wizard')}>✨ 创建新卡</Button>
+            </>
+          )}
+          <Button
+            variant={showTrash ? 'secondary' : 'ghost'}
+            onClick={() => setShowTrash(!showTrash)}
+          >
+            {showTrash ? '📚 返回卡片库' : `🗑️ 回收站 (${trashCards.length})`}
+          </Button>
         </div>
       </div>
 
-      <p className="text-xs text-slate-500 mb-4 -mt-3">
-        支持导入 JSON 文件和 SillyTavern 格式的 PNG 角色卡图片
-      </p>
+      {!showTrash && (
+        <p className="text-xs text-slate-500 mb-4 -mt-3">
+          支持导入 JSON 文件和 SillyTavern 格式的 PNG 角色卡图片
+        </p>
+      )}
+
+      {/* Trash view */}
+      {showTrash && (
+        <div className="mb-6">
+          {trashCards.length > 0 && (
+            <div className="flex items-center gap-3 mb-4">
+              <Button variant="danger" size="sm" onClick={handleEmptyTrash}>
+                🗑️ 清空回收站
+              </Button>
+              <span className="text-xs text-slate-500">删除的卡片会进入回收站，可随时恢复</span>
+            </div>
+          )}
+          {trashCards.length === 0 && !loading && (
+            <div className="text-center py-16 border border-dashed border-slate-700 rounded-xl">
+              <p className="text-slate-400 text-lg mb-2">回收站是空的</p>
+              <p className="text-slate-500 text-sm">删除的卡片会出现在这里</p>
+            </div>
+          )}
+          <div className="space-y-3">
+            {trashCards.map((card) => (
+              <div
+                key={card.id}
+                className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5 opacity-70"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-slate-400 truncate">
+                      {card.name || 'Untitled'}
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1">
+                      删除时间: {formatDate(card.deletedAt || card.updatedAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleRestore(card.id!)}
+                    >
+                      ♻️ 恢复
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => setPermanentDeleteConfirm(card.id!)}
+                    >
+                      🗑️ 彻底删除
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Normal card view (only when not in trash) */}
+      {!showTrash && (<>
 
       {/* Search and sort bar */}
       <div className="flex gap-3 mb-6">
@@ -278,6 +433,21 @@ export function LibraryPage() {
                         >
                           🎨 导出 PNG（选择图片）
                         </button>
+                        <div className="border-t border-slate-700 my-1" />
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-50"
+                          onClick={() => handleTranslateCard(card as unknown as Record<string, unknown>, 'zh')}
+                          disabled={translatingId === card.id}
+                        >
+                          🇨🇳 翻译为中文
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-50"
+                          onClick={() => handleTranslateCard(card as unknown as Record<string, unknown>, 'en')}
+                          disabled={translatingId === card.id}
+                        >
+                          🇬🇧 Translate to English
+                        </button>
                       </div>
                     )}
                   </div>
@@ -291,14 +461,27 @@ export function LibraryPage() {
         })}
       </div>
 
-      {/* Delete confirmation modal */}
-      <Modal isOpen={deleteConfirm !== null} onClose={() => setDeleteConfirm(null)} title="删除卡片">
+      </>)}
+
+      {/* Delete confirmation modal (soft delete → trash) */}
+      <Modal isOpen={deleteConfirm !== null} onClose={() => setDeleteConfirm(null)} title="移至回收站">
         <p className="text-slate-300 mb-4">
-          确定要删除这张卡片吗？此操作无法撤销。
+          确定要将这张卡片移至回收站吗？你可以在回收站中恢复它。
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>取消</Button>
-          <Button variant="danger" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>删除</Button>
+          <Button variant="danger" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>移至回收站</Button>
+        </div>
+      </Modal>
+
+      {/* Permanent delete confirmation modal */}
+      <Modal isOpen={permanentDeleteConfirm !== null} onClose={() => setPermanentDeleteConfirm(null)} title="彻底删除">
+        <p className="text-red-300 mb-4">
+          确定要彻底删除这张卡片吗？此操作无法撤销！
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setPermanentDeleteConfirm(null)}>取消</Button>
+          <Button variant="danger" onClick={() => permanentDeleteConfirm && handlePermanentDelete(permanentDeleteConfirm)}>彻底删除</Button>
         </div>
       </Modal>
     </div>

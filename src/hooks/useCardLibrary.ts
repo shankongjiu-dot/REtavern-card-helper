@@ -15,22 +15,28 @@ interface CardRecord {
   _meta: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;
   [key: string]: unknown;
 }
 
 export function useCardLibrary() {
   const [cards, setCards] = useState<CardRecord[]>([]);
+  const [trashCards, setTrashCards] = useState<CardRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /** Load all cards from IndexedDB */
+  /** Load all cards from IndexedDB (active + trash) */
   const loadCards = useCallback(async () => {
     setLoading(true);
     try {
       const all = await db.cards.orderBy('updatedAt').reverse().toArray();
-      setCards(all as CardRecord[]);
+      const active = all.filter(c => !c.deletedAt) as CardRecord[];
+      const trashed = all.filter(c => c.deletedAt) as CardRecord[];
+      setCards(active);
+      setTrashCards(trashed);
     } catch (err) {
       console.error('Failed to load cards:', err);
       setCards([]);
+      setTrashCards([]);
     } finally {
       setLoading(false);
     }
@@ -56,11 +62,35 @@ export function useCardLibrary() {
     return (await db.cards.get(id)) as CardRecord | undefined;
   }, []);
 
-  /** Delete a card by ID */
+  /** Soft delete a card (move to trash) */
   const deleteCard = useCallback(async (id: number) => {
+    await db.cards.update(id, { deletedAt: new Date() });
+    await loadCards();
+  }, [loadCards]);
+
+  /** Restore a card from trash */
+  const restoreCard = useCallback(async (id: number) => {
+    await db.cards.update(id, { deletedAt: null });
+    await loadCards();
+  }, [loadCards]);
+
+  /** Permanently delete a card from trash */
+  const permanentDelete = useCallback(async (id: number) => {
     await db.cards.delete(id);
     // Also delete associated chat sessions
     await db.chat_sessions.where('cardId').equals(id).delete();
+    await loadCards();
+  }, [loadCards]);
+
+  /** Empty the trash (permanently delete all trashed cards) */
+  const emptyTrash = useCallback(async () => {
+    const trashed = await db.cards.where('deletedAt').above(new Date(0)).toArray();
+    for (const card of trashed) {
+      if (card.id) {
+        await db.cards.delete(card.id);
+        await db.chat_sessions.where('cardId').equals(card.id).delete();
+      }
+    }
     await loadCards();
   }, [loadCards]);
 
@@ -73,5 +103,5 @@ export function useCardLibrary() {
     return filtered as CardRecord[];
   }, []);
 
-  return { cards, loading, saveCard, getCard, deleteCard, searchCards, loadCards };
+  return { cards, trashCards, loading, saveCard, getCard, deleteCard, restoreCard, permanentDelete, emptyTrash, searchCards, loadCards };
 }
