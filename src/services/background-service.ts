@@ -6,7 +6,7 @@
 import { getThemeSettings } from './theme-service';
 
 const STORAGE_KEY = 'tavern-bg-image';
-const DEFAULT_BG = 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=1920&q=80';
+const DEFAULT_BG = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=anime%20girl%20with%20white%20cat%20sitting%20on%20green%20grassland%20hill%20sunset%20studio%20ghibli%20style%20beautiful%20peaceful&image_size=landscape_16_9';
 
 /**
  * Apply a background image to the document body.

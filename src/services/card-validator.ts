@@ -12,6 +12,20 @@ interface ValidationResult {
   warnings: string[];
 }
 
+const VALID_POSITIONS = [
+  'before_char',
+  'after_char',
+  'before_example',
+  'after_example',
+  'before_author',
+  'after_author',
+  'at_depth',
+];
+
+function estimateTokens(text: string): number {
+  return Math.round((text || '').length * 1.3);
+}
+
 export function validateCard(card: Record<string, unknown>): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -81,19 +95,54 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
     }
 
     if (charBook.entries && Array.isArray(charBook.entries)) {
+      let constantTokenEstimate = 0;
+      let enabledCount = 0;
+      let disabledWithContentCount = 0;
+      let emptyContentCount = 0;
+
       charBook.entries.forEach((entry: Record<string, unknown>, i: number) => {
         const entryName = (entry.name as string) || `条目 ${i + 1}`;
+        const keys = Array.isArray(entry.keys) ? entry.keys as string[] : [];
+        const secondaryKeys = Array.isArray(entry.secondary_keys) ? entry.secondary_keys as string[] : [];
+        const content = typeof entry.content === 'string' ? entry.content : '';
+        const enabled = entry.enabled !== false;
+        const constant = entry.constant === true;
+        const selective = entry.selective === true;
+        const probability = entry.extensions && typeof entry.extensions === 'object'
+          ? ((entry.extensions as Record<string, unknown>).probability as number | undefined)
+          : undefined;
+
+        if (enabled) enabledCount++;
+        if (!enabled && content.trim()) disabledWithContentCount++;
+        if (!content.trim()) emptyContentCount++;
+        if (enabled && constant) constantTokenEstimate += estimateTokens(content);
 
         // keys: required for non-constant entries
         if (!entry.keys || !Array.isArray(entry.keys)) {
           warnings.push(`世界书条目 "${entryName}" 缺少 keys 数组`);
-        } else if ((entry.keys as string[]).length === 0 && !entry.constant) {
+        } else if (keys.length === 0 && !constant) {
           warnings.push(`世界书条目 "${entryName}" 没有触发关键词（非常量条目将无法被激活）`);
         }
 
+        if (!constant && keys.some((key) => key.trim().length === 1)) {
+          warnings.push(`世界书条目 "${entryName}" 存在单字符触发词，容易误触发`);
+        }
+
+        if (selective && secondaryKeys.length === 0) {
+          warnings.push(`世界书条目 "${entryName}" 启用了 selective 但没有 secondary_keys`);
+        }
+
+        if (enabled && probability === 0) {
+          warnings.push(`世界书条目 "${entryName}" 的 probability 为 0，启用后也不会触发`);
+        }
+
         // content: should not be empty
-        if (!entry.content || typeof entry.content !== 'string' || !(entry.content as string).trim()) {
+        if (!content.trim()) {
           warnings.push(`世界书条目 "${entryName}" 内容为空`);
+        }
+
+        if (content.length > 2500) {
+          warnings.push(`世界书条目 "${entryName}" 内容较长（>2500 字符），建议拆分为多个条目`);
         }
 
         // insertion_order: should be a number
@@ -102,8 +151,8 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
         }
 
         // position validation
-        if (entry.position && !['before_char', 'after_char'].includes(entry.position as string)) {
-          warnings.push(`世界书条目 "${entryName}" 的 position 应为 'before_char' 或 'after_char'`);
+        if (entry.position && !VALID_POSITIONS.includes(entry.position as string)) {
+          warnings.push(`世界书条目 "${entryName}" 的 position 值无效`);
         }
 
         // entry.extensions must exist
@@ -111,6 +160,23 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
           warnings.push(`世界书条目 "${entryName}" 的 extensions 应为对象`);
         }
       });
+
+      if (enabledCount === 0 && charBook.entries.length > 0) {
+        warnings.push('所有世界书条目都处于禁用状态');
+      }
+
+      if (disabledWithContentCount > 0) {
+        warnings.push(`${disabledWithContentCount} 个有内容的世界书条目处于禁用状态`);
+      }
+
+      if (emptyContentCount > 3) {
+        warnings.push(`存在 ${emptyContentCount} 个空内容世界书条目，建议导出前清理`);
+      }
+
+      const tokenBudget = typeof charBook.token_budget === 'number' ? charBook.token_budget : 1500;
+      if (constantTokenEstimate > tokenBudget) {
+        warnings.push(`常驻世界书约 ${constantTokenEstimate} Token，超过当前世界书预算 ${tokenBudget}`);
+      }
     }
   }
 

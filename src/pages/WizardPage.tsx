@@ -127,10 +127,14 @@ export function WizardPage() {
     .join('\n');
 
   /** Sync character data to world book entries and update draft */
-  const injectCharacterEntries = useCallback(() => {
+  const getDraftWithCharacterEntries = useCallback(() => {
     const { entries, characters } = syncCharacterEntries(draft.characters, draft.lorebookEntries);
-    updateDraft({ lorebookEntries: entries, characters });
-  }, [draft.characters, draft.lorebookEntries, updateDraft]);
+    return { ...draft, lorebookEntries: entries, characters };
+  }, [draft]);
+
+  const injectCharacterEntries = useCallback(() => {
+    updateDraft(getDraftWithCharacterEntries());
+  }, [getDraftWithCharacterEntries, updateDraft]);
 
   /** Navigate to next step, injecting entries when leaving Step 2 */
   const handleNext = useCallback(() => {
@@ -142,7 +146,7 @@ export function WizardPage() {
   }, [currentStep, injectCharacterEntries, goNext]);
 
   const handleSave = async () => {
-    const success = await saveCard();
+    const success = await saveCard(getDraftWithCharacterEntries());
     if (success) {
       navigate('/library');
     }
@@ -304,7 +308,7 @@ export function WizardPage() {
           />
         );
       case 7:
-        return <StepReview draft={draft} />;
+        return <StepReview draft={getDraftWithCharacterEntries()} />;
       default:
         return null;
     }

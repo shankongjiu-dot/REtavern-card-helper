@@ -179,10 +179,11 @@ export function useWizardState(editId?: number) {
   }, [currentStep, validateStep]);
 
   /** Save the card to IndexedDB */
-  const saveCard = useCallback(async () => {
+  const saveCard = useCallback(async (draftOverride?: DraftState) => {
     setSaving(true);
     try {
-      const card = assembleCard(draft, editId);
+      const sourceDraft = draftOverride ?? draft;
+      const card = assembleCard(sourceDraft, editId);
 
       if (editId) {
         const existing = await db.cards.get(editId);

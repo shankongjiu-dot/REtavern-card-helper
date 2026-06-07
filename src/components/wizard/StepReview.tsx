@@ -27,6 +27,10 @@ interface DiagnosisReport {
   highlights: string[];
 }
 
+function estimateTokens(text: string): number {
+  return Math.round((text || '').length * 1.3);
+}
+
 export function StepReview({ draft }: StepReviewProps) {
   const [showJson, setShowJson] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -38,6 +42,18 @@ export function StepReview({ draft }: StepReviewProps) {
   // Assemble card preview
   const card = assembleCard(draft);
   const validation = validateCard(card);
+  const enabledEntries = draft.lorebookEntries.filter(e => e.enabled !== false);
+  const constantEntries = enabledEntries.filter(e => e.constant);
+  const triggerEntries = enabledEntries.filter(e => !e.constant);
+  const emptyEntries = draft.lorebookEntries.filter(e => !e.content.trim());
+  const noKeyEntries = triggerEntries.filter(e => e.keys.length === 0);
+  const neverTriggerEntries = enabledEntries.filter(e => e.probability === 0);
+  const worldbookTokens = draft.lorebookEntries.reduce((sum, e) => sum + estimateTokens(e.content), 0);
+  const constantTokens = constantEntries.reduce((sum, e) => sum + estimateTokens(e.content), 0);
+  const longestEntry = draft.lorebookEntries.reduce((max, entry) =>
+    entry.content.length > max.content.length ? entry : max,
+    { name: '', content: '' } as { name: string; content: string },
+  );
   const jsonString = JSON.stringify(
     { spec: card.spec, spec_version: card.spec_version, data: card.data },
     null,
@@ -90,6 +106,28 @@ export function StepReview({ draft }: StepReviewProps) {
           )}
         </div>
       )}
+
+      {/* Card stats */}
+      <div className="rounded-xl border border-cyan-700/40 bg-cyan-950/20 p-5 mb-4">
+        <h3 className="text-sm font-semibold text-cyan-300 mb-3">卡片统计</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <Stat label="角色" value={draft.characters.filter(c => c.name.trim()).length} />
+          <Stat label="世界书" value={draft.lorebookEntries.length} />
+          <Stat label="启用条目" value={enabledEntries.length} />
+          <Stat label="常驻条目" value={constantEntries.length} />
+          <Stat label="触发条目" value={triggerEntries.length} />
+          <Stat label="世界书估算" value={`~${worldbookTokens} Token`} />
+          <Stat label="常驻估算" value={`~${constantTokens} Token`} />
+          <Stat label="MVU 变量" value={draft.mvu?.variables.length ?? 0} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+          {emptyEntries.length > 0 && <Badge tone="warn">空内容 {emptyEntries.length}</Badge>}
+          {noKeyEntries.length > 0 && <Badge tone="warn">无触发词 {noKeyEntries.length}</Badge>}
+          {neverTriggerEntries.length > 0 && <Badge tone="warn">永不触发 {neverTriggerEntries.length}</Badge>}
+          {longestEntry.content && <Badge tone="info">最长条目：{longestEntry.name || '未命名'} · {longestEntry.content.length} 字</Badge>}
+          {constantTokens > draft.bookTokenBudget && <Badge tone="danger">常驻内容超过预算</Badge>}
+        </div>
+      </div>
 
       {/* Card summary */}
       <div className="space-y-4">
@@ -361,6 +399,25 @@ export function StepReview({ draft }: StepReviewProps) {
       </div>
     </div>
   );
+}
+
+/** Small stat display component */
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-slate-900/50 border border-slate-700/60 px-3 py-2">
+      <p className="text-[10px] text-slate-500">{label}</p>
+      <p className="text-sm font-semibold text-slate-100 mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function Badge({ tone, children }: { tone: 'info' | 'warn' | 'danger'; children: React.ReactNode }) {
+  const cls = tone === 'danger'
+    ? 'bg-red-900/30 text-red-300 border-red-700/50'
+    : tone === 'warn'
+      ? 'bg-amber-900/30 text-amber-300 border-amber-700/50'
+      : 'bg-slate-800 text-slate-300 border-slate-700';
+  return <span className={`rounded border px-2 py-0.5 ${cls}`}>{children}</span>;
 }
 
 /** Simple field display component */

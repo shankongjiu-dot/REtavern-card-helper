@@ -3,7 +3,7 @@
  * Mobile: slides in from left with overlay, closes on navigation.
  */
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X } from 'lucide-react';
+import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText } from 'lucide-react';
 import { BackgroundChanger } from '../shared/BackgroundChanger';
 import { ThemeSettings } from '../shared/ThemeSettings';
 
@@ -14,11 +14,12 @@ interface SidebarProps {
 
 const navItems = [
   { to: '/', label: '首页', icon: Home, end: true },
-  { to: '/settings', label: 'API 设置', icon: Settings },
+  { to: '/preset', label: '写卡预设', icon: ScrollText },
   { to: '/wizard', label: '创建卡片', icon: Wand2 },
   { to: '/library', label: '卡片库', icon: BookOpen },
   { to: '/chat', label: '测试对话', icon: MessageCircle },
   { to: '/dialogue', label: 'AI 创作助手', icon: PenTool },
+  { to: '/settings', label: 'API 设置', icon: Settings },
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
@@ -81,8 +82,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Footer */}
       <div className="px-3 py-2 border-t border-white/5 space-y-1">
-        <BackgroundChanger />
-        <ThemeSettings />
+        <BackgroundChanger sidebarOpen={isOpen} />
+        <ThemeSettings sidebarOpen={isOpen} />
         <p className="text-[10px] text-slate-600 px-2 pt-2 pb-1">吟游手册 v1.0</p>
       </div>
     </aside>

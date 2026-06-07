@@ -83,7 +83,7 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
         <div>
           <h2 className="text-xl font-bold text-white">开场白</h2>
           <p className="text-sm text-slate-400 mt-1">
-            角色在对话开始时发出的第一条消息。可用 {'{{user}}'} 和 {'{{char}}'} 作为占位符。
+            角色在对话开始时发出的第一条消息。可用 {'{{user}}'} 作为用户占位符，角色直接使用设定名称。
           </p>
         </div>
         <div className="flex gap-2">
@@ -140,7 +140,7 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
       <TextArea
         value={firstMessage}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="{{char}} 缓缓睁开眼睛，冰冷的石板地面贴在背上..."
+        placeholder="角色名缓缓睁开眼睛，冰冷的石板地面贴在背上..."
         rows={10}
         className="font-mono"
       />

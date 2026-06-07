@@ -99,12 +99,53 @@ body {
   50% { transform: translateY(-3px); }
 }
 
+@keyframes slideUp {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes badgePop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  10%, 30%, 50%, 70%, 90% { transform: translate3d(-4px, 0, 0); }
+  20%, 40%, 60%, 80% { transform: translate3d(4px, 0, 0); }
+}
+
+@keyframes checkmark {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pulseSlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
 
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
 .animate-slide-in-left {
-  animation: slideInLeft 0.3s ease-out;
+  animation: slideInLeft 0.3s ease-out forwards;
 }
 
 .animate-scale-in {
@@ -123,6 +164,89 @@ body {
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+.animate-badge-pop {
+  animation: badgePop 0.4s ease-out forwards;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-out;
+}
+
+.animate-checkmark {
+  animation: checkmark 0.3s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 3s ease-in-out infinite;
+}
+
+/* Animation delays */
+.animation-delay-100 {
+  animation-delay: 100ms;
+}
+
+.animation-delay-200 {
+  animation-delay: 200ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+
+/* Ensure animations work correctly with initial state */
+.animate-slide-up,
+.animate-fade-in-up,
+.animate-slide-in-left,
+.animate-badge-pop {
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* Performance optimizations for animations */
+.animate-fade-in,
+.animate-slide-up,
+.animate-fade-in-up,
+.animate-slide-in-left,
+.animate-badge-pop,
+.animate-shake,
+.animate-checkmark,
+.animate-float,
+.animate-pulse-slow {
+  backface-visibility: hidden;
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+
+/* Reduce animation duration on mobile for better performance */
+@media (max-width: 767px) {
+  .animate-slide-up {
+    animation-duration: 0.25s;
+  }
+  .animate-fade-in-up {
+    animation-duration: 0.3s;
+  }
+  .animate-slide-in-left {
+    animation-duration: 0.2s;
+  }
+  .animate-badge-pop {
+    animation-duration: 0.25s;
+  }
+  .animate-float {
+    animation-duration: 4s;
+  }
+  .animate-pulse-slow {
+    animation-duration: 4s;
+  }
+}
+
+/* Disable infinite animations on low-end devices */
+@media (max-width: 480px) and (hover: none) {
+  .animate-float,
+  .animate-pulse-slow {
+    animation: none;
+  }
 }
 
 @keyframes spin {

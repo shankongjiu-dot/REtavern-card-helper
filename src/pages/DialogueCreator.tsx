@@ -53,6 +53,7 @@ export function DialogueCreator() {
   const [streamingText, setStreamingText] = useState('');
   const [restored, setRestored] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [isNewMessage, setIsNewMessage] = useState(false);
 
   // ── Restore last viewed chat on mount ──────────────────────────────────────
   useEffect(() => {
@@ -94,6 +95,7 @@ export function DialogueCreator() {
       setMessages(chat.messages);
       setInputValue('');
       setHistoryOpen(false);
+      setIsNewMessage(false);
     }
   }, []);
 
@@ -135,8 +137,9 @@ export function DialogueCreator() {
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingText]);
+    const behavior: ScrollBehavior = isNewMessage ? 'smooth' : 'auto';
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, [messages, streamingText, isNewMessage]);
 
   // ── Auto-resize textarea ──────────────────────────────────────────────────
   const textareaRef = useCallback((el: HTMLTextAreaElement | null) => {
@@ -157,6 +160,7 @@ export function DialogueCreator() {
     setInputValue('');
     setIsStreaming(true);
     setStreamingText('');
+    setIsNewMessage(true);
 
     try {
       const apiMessages: AIMessage[] = [
@@ -182,6 +186,7 @@ export function DialogueCreator() {
     } finally {
       setIsStreaming(false);
       setStreamingText('');
+      setIsNewMessage(false);
     }
   }, [inputValue, isStreaming, messages, currentChatId, saveChat, addToast]);
 

@@ -29,10 +29,10 @@ export interface ThemeSettings {
 }
 
 export const DEFAULT_THEME: ThemeSettings = {
-  bgOverlayOpacity: 90,
-  primaryColor: '#6366f1', // indigo-500
-  surfaceOpacity: 70,
-  blurIntensity: 12,
+  bgOverlayOpacity: 23,
+  primaryColor: '#10b981', // emerald-500
+  surfaceOpacity: 27,
+  blurIntensity: 3,
   textColor: '#f1f5f9', // slate-100
   textShadow: 0,
   textShadowColor: '#000000', // black

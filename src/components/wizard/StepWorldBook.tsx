@@ -42,6 +42,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, onUpdate 
   const [organizeResults, setOrganizeResults] = useState<AIOrganizeSuggestion[] | null>(null);
   // AI key generation state
   const [generatingKeys, setGeneratingKeys] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   // AI expand state
   const [expandingIndex, setExpandingIndex] = useState<number | null>(null);
   const { generateLorebookParsed, generateLorebookSkeleton, organizeEntries, generateEntryKeys, expandLorebookEntry } = useAIGenerate();
@@ -258,6 +259,37 @@ export function StepWorldBook({ entries, cardName, characterSummaries, onUpdate 
     }
   };
 
+  const cleanupEmptyEntries = () => {
+    const updated = entries.filter(e => e.content.trim() || e.name.trim() || e.keys.length > 0);
+    onUpdate(updated);
+    addToast('success', `已清理 ${entries.length - updated.length} 个空条目`);
+  };
+
+  const sortEntries = () => {
+    onUpdate([...entries].sort((a, b) => a.insertion_order - b.insertion_order));
+    addToast('success', '已按 order 排序');
+  };
+
+  const disableEmptyKeyEntries = () => {
+    const updated = entries.map(e => (!e.constant && e.keys.length === 0 ? { ...e, enabled: false } : e));
+    const count = entries.filter(e => !e.constant && e.keys.length === 0 && e.enabled).length;
+    onUpdate(updated);
+    addToast('success', `已禁用 ${count} 个无触发词条目`);
+  };
+
+  const enableAllEntries = () => {
+    onUpdate(entries.map(e => ({ ...e, enabled: true })));
+    addToast('success', '已启用全部条目');
+  };
+
+  const q = searchQuery.trim().toLowerCase();
+  const visibleEntries = q
+    ? entries.map((entry, index) => ({ entry, index })).filter(({ entry }) => {
+      const text = [entry.name, entry.comment, entry.content, entry.keys.join(' '), entry.secondary_keys.join(' ')].join(' ').toLowerCase();
+      return text.includes(q);
+    })
+    : entries.map((entry, index) => ({ entry, index }));
+
   // Stats
   const totalEntries = entries.length;
   const enabledEntries = entries.filter(e => e.enabled).length;
@@ -289,6 +321,27 @@ export function StepWorldBook({ entries, cardName, characterSummaries, onUpdate 
         <span className="bg-amber-900/30 text-amber-300 px-2 py-0.5 rounded">{constantEntries} 常驻</span>
         <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded">~{totalTokens} Token</span>
       </div>
+
+      {/* Batch tools bar */}
+      {entries.length > 0 && (
+        <div className="space-y-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-slate-900/40 border border-slate-700/50">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索名称、内容、关键词..."
+              className="min-w-[220px] flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+            />
+            <Button variant="ghost" size="sm" onClick={sortEntries}>按 order 排序</Button>
+            <Button variant="ghost" size="sm" onClick={enableAllEntries}>全部启用</Button>
+            <Button variant="ghost" size="sm" onClick={disableEmptyKeyEntries}>禁用无触发词</Button>
+            <Button variant="ghost" size="sm" onClick={cleanupEmptyEntries}>清理空条目</Button>
+          </div>
+          {searchQuery && (
+            <p className="text-[11px] text-slate-500">搜索结果：{visibleEntries.length} / {entries.length}</p>
+          )}
+        </div>
+      )}
 
       {/* AI Tools bar */}
       {entries.length > 0 && (
@@ -375,13 +428,13 @@ export function StepWorldBook({ entries, cardName, characterSummaries, onUpdate 
       )}
 
       <div className="space-y-3">
-        {entries.map((entry, i) => {
+        {visibleEntries.map(({ entry, index }) => {
           const isSkeleton = (entry.content || '').length < 120;
           return (
             <div key={entry.id} className="relative">
               <LorebookEntryEditor
                 entry={entry}
-                index={i}
+                index={index}
                 onUpdate={updateEntry}
                 onRemove={removeEntry}
               />
@@ -391,11 +444,11 @@ export function StepWorldBook({ entries, cardName, characterSummaries, onUpdate 
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => handleExpandEntry(i)}
-                    disabled={expandingIndex === i}
+                    onClick={() => handleExpandEntry(index)}
+                    disabled={expandingIndex === index}
                     className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs"
                   >
-                    {expandingIndex === i ? '⏳ 展开中...' : '🦴→📖 AI 展开'}
+                    {expandingIndex === index ? '⏳ 展开中...' : '🦴→📖 AI 展开'}
                   </Button>
                 </div>
               )}

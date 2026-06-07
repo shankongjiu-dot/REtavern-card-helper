@@ -118,23 +118,21 @@ function buildSTExtensions(overrides: {
 /**
  * Build a character-based lorebook entry for auto-injection into the world book.
  */
-function buildCharacterEntry(charName: string, field: 'description' | 'appearance', content: string, order: number) {
-  const isDescription = field === 'description';
-  const label = isDescription ? '角色大纲' : '外貌特征';
+function buildCharacterEntry(charName: string, content: string, order: number) {
   return {
     id: 1000 + order,
-    keys: isDescription ? [charName, ...([])] : [charName],
+    keys: [charName],
     secondary_keys: [],
     content,
-    name: `${charName} - ${label}`,
+    name: `${charName} - 角色设定`,
     enabled: true,
     insertion_order: order,
     case_sensitive: false,
     selective: false,
-    constant: isDescription,
+    constant: true,
     position: 'after_char',
-    priority: isDescription ? 100 : 80,
-    comment: `${charName} 的${label}`,
+    priority: 100,
+    comment: `${charName} 的角色设定`,
     use_regex: false,
     extensions: buildSTExtensions({
       position: 'after_char',
@@ -145,20 +143,10 @@ function buildCharacterEntry(charName: string, field: 'description' | 'appearanc
 }
 
 export function assembleCard(draft: WizardDraft, existingId?: number) {
-  // ── Export mode: always worldbook-first ───────────────────────────────
+  // ── Export mode: worldbook-first ───────────────────────────────
   // description = "", personality = ""
-  // All character content is injected as world book entries (world-book-mcp methodology)
-
-  // Generate character-based world book entries (only description now)
-  const characterEntries: Array<Record<string, unknown>> = [];
-  let entryOrder = 1;
-  for (const c of draft.characters) {
-    if (!c.name) continue;
-    if (c.description) {
-      characterEntries.push(buildCharacterEntry(c.name, 'description', c.description, entryOrder));
-      entryOrder++;
-    }
-  }
+  // Character content is injected through draft.lorebookEntries, which is
+  // synchronized by the wizard before preview/save.
 
   // ── Build `description` (always empty — content lives in world book) ──
   const description = '';
@@ -228,10 +216,10 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
         name: '',
         description: '',
         scan_depth: draft.bookScanDepth ?? 200,
-        token_budget: draft.bookTokenBudget ?? 500,
+        token_budget: draft.bookTokenBudget ?? 1500,
         recursive_scanning: draft.bookRecursiveScanning ?? false,
         extensions: {},
-        entries: [...characterEntries, ...entries],
+        entries,
       },
       tags: draft.tags || [],
       creator: draft.creator || '',
@@ -245,6 +233,7 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
         id: c.id || generateId(),
         name: c.name,
         description: c.description,
+        entryIds: c.entryIds || [],
       })),
     },
 
@@ -329,7 +318,7 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
   const data = (card.data || card) as Record<string, unknown>;
   const meta = (card._meta || {}) as Record<string, unknown>;
 
-  // Reconstruct characters from _meta or description
+  // Reconstruct characters from _meta, description, or generated character entries
   let characters: WizardDraft['characters'] = [];
   if (meta.characters && Array.isArray(meta.characters) && (meta.characters as unknown[]).length > 0) {
     characters = (meta.characters as unknown[]).map((c: unknown) => {
@@ -338,6 +327,7 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
         id: (ch.id as string) || generateId(),
         name: (ch.name as string) || '',
         description: (ch.description as string) || '',
+        entryIds: (ch.entryIds as string[]) || [],
       };
     }) as WizardDraft['characters'];
   } else if (data.description) {
@@ -352,6 +342,20 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
   // Reconstruct lorebook entries from character_book
   const charBook = data.character_book as Record<string, unknown> | undefined;
   const rawEntries = (charBook?.entries || []) as Array<Record<string, unknown>>;
+
+  if (characters.length === 0) {
+    const generatedCharacterEntries = rawEntries.filter((e) => {
+      const name = (e.name as string) || '';
+      return e.constant === true && name.endsWith(' - 角色设定') && typeof e.content === 'string';
+    });
+
+    characters = generatedCharacterEntries.map((e) => ({
+      id: generateId(),
+      name: ((e.name as string) || '').replace(/ - 角色设定$/, ''),
+      description: (e.content as string) || '',
+      entryIds: [(e.id as string) || generateId()],
+    }));
+  }
 
   return {
     cardName: (data.name as string) || (card.name as string) || '',
@@ -402,7 +406,7 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
     character_version: (data.character_version as string) || '',
     tags: (data.tags as string[]) || [],
     bookScanDepth: (charBook?.scan_depth as number) ?? 200,
-    bookTokenBudget: (charBook?.token_budget as number) ?? 500,
+    bookTokenBudget: (charBook?.token_budget as number) ?? 1500,
     bookRecursiveScanning: (charBook?.recursive_scanning as boolean) ?? false,
 
     // MVU config (not stored in V2 spec, separate asset files)

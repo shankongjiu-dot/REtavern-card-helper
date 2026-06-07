@@ -5,7 +5,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { db } from '../db/database';
 import { callAI } from '../services/ai-service';
-import { buildSystemPrompt } from '../services/prompt-builder';
+import { buildSystemPrompt, buildPostHistoryInstructions } from '../services/prompt-builder';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -127,6 +127,11 @@ export function useAIChat(card: CardForChat | null) {
         if (msg.role !== 'system') {
           apiMessages.push({ role: msg.role, content: msg.content });
         }
+      }
+
+      const postHistoryInstructions = buildPostHistoryInstructions(card);
+      if (postHistoryInstructions) {
+        apiMessages.push({ role: 'system', content: postHistoryInstructions });
       }
 
       // Call AI

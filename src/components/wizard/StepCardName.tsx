@@ -5,7 +5,6 @@
  */
 import { TextInput } from '../shared/TextInput';
 import { TagInput } from '../shared/TagInput';
-import { PresetPanel } from './PresetPanel';
 
 interface StepCardNameProps {
   cardName: string;
@@ -41,11 +40,6 @@ export function StepCardName({ cardName, tags, onNameChange, onTagsChange }: Ste
           onChange={onTagsChange}
           placeholder="例如：奇幻、校园、魔法..."
         />
-      </div>
-
-      {/* Preset import section */}
-      <div className="border-t border-white/5 pt-6">
-        <PresetPanel />
       </div>
     </div>
   );

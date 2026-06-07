@@ -1,6 +1,6 @@
 /**
  * Step 5: Example Dialogues (optional).
- * Shows the AI how the character speaks. Uses <START>, {{user}}, {{char}} format.
+ * Shows the AI how the character speaks. Uses <START>, {{user}}, and actual character names.
  * Supports AI generation with real-time streaming progress.
  */
 import { useState, useCallback } from 'react';
@@ -110,12 +110,12 @@ export function StepExampleDialogues({ exampleDialogues, cardName, characterDesc
       <TextArea
         value={exampleDialogues}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={`<START>\n{{user}}: Hello there!\n{{char}}: *looks up* Oh, greetings. I didn't expect company.\n\n<START>\n{{user}}: Tell me about yourself.\n{{char}}: *sighs* It's a long story...`}
+        placeholder={`<START>\n{{user}}: Hello there!\n角色名: *looks up* Oh, greetings. I didn't expect company.\n\n<START>\n{{user}}: Tell me about yourself.\n角色名: *sighs* It's a long story...`}
         rows={12}
         className="font-mono"
       />
       <p className="mt-2 text-xs text-slate-500">
-        格式：每组对话以 {'<START>'} 开头，然后 {'{{user}}'}: 消息，{'{{char}}'}: 回复。写 2-3 组简短对话。
+        格式：每组对话以 {'<START>'} 开头，然后 {'{{user}}'}: 消息，角色名: 回复（用角色设定名称，不要用 {'{{char}}'}）。写 2-3 组简短对话。
       </p>
     </div>
   );

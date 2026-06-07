@@ -4,9 +4,12 @@
 import { useState } from 'react';
 import { fileToDataUrl, setBackground, clearBackground, getStoredBackground } from '../../services/background-service';
 
-export function BackgroundChanger() {
+export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
   const [hasCustomBg, setHasCustomBg] = useState(() => !!getStoredBackground());
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // 移动端关闭侧栏时，自动收起背景面板
+  const effectiveExpanded = sidebarOpen === false ? false : isExpanded;
 
   const handleUpload = async () => {
     const input = document.createElement('input');
@@ -49,7 +52,7 @@ export function BackgroundChanger() {
       </button>
 
       {/* Expanded options */}
-      {isExpanded && (
+      {effectiveExpanded && (
         <div className="absolute bottom-full left-0 right-0 mb-1 p-2 bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-lg">
           <div className="space-y-1.5">
             <button
