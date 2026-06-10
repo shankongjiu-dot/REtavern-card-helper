@@ -257,6 +257,9 @@ export function StepReview({ draft }: StepReviewProps) {
                   正文美化 (&lt;{draft.mvu.storyBeautifyTag}&gt;)
                 </span>
               )}
+              <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-800/40 text-cyan-300">
+                正则美化脚本 (变量更新 + 状态栏)
+              </span>
             </div>
           </div>
         )}

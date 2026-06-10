@@ -1,22 +1,23 @@
 /**
- * App.jsx - Root component with React Router setup.
+ * App.tsx - Root component with React Router setup.
  * Routes: /, /wizard, /wizard/:id, /library, /chat
  */
-import { useEffect } from 'react';
+import { lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
-import { HomePage } from './pages/HomePage';
-import { WizardPage } from './pages/WizardPage';
-import { LibraryPage } from './pages/LibraryPage';
-import { ChatPage } from './pages/ChatPage';
-import { DialogueCreator } from './pages/DialogueCreator';
-import { SettingsPage } from './pages/SettingsPage';
-import { PresetPage } from './pages/PresetPage';
-import { NovelAnalysisPage } from './pages/NovelAnalysisPage';
 import { ToastProvider } from './components/shared/Toast';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { initBackground } from './services/background-service';
 import { initTheme } from './services/theme-service';
+
+const HomePage = lazy(() => import('./pages/HomePage').then(({ HomePage }) => ({ default: HomePage })));
+const WizardPage = lazy(() => import('./pages/WizardPage').then(({ WizardPage }) => ({ default: WizardPage })));
+const LibraryPage = lazy(() => import('./pages/LibraryPage').then(({ LibraryPage }) => ({ default: LibraryPage })));
+const ChatPage = lazy(() => import('./pages/ChatPage').then(({ ChatPage }) => ({ default: ChatPage })));
+const DialogueCreator = lazy(() => import('./pages/DialogueCreator').then(({ DialogueCreator }) => ({ default: DialogueCreator })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
+const PresetPage = lazy(() => import('./pages/PresetPage').then(({ PresetPage }) => ({ default: PresetPage })));
+const NovelAnalysisPage = lazy(() => import('./pages/NovelAnalysisPage').then(({ NovelAnalysisPage }) => ({ default: NovelAnalysisPage })));
 
 export default function App() {
   // Initialize background and theme on app load
@@ -28,21 +29,21 @@ export default function App() {
   return (
     <ToastProvider>
       <ErrorBoundary>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/wizard" element={<WizardPage />} />
-            <Route path="/wizard/:id" element={<WizardPage />} />
-            <Route path="/library" element={<LibraryPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/dialogue" element={<DialogueCreator />} />
-            <Route path="/novel-analysis" element={<NovelAnalysisPage />} />
-            <Route path="/preset" element={<PresetPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/wizard" element={<WizardPage />} />
+              <Route path="/wizard/:id" element={<WizardPage />} />
+              <Route path="/library" element={<LibraryPage />} />
+              <Route path="/chat" element={<ChatPage />} />
+              <Route path="/dialogue" element={<DialogueCreator />} />
+              <Route path="/novel-analysis" element={<NovelAnalysisPage />} />
+              <Route path="/preset" element={<PresetPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
       </ErrorBoundary>
     </ToastProvider>
   );

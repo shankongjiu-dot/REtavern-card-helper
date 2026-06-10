@@ -3,7 +3,7 @@
  * Features glassmorphism design with subtle background blur.
  * Mobile: collapsible sidebar with hamburger menu and overlay.
  */
-import { useState, useCallback } from 'react';
+import { Suspense, useState, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 
@@ -50,9 +50,19 @@ export function AppShell() {
         </div>
 
         <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
-          <Outlet />
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
+    </div>
+  );
+}
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[320px] items-center justify-center">
+      <div className="h-8 w-8 rounded-full border-2 border-slate-700 border-t-[var(--color-primary)] animate-spin" />
     </div>
   );
 }

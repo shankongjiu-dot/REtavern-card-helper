@@ -547,10 +547,9 @@ export const CARD_DIAGNOSIS_PROMPT = () => ({
  * AI models often wrap JSON in ```json ... ``` blocks.
  */
 export function stripMarkdownFences(text: string): string {
-  return text
-    .replace(/^```(?:json|JSON)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '')
-    .trim();
+  const trimmed = text.trim();
+  const fullFence = trimmed.match(/^```(?:json|JSON)?\s*([\s\S]*?)\s*```$/i);
+  return (fullFence?.[1] || trimmed).trim();
 }
 
 /**
@@ -560,7 +559,7 @@ export function stripMarkdownFences(text: string): string {
  * - Unescaped newlines inside string values
  */
 function sanitizeJsonString(raw: string): string {
-  let s = raw;
+  let s = raw.trim().replace(/^\uFEFF/, '');
   // Remove trailing commas: ,} or ,]
   s = s.replace(/,\s*([}\]])/g, '$1');
   // Replace single-quoted keys/values with double-quoted (simple cases)
@@ -569,6 +568,78 @@ function sanitizeJsonString(raw: string): string {
     s = s.replace(/'([^']*)'/g, '"$1"');
   }
   return s;
+}
+
+function tryParseJson(candidate: string): unknown | null {
+  try {
+    return JSON.parse(candidate);
+  } catch { /* continue */ }
+
+  try {
+    return JSON.parse(sanitizeJsonString(candidate));
+  } catch {
+    return null;
+  }
+}
+
+function extractFencedJsonCandidates(text: string): string[] {
+  return Array.from(text.matchAll(/```(?:json|JSON)?\s*([\s\S]*?)```/g))
+    .map(match => match[1]?.trim())
+    .filter((candidate): candidate is string => Boolean(candidate));
+}
+
+function extractBalancedJsonCandidates(text: string): string[] {
+  const candidates: string[] = [];
+  const stack: string[] = [];
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      if (stack.length > 0) inString = true;
+      continue;
+    }
+
+    if (ch === '{' || ch === '[') {
+      if (stack.length === 0) start = i;
+      stack.push(ch === '{' ? '}' : ']');
+      continue;
+    }
+
+    if (ch !== '}' && ch !== ']') continue;
+    if (stack.length === 0) continue;
+
+    const expected = stack[stack.length - 1];
+    if (ch !== expected) {
+      stack.length = 0;
+      start = -1;
+      inString = false;
+      escaped = false;
+      continue;
+    }
+
+    stack.pop();
+    if (stack.length === 0 && start >= 0) {
+      candidates.push(text.slice(start, i + 1));
+      start = -1;
+    }
+  }
+
+  return Array.from(new Set(candidates)).sort((a, b) => b.length - a.length);
 }
 
 /**
@@ -585,48 +656,23 @@ export function parseAIJson(text: string): unknown | null {
   const cleaned = stripMarkdownFences(text);
 
   // Attempt 1: Direct parse
-  try {
-    return JSON.parse(cleaned);
-  } catch { /* continue */ }
+  const direct = tryParseJson(cleaned);
+  if (direct !== null) return direct;
 
   // Attempt 2: Sanitize and retry
   const sanitized = sanitizeJsonString(cleaned);
-  try {
-    return JSON.parse(sanitized);
-  } catch { /* continue */ }
+  const sanitizedResult = tryParseJson(sanitized);
+  if (sanitizedResult !== null) return sanitizedResult;
 
-  // Attempt 3: Extract first JSON object or array
-  const objMatch = cleaned.match(/\{[\s\S]*\}/);
-  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-  const candidates = [objMatch?.[0], arrMatch?.[0]].filter(Boolean) as string[];
-
-  // Sort by length descending — prefer larger matches
-  candidates.sort((a, b) => b.length - a.length);
-
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate);
-    } catch { /* try sanitized */ }
-    try {
-      return JSON.parse(sanitizeJsonString(candidate));
-    } catch { /* continue */ }
-  }
-
-  // Attempt 4: Find all JSON objects/arrays and pick the largest valid one
+  // Attempt 3: Prefer JSON inside code fences, then balanced object/array spans.
   const allMatches = [
-    ...cleaned.matchAll(/\{[\s\S]*?\}/g),
-    ...cleaned.matchAll(/\[[\s\S]*?\]/g),
-  ]
-    .map(m => m[0])
-    .sort((a, b) => b.length - a.length);
+    ...extractFencedJsonCandidates(cleaned),
+    ...extractBalancedJsonCandidates(cleaned),
+  ];
 
   for (const m of allMatches.slice(0, 5)) {
-    try {
-      return JSON.parse(m);
-    } catch { /* skip */ }
-    try {
-      return JSON.parse(sanitizeJsonString(m));
-    } catch { /* skip */ }
+    const parsed = tryParseJson(m);
+    if (parsed !== null) return parsed;
   }
 
   return null;

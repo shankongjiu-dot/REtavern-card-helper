@@ -424,6 +424,124 @@ export function buildMvuDoneBeautifyHtml(): string {
 </div>`;
 }
 
+// ── Regex script generators for card extensions ─────────────────────────
+
+/**
+ * A regex script entry for SillyTavern's extensions.regex_scripts.
+ * Format aligned with st-card-builder and SillyTavern regex extension.
+ */
+export interface RegexScript {
+  id: string;
+  scriptName: string;
+  findRegex: string;
+  replaceString: string;
+  trimStrings: string[];
+  placement: number[];
+  disabled: boolean;
+  markdownOnly: boolean;
+  promptOnly: boolean;
+  runOnEdit: boolean;
+  substituteRegex: number;
+  minDepth: number | null;
+  maxDepth: number | null;
+}
+
+/**
+ * Generate regex scripts for MVU update beautification.
+ * Two scripts: one for "updating" state (shimmer loading), one for "done" state (collapsible panel).
+ *
+ * The regex matches <UpdateVariable>...</UpdateVariable> blocks that MVU outputs
+ * in AI messages, and replaces them with styled HTML panels.
+ *
+ * Reference: tavern_dist (StageDog) MVU beautification approach.
+ */
+export function buildMvuUpdateRegexScripts(): RegexScript[] {
+  const updateBlockRegex = '<UpdateVariable>([\\s\\S]*?)<\\/UpdateVariable>';
+
+  return [
+    {
+      id: 'mvu-update-loading',
+      scriptName: '变量更新中美化',
+      findRegex: updateBlockRegex,
+      replaceString: buildMvuLoadingBeautifyHtml(),
+      trimStrings: [],
+      placement: [1], // AI output only
+      disabled: false,
+      markdownOnly: false,
+      promptOnly: false,
+      runOnEdit: true,
+      substituteRegex: 0,
+      minDepth: null,
+      maxDepth: null,
+    },
+    {
+      id: 'mvu-update-done',
+      scriptName: '变量更新美化',
+      findRegex: updateBlockRegex,
+      replaceString: buildMvuDoneBeautifyHtml(),
+      trimStrings: [],
+      placement: [1], // AI output only
+      disabled: true, // Only one of the two should be active at a time
+      markdownOnly: false,
+      promptOnly: false,
+      runOnEdit: true,
+      substituteRegex: 0,
+      minDepth: null,
+      maxDepth: null,
+    },
+  ];
+}
+
+/**
+ * Generate regex script for status bar beautification.
+ * Matches the status_current_variables block and wraps it with styled HTML.
+ *
+ * This works with the variable-list.md output format which uses
+ * <status_current_variables> tags around the variable display.
+ */
+export function buildStatusBarRegexScript(css: string, htmlTemplate: string): RegexScript {
+  // Match the status variable block and replace with styled panel
+  const findRegex = '<status_current_variables>([\\s\\S]*?)<\\/status_current_variables>';
+
+  // The replacement injects CSS once + the styled HTML panel
+  const replaceString = `<style>${css.replace(/\n/g, '').replace(/\s{2,}/g, ' ')}</style>\n${htmlTemplate}`;
+
+  return {
+    id: 'mvu-status-bar',
+    scriptName: 'MVU 状态栏美化',
+    findRegex,
+    replaceString,
+    trimStrings: [],
+    placement: [1], // AI output only
+    disabled: false,
+    markdownOnly: false,
+    promptOnly: false,
+    runOnEdit: true,
+    substituteRegex: 0,
+    minDepth: null,
+    maxDepth: null,
+  };
+}
+
+/**
+ * Build all regex scripts needed for the card based on MVU config.
+ */
+export function buildAllRegexScripts(config: MvuConfig): RegexScript[] {
+  const scripts: RegexScript[] = [];
+
+  if (!config.enabled || config.variables.length === 0) return scripts;
+
+  // MVU update beautification scripts
+  scripts.push(...buildMvuUpdateRegexScripts());
+
+  // Status bar regex script (only for safe_macro mode)
+  if (config.statusBarEnabled && config.statusBarMode === 'safe_macro' && config.statusBarHtml && config.statusBarCss) {
+    scripts.push(buildStatusBarRegexScript(config.statusBarCss, config.statusBarHtml));
+  }
+
+  return scripts;
+}
+
 // ── Full MVU asset generation ────────────────────────────────────────────
 
 /**

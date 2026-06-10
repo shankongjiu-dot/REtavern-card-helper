@@ -10,6 +10,31 @@
 import { Router } from 'express';
 
 const router = Router();
+const MODEL_LIST_TIMEOUT_MS = 15_000;
+const CHAT_TIMEOUT_BASE_MS = 120_000;
+const STREAM_TIMEOUT_BASE_MS = 180_000;
+const CHAT_TIMEOUT_MAX_MS = 10 * 60_000;
+const STREAM_TIMEOUT_MAX_MS = 20 * 60_000;
+
+function timeoutForTokens(maxTokens, baseMs, maxMs) {
+  const tokenBudget = Number.isFinite(Number(maxTokens)) ? Number(maxTokens) : 2000;
+  const scaledMs = Math.ceil(tokenBudget * 90);
+  return Math.min(Math.max(baseMs, scaledMs), maxMs);
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // ─── POST /api/ai/models ──────────────────────────────────────────────────────
 // Fetch available models from the user's OpenAI-compatible endpoint.
@@ -23,19 +48,13 @@ router.post('/models', async (req, res) => {
       return res.status(400).json({ error: '请填写 API 地址' });
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
+    }, MODEL_LIST_TIMEOUT_MS);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -84,20 +103,14 @@ router.post('/chat', async (req, res) => {
       max_tokens: max_tokens ?? 2000,
     };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
-
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
+    }, timeoutForTokens(max_tokens, CHAT_TIMEOUT_BASE_MS, CHAT_TIMEOUT_MAX_MS));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -140,20 +153,14 @@ router.post('/chat/stream', async (req, res) => {
       stream: true,
     };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
+    }, timeoutForTokens(max_tokens, STREAM_TIMEOUT_BASE_MS, STREAM_TIMEOUT_MAX_MS));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -161,6 +168,10 @@ router.post('/chat/stream', async (req, res) => {
         error: `AI API 返回错误 ${response.status}`,
         details: errorText,
       });
+    }
+
+    if (!response.body) {
+      return res.status(502).json({ error: 'AI API 未返回流式响应体' });
     }
 
     // Set SSE headers
@@ -172,21 +183,22 @@ router.post('/chat/stream', async (req, res) => {
     // Pipe the upstream SSE stream to the client
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        // Forward each line as-is (already SSE formatted)
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() || '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.trimEnd();
+          if (line.startsWith('data:')) {
             res.write(line + '\n\n');
-            // If [DONE], close the stream
-            if (line.includes('[DONE]')) {
-              res.write('data: [DONE]\n\n');
+            if (line.slice(5).trim() === '[DONE]') {
               res.end();
               return;
             }
@@ -199,6 +211,10 @@ router.post('/chat/stream', async (req, res) => {
 
     // Final close if not already closed
     if (!res.writableEnded) {
+      const lastLine = buffer.trim();
+      if (lastLine.startsWith('data:') && lastLine.slice(5).trim() !== '[DONE]') {
+        res.write(lastLine + '\n\n');
+      }
       res.write('data: [DONE]\n\n');
       res.end();
     }

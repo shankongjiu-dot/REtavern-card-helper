@@ -18,6 +18,7 @@
  */
 import { generateId, createEmptyMvuConfig } from '../constants/defaults';
 import type { WizardDraft, LorebookEntry, LorebookPosition } from '../constants/defaults';
+import { buildAllRegexScripts, generateAllMvuAssets } from './mvu-generator';
 
 /**
  * Position string → numeric index mapping.
@@ -55,6 +56,69 @@ const SELECTIVE_LOGIC_REVERSE: Record<number, number> = {
   1: 2,  // not_all → NOT ALL
   2: 3,  // not_any → NOT ANY
 };
+
+/**
+ * Build card-level extensions object.
+ * Includes regex_scripts for MVU beautification and tavern_helper scripts
+ * when MVU is enabled.
+ *
+ * Format aligned with st-card-builder and SillyTavern regex extension.
+ * Reference: tavern_dist (StageDog) MVU beautification approach.
+ */
+function buildCardExtensions(draft: WizardDraft): Record<string, unknown> {
+  const ext: Record<string, unknown> = {};
+  const mvu = draft.mvu;
+
+  if (!mvu || !mvu.enabled || mvu.variables.length === 0) return ext;
+
+  // Generate MVU assets (schema, initvar, update-rules, etc.)
+  const generated = generateAllMvuAssets(mvu);
+
+  // Build regex scripts for MVU update beautification + status bar
+  const regexScripts = buildAllRegexScripts(generated);
+  if (regexScripts.length > 0) {
+    ext.regex_scripts = regexScripts;
+  }
+
+  // Build tavern_helper scripts (MVU schema + update rules as scripts)
+  // This allows SillyTavern's TavernHelper extension to run the MVU scripts
+  const scripts: Record<string, unknown>[] = [];
+
+  if (generated.schemaJs) {
+    scripts.push({
+      type: 'script',
+      enabled: true,
+      name: 'MVU Schema',
+      id: 'mvu-schema',
+      content: generated.schemaJs,
+      info: 'MVU variable schema definition',
+      button: { enabled: false, buttons: [] },
+      data: {},
+    });
+  }
+
+  if (generated.updateRulesYaml) {
+    scripts.push({
+      type: 'script',
+      enabled: true,
+      name: 'MVU Update Rules',
+      id: 'mvu-update-rules',
+      content: generated.updateRulesYaml,
+      info: 'MVU variable update rules',
+      button: { enabled: false, buttons: [] },
+      data: {},
+    });
+  }
+
+  if (scripts.length > 0) {
+    ext.tavern_helper = {
+      scripts: scripts,
+      variables: {},
+    };
+  }
+
+  return ext;
+}
 
 /**
  * Build SillyTavern runtime extensions object for a lorebook entry.
@@ -224,7 +288,7 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
       tags: draft.tags || [],
       creator: draft.creator || '',
       character_version: draft.character_version || '1.0',
-      extensions: {},
+      extensions: buildCardExtensions(draft),
     },
 
     // ── App-level metadata (NOT part of Tavern spec, for re-editing) ─────

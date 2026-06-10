@@ -18,7 +18,22 @@ export interface AIRequestOptions {
   messages: AIMessage[];
   temperature?: number;
   max_tokens?: number;
+  /** Writing presets are useful for creative generation, but harmful for strict analysis/translation JSON tasks. */
+  presetMode?: 'force' | 'none';
 }
+
+interface AIRequestPayload {
+  messages: AIMessage[];
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+}
+
+const PRESET_HEADER = '## 写卡预设规则（必须严格遵守）';
+const DEFAULT_MODEL = 'gpt-3.5-turbo';
+const MAX_RETRIES_CAP = 8;
 
 /**
  * Normalize an API URL by ensuring it ends with /chat/completions.
@@ -63,19 +78,119 @@ export function deriveModelsUrl(baseUrl: string): string {
  * Inject active preset rules into the first system message.
  * All AI calls go through this so every request carries writing preset context.
  */
-function injectPreset(messages: AIMessage[]): AIMessage[] {
+function injectPreset(messages: AIMessage[], presetMode: AIRequestOptions['presetMode'] = 'force'): AIMessage[] {
+  if (presetMode === 'none') return messages;
+
   const presetText = getActivePresetsText();
   if (!presetText) return messages;
 
+  const presetSection = `${PRESET_HEADER}\n\n${presetText}`;
+  const firstSystemIndex = messages.findIndex(msg => msg.role === 'system');
+
+  if (firstSystemIndex === -1) {
+    return [{ role: 'system', content: presetSection }, ...messages];
+  }
+
   return messages.map((m, i) => {
-    if (m.role === 'system' && i === messages.findIndex(msg => msg.role === 'system')) {
+    if (i === firstSystemIndex) {
       return {
         ...m,
-        content: `${m.content}\n\n## 写卡预设规则（必须严格遵守）\n\n${presetText}`,
+        content: `${m.content}\n\n${presetSection}`,
       };
     }
     return m;
   });
+}
+
+function clampRetryCount(value: number | undefined): number {
+  if (value == null || Number.isNaN(value)) return 3;
+  return Math.min(Math.max(Math.floor(value), 0), MAX_RETRIES_CAP);
+}
+
+function retryDelay(attempt: number): number {
+  return Math.min(1000 * Math.pow(2, attempt), 10000);
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
+
+function isRetryableError(err: unknown): boolean {
+  return err instanceof TypeError || (err instanceof DOMException && err.name === 'AbortError');
+}
+
+function normalizeMaxTokens(maxTokens: number | undefined): number {
+  const value = Math.floor(maxTokens ?? 2000);
+  return Math.max(1, value);
+}
+
+async function buildPayload(options: AIRequestOptions): Promise<{ payload: AIRequestPayload; maxRetries: number }> {
+  const settings = await getAISettings();
+  const apiUrl = settings.apiUrl?.trim();
+
+  if (!apiUrl) {
+    throw new Error('请先在 AI 设置中填写 API 地址');
+  }
+
+  return {
+    payload: {
+      messages: injectPreset(options.messages, options.presetMode),
+      apiUrl: normalizeApiUrl(apiUrl),
+      apiKey: settings.apiKey,
+      model: settings.model?.trim() || DEFAULT_MODEL,
+      temperature: options.temperature ?? settings.temperature,
+      max_tokens: normalizeMaxTokens(options.max_tokens ?? settings.maxTokens),
+    },
+    maxRetries: clampRetryCount(settings.retryCount),
+  };
+}
+
+async function readProxyError(response: Response, fallback: string): Promise<string> {
+  const raw = await response.text().catch(() => '');
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as { error?: string; details?: string };
+    const detail = parsed.details ? `：${parsed.details.slice(0, 300)}` : '';
+    return `${parsed.error || fallback}${detail}`;
+  } catch {
+    return `${fallback}：${raw.slice(0, 300)}`;
+  }
+}
+
+function textFromContentParts(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+
+  return content
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      if (part && typeof part === 'object') {
+        const record = part as Record<string, unknown>;
+        return typeof record.text === 'string'
+          ? record.text
+          : typeof record.content === 'string'
+            ? record.content
+            : '';
+      }
+      return '';
+    })
+    .join('');
+}
+
+function extractAIContent(data: unknown): string {
+  const record = data as Record<string, unknown>;
+  const choices = Array.isArray(record?.choices) ? record.choices : [];
+  const firstChoice = choices[0] as Record<string, unknown> | undefined;
+  const message = firstChoice?.message as Record<string, unknown> | undefined;
+
+  const content =
+    textFromContentParts(message?.content) ||
+    textFromContentParts(firstChoice?.text) ||
+    textFromContentParts(record?.output_text) ||
+    textFromContentParts((record?.message as Record<string, unknown> | undefined)?.content);
+
+  return content.trim();
 }
 
 /**
@@ -84,24 +199,7 @@ function injectPreset(messages: AIMessage[]): AIMessage[] {
  * Automatically retries on transient failures (5xx, network errors, 429 rate limit).
  */
 export async function callAI(options: AIRequestOptions): Promise<string> {
-  const settings = await getAISettings();
-
-  if (!settings.apiUrl) {
-    throw new Error('请先在 AI 设置中填写 API 地址');
-  }
-
-  const messages = injectPreset(options.messages);
-  const maxRetries = settings.retryCount ?? 3;
-
-  const payload = {
-    messages,
-    apiUrl: normalizeApiUrl(settings.apiUrl),
-    apiKey: settings.apiKey,
-    model: settings.model,
-    temperature: options.temperature ?? settings.temperature,
-    max_tokens: options.max_tokens ?? settings.maxTokens,
-  };
-
+  const { payload, maxRetries } = await buildPayload(options);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -113,34 +211,28 @@ export async function callAI(options: AIRequestOptions): Promise<string> {
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        const errMsg = err.error || `AI API 调用失败 (${response.status})`;
+        const errMsg = await readProxyError(response, `AI API 调用失败 (${response.status})`);
 
-        // Retry on 429 (rate limit) and 5xx (server errors)
-        if (attempt < maxRetries && (response.status === 429 || response.status >= 500)) {
+        if (attempt < maxRetries && isRetryableStatus(response.status)) {
           lastError = new Error(errMsg);
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-          await new Promise(r => setTimeout(r, delay));
+          await new Promise(r => setTimeout(r, retryDelay(attempt)));
           continue;
         }
         throw new Error(errMsg);
       }
 
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
+      const content = extractAIContent(data);
       if (!content) {
         throw new Error('AI 响应没有内容，模型可能拒绝了请求');
       }
       return content;
     } catch (err: unknown) {
-      // Retry on network errors (TypeError: Failed to fetch, etc.)
-      if (attempt < maxRetries && err instanceof TypeError) {
-        lastError = err;
-        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-        await new Promise(r => setTimeout(r, delay));
+      if (attempt < maxRetries && isRetryableError(err)) {
+        lastError = err instanceof Error ? err : new Error('网络请求失败');
+        await new Promise(r => setTimeout(r, retryDelay(attempt)));
         continue;
       }
-      // Don't retry on non-transient errors
       if (err instanceof Error && err.message.includes('请先在')) throw err;
       throw err;
     }
@@ -164,24 +256,7 @@ export async function callAIStreaming(
   options: AIRequestOptions,
   onChunk: StreamCallback,
 ): Promise<string> {
-  const settings = await getAISettings();
-
-  if (!settings.apiUrl) {
-    throw new Error('请先在 AI 设置中填写 API 地址');
-  }
-
-  const messages = injectPreset(options.messages);
-  const maxRetries = settings.retryCount ?? 3;
-
-  const payload = {
-    messages,
-    apiUrl: normalizeApiUrl(settings.apiUrl),
-    apiKey: settings.apiKey,
-    model: settings.model,
-    temperature: options.temperature ?? settings.temperature,
-    max_tokens: options.max_tokens ?? settings.maxTokens,
-  };
-
+  const { payload, maxRetries } = await buildPayload(options);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -193,20 +268,22 @@ export async function callAIStreaming(
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        const errMsg = err.error || `AI API 流式调用失败 (${response.status})`;
+        const errMsg = await readProxyError(response, `AI API 流式调用失败 (${response.status})`);
 
-        if (attempt < maxRetries && (response.status === 429 || response.status >= 500)) {
+        if (attempt < maxRetries && isRetryableStatus(response.status)) {
           lastError = new Error(errMsg);
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-          await new Promise(r => setTimeout(r, delay));
+          await new Promise(r => setTimeout(r, retryDelay(attempt)));
           continue;
         }
         throw new Error(errMsg);
       }
 
       // Stream established — no more retries from here
-      const reader = response.body!.getReader();
+      if (!response.body) {
+        throw new Error('AI 流式响应为空');
+      }
+
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
       let buffer = '';
@@ -219,15 +296,20 @@ export async function callAIStreaming(
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
+        for (const rawLine of lines) {
+          const line = rawLine.trimEnd();
+          if (line.startsWith('data:')) {
+            const data = line.slice(5).trim();
             if (data === '[DONE]') {
               return fullText;
             }
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
+              const choice = parsed.choices?.[0];
+              const content =
+                textFromContentParts(choice?.delta?.content) ||
+                textFromContentParts(choice?.message?.content) ||
+                textFromContentParts(choice?.text);
               if (content) {
                 fullText += content;
                 onChunk(content, fullText);
@@ -241,10 +323,9 @@ export async function callAIStreaming(
 
       return fullText;
     } catch (err: unknown) {
-      if (attempt < maxRetries && err instanceof TypeError) {
-        lastError = err;
-        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-        await new Promise(r => setTimeout(r, delay));
+      if (attempt < maxRetries && isRetryableError(err)) {
+        lastError = err instanceof Error ? err : new Error('网络请求失败');
+        await new Promise(r => setTimeout(r, retryDelay(attempt)));
         continue;
       }
       if (err instanceof Error && err.message.includes('请先在')) throw err;
@@ -273,8 +354,7 @@ export async function fetchModels(
   });
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-    throw new Error(err.error || `获取模型列表失败 (${response.status})`);
+    throw new Error(await readProxyError(response, `获取模型列表失败 (${response.status})`));
   }
 
   const data = await response.json();

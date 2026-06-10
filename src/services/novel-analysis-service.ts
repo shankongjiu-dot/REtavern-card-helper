@@ -239,7 +239,7 @@ ${sample}
 - 文风必须单独生成至少 1 条世界书，用于后续创作保持风格。`;
 
   const safeOutputMaxTokens = Math.min(Math.max(Math.floor(outputMaxTokens || DEFAULT_NOVEL_OUTPUT_MAX_TOKENS), 4000), 300000);
-  const text = await callAIWithPrompt(system, user, { temperature: 0.7, max_tokens: safeOutputMaxTokens });
+  const text = await callAIWithPrompt(system, user, { temperature: 0.7, max_tokens: safeOutputMaxTokens, presetMode: 'none' });
   const parsed = parseAIJson(text) as NovelAnalysisResult | null;
   if (!parsed) throw new Error('AI 返回内容无法解析为 JSON，请重试或减少文本长度');
 
@@ -343,7 +343,7 @@ ${sample}
 - 文风必须单独生成至少 1 条世界书，用于后续创作保持风格。`;
 
   const safeOutputMaxTokens = Math.min(Math.max(Math.floor(outputMaxTokens || DEFAULT_NOVEL_OUTPUT_MAX_TOKENS), 4000), 300000);
-  const text = await callAIWithPromptStreaming(system, user, onChunk, { temperature: 0.7, max_tokens: safeOutputMaxTokens });
+  const text = await callAIWithPromptStreaming(system, user, onChunk, { temperature: 0.7, max_tokens: safeOutputMaxTokens, presetMode: 'none' });
   const parsed = parseAIJson(text) as NovelAnalysisResult | null;
   if (!parsed) throw new Error('AI 返回内容无法解析为 JSON，请重试或减少文本长度');
 

@@ -37,7 +37,7 @@ export function useAIGenerate() {
    */
   const generateCharacter = useCallback(async (characterName: string, hint: string): Promise<string> => {
     const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 4000 });
+    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
   /**
@@ -51,7 +51,7 @@ export function useAIGenerate() {
     onChunk: StreamCallback,
   ): Promise<string> => {
     const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint);
-    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 4000 });
+    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
   /**
@@ -103,7 +103,7 @@ export function useAIGenerate() {
     rules?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
     const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: 6000 });
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: 6000, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
       comment: sk.comment || '未命名',
@@ -119,7 +119,7 @@ export function useAIGenerate() {
    */
   const generateLorebook = useCallback(async (cardName: string, characterSummaries: string, topic: string, rules?: string): Promise<string> => {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, rules);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 8000 });
+    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 8000, presetMode: 'force' });
   }, []);
 
   /**
@@ -133,7 +133,7 @@ export function useAIGenerate() {
     rules?: string,
   ): Promise<string> => {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, rules);
-    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, max_tokens: 8000 });
+    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, max_tokens: 8000, presetMode: 'force' });
   }, []);
 
   /**
@@ -171,7 +171,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext);
     const maxTokens = targetWordCount ? Math.max(4000, targetWordCount * 3) : 4000;
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: maxTokens });
+    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: maxTokens, presetMode: 'force' });
   }, []);
 
   /** Generate first message with streaming */
@@ -185,13 +185,13 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext);
     const maxTokens = targetWordCount ? Math.max(4000, targetWordCount * 3) : 4000;
-    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: maxTokens });
+    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: maxTokens, presetMode: 'force' });
   }, []);
 
   /** Generate example dialogues */
   const generateExampleDialogues = useCallback(async (cardName: string, characterDescriptions: string, worldbookContext?: string): Promise<string> => {
     const prompts = EXAMPLE_DIALOGUES_PROMPT(cardName, characterDescriptions, worldbookContext);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 6000 });
+    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 6000, presetMode: 'force' });
   }, []);
 
   /** Generate example dialogues with streaming */
@@ -202,7 +202,7 @@ export function useAIGenerate() {
     worldbookContext?: string,
   ): Promise<string> => {
     const prompts = EXAMPLE_DIALOGUES_PROMPT(cardName, characterDescriptions, worldbookContext);
-    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 6000 });
+    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 6000, presetMode: 'force' });
   }, []);
 
   /**
@@ -221,7 +221,7 @@ export function useAIGenerate() {
     constant: boolean;
   }>) => {
     const prompts = ORGANIZE_ENTRIES_PROMPT(entries);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.3, max_tokens: 6000 });
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.3, max_tokens: 6000, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIOrganizeSuggestion[] | null;
     return parsed || [];
   }, []);
@@ -237,7 +237,7 @@ export function useAIGenerate() {
     existingKeys: string[];
   }>) => {
     const prompts = GENERATE_KEYS_PROMPT(entries);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.5, max_tokens: 4000 });
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.5, max_tokens: 4000, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIGeneratedKeys[] | null;
     return parsed || [];
   }, []);
@@ -253,7 +253,7 @@ export function useAIGenerate() {
     firstMessageExcerpt: string,
   ) => {
     const prompts = MVU_VARIABLES_PROMPT(cardName, characterSummaries, worldbookSummary, firstMessageExcerpt);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.6, max_tokens: 5000 });
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.6, max_tokens: 5000, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIGeneratedMvuVariable[] | null;
     return parsed || [];
   }, []);
@@ -275,7 +275,7 @@ export function useAIGenerate() {
   ) => {
     const isSkeleton = (entry.content || '').length < 120;
     const prompts = EXPAND_ENTRY_PROMPT(entry, characterContext, isSkeleton, userRequirement);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 6000 });
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 6000, presetMode: 'force' });
     const parsed = parseAIJson(text) as { comment?: string; content?: string; keys?: string[]; strategy?: string } | null;
 
     return {
@@ -323,7 +323,7 @@ export function useAIGenerate() {
     const prompts = TRANSLATE_CARD_PROMPT(targetLang);
     const userPrompt = prompts.user.replace('{cardContent}', JSON.stringify(translatable, null, 2));
 
-    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.3, max_tokens: 12000 });
+    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.3, max_tokens: 12000, presetMode: 'none' });
     const parsed = parseAIJson(text) as Record<string, unknown> | null;
     return parsed;
   }, []);
@@ -374,7 +374,7 @@ export function useAIGenerate() {
     const prompts = CARD_DIAGNOSIS_PROMPT();
     const userPrompt = prompts.user.replace('{cardContent}', JSON.stringify(diagContent, null, 2));
 
-    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.4, max_tokens: 4000 });
+    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.4, max_tokens: 4000, presetMode: 'none' });
     return parseAIJson(text) as ReturnType<typeof diagnoseCard> extends Promise<infer T> ? T : never;
   }, []);
 
