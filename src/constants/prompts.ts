@@ -27,8 +27,18 @@
  *
  * Writing methodology: 性格调色盘 (Personality Palette) from tavern-cards.
  */
-export const CHARACTER_GENERATE_PROMPT = (characterName: string, userConstraints: string) => {
+export const CHARACTER_GENERATE_PROMPT = (
+  characterName: string,
+  userConstraints: string,
+  otherCharactersContext?: string,
+) => {
   const hasConstraints = userConstraints?.trim().length > 0;
+  const hasOtherChars = !!otherCharactersContext?.trim();
+
+  // Build the shared "other characters" block
+  const otherCharsBlock = hasOtherChars
+    ? `\n\n## 同一作品中的其他角色（已设定，请建立关联）\n${otherCharactersContext}\n\n**重要**：在生成角色描述时，必须考虑与上述角色的关系。如果用户的约束中提到了某个角色名，或在逻辑上应该产生交集（同阵营、敌对、师生、青梅竹马等），请在"关系设定"部分写出具体场景。即使没有直接关联，也请思考潜在的互动可能性。`
+    : '';
 
   return {
     system: `你是一位资深的 SillyTavern 角色卡作者。你的核心工作：
@@ -41,6 +51,7 @@ export const CHARACTER_GENERATE_PROMPT = (characterName: string, userConstraints
 - ✅ 正确做法：从用户的约束中生长出全新的、具体的内容
 - ✅ 正确做法：替用户想象那些他没写但角色必须有的细节
 - 最终输出的描述中，必须有大量用户没写过的全新内容
+${hasOtherChars ? '\n- ✅ 正确做法：参考已有角色信息，建立角色之间的具体关系和互动场景' : ''}
 
 扩展技法（全部都要用）：
 1. 具象化：用户写"傲娇" → 你写："对话时频繁使用反问句回避真实想法；被夸奖时会别过头说'才不是'；但独处时会反复回想对方的话"
@@ -60,14 +71,14 @@ export const CHARACTER_GENERATE_PROMPT = (characterName: string, userConstraints
       ? `角色名称："${characterName}"
 
 ## 用户的约束指令（这是原始素材，不是最终输出）
-${userConstraints}
+${userConstraints}${otherCharsBlock}
 
 ---
 
 **你的任务**：以上面用户的约束指令为种子，创造一份完整、丰富的角色描述。
 - 用户的每一句话，你都要展开想象：具体行为是什么？在什么场景下体现？有什么因果？
 - 用户没提到的维度（外貌、背景、日常习惯、与其他角色关系等），你都要补充
-- 最终输出的信息量必须远超用户原始输入
+${hasOtherChars ? '- 必须参考其他角色信息，在关系设定中建立与其他角色的具体关联\n' : ''}- 最终输出的信息量必须远超用户原始输入
 - 写得越长越详细越好，不要节省篇幅
 
 返回一个 JSON 对象，包含以下字段：
@@ -84,7 +95,7 @@ ${userConstraints}
 - 绝对不要只贴抽象性格标签而不给出具体行为衍生
 
 请只输出 JSON 对象。`
-      : `从头开始为 "${characterName}" 创造一个丰富详细的角色卡。
+      : `从头开始为 "${characterName}" 创造一个丰富详细的角色卡。${otherCharsBlock}
 
 返回一个 JSON 对象，包含以下字段：
 {
@@ -587,6 +598,66 @@ ${variables.map(v => `- ${v.path} (${v.kind}): ${v.description || '(无描述)'}
 ${existingIssues || '(无)'}
 
 请分析语义层面的问题并输出修正建议。只输出 JSON 数组。`,
+});
+
+/**
+ * Partial character description modification prompt.
+ * Takes the current description + user instructions and returns a modified version.
+ * Preserves the overall structure while applying targeted changes.
+ */
+export const MODIFY_CHARACTER_PROMPT = (characterName: string) => ({
+  system: `你是一位 SillyTavern 角色卡编辑专家。你的任务是根据用户的修改指令，对角色描述进行**局部修改或润色**。
+
+核心原则：
+- 保留原描述中不需要修改的部分，不做不必要的重写
+- 只在用户指定的方面做出修改，不要擅自改动其他内容
+- 如果用户要求"添加"内容，在合适的位置插入新内容，不要删除已有内容
+- 如果用户要求"润色"某段，保留原意但提升文字质量
+- 保持原描述的格式风格（列表、键值对、标题结构等）
+- 保持指令式写法（"你说话时……"而非"她说话时……"）
+
+输出规则：
+- 直接输出修改后的完整描述文本
+- 不要加任何解释、前缀或 markdown 代码块
+- 不要输出"修改了以下内容"之类的说明`,
+  user: `角色名称：${characterName}
+
+## 当前角色描述
+{currentDescription}
+
+## 修改指令
+{instructions}
+
+请直接输出修改后的完整描述：`,
+});
+
+/**
+ * Polish/rewrite selected text within a character description.
+ * Only rewrites the selected portion while keeping the rest intact.
+ */
+export const POLISH_SELECTION_PROMPT = (characterName: string, fullText: string, selectedText: string) => ({
+  system: `你是一位 SillyTavern 角色卡文字润色专家。用户选中了角色描述中的一段文字，请你对其进行润色改写。
+
+核心原则：
+- 只改写用户选中的部分
+- 保持原文的核心信息和意图不变
+- 提升文字质量：更具体、更有画面感、更符合角色卡写作规范
+- 用具体行为替代抽象标签
+- 保持指令式写法（"你说话时……"而非"她说话时……"）
+- 保持与上下文一致的格式风格
+
+输出规则：
+- 只输出润色后的文字，不要加任何解释
+- 不要输出整段描述，只输出选中部分的改写结果`,
+  user: `角色名称：${characterName}
+
+## 选中的文字（请润色这段）
+${selectedText}
+
+## 上下文参考（仅供理解，不要输出）
+${fullText.length > 1000 ? fullText.slice(0, 500) + '\n...(中间省略)...\n' + fullText.slice(-500) : fullText}
+
+请输出润色后的文字：`,
 });
 
 /**

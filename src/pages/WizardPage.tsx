@@ -23,6 +23,17 @@ import { generateId, createEmptyLorebookEntry } from '../constants/defaults';
 import type { LorebookEntry, WizardCharacter } from '../constants/defaults';
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
 
+/** A single version in the character generation history */
+export interface CharacterVersion {
+  id: string;
+  /** The text content of this version */
+  content: string;
+  /** When this version was created */
+  timestamp: number;
+  /** Whether this is the user's original input (not AI-generated) */
+  isOriginal: boolean;
+}
+
 /**
  * Sync character data → world book entries.
  * For each character with content, creates or updates a "角色设定" entry.
@@ -109,9 +120,62 @@ export function WizardPage() {
   const [stepError, setStepError] = useState<string | null>(null);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
+  const [modifyingIndex, setModifyingIndex] = useState<number | null>(null);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
-  const { generateCharacterParsedStreaming } = useAIGenerate();
+  const { generateCharacterParsedStreaming, modifyCharacterDescription, polishSelection } = useAIGenerate();
   const { addToast } = useToast();
+
+  // ── Character generation history ──────────────────────────────────────
+  const [characterHistory, setCharacterHistory] = useState<Record<string, CharacterVersion[]>>({});
+
+  /** Get history for a specific character */
+  const getCharacterHistory = useCallback((charId: string): CharacterVersion[] => {
+    return characterHistory[charId] || [];
+  }, [characterHistory]);
+
+  /** Add a version to a character's history and make it the active description */
+  const addToCharacterHistory = useCallback((charId: string, content: string, isOriginal: boolean) => {
+    setCharacterHistory(prev => {
+      const existing = prev[charId] || [];
+      const newVersion: CharacterVersion = {
+        id: generateId(),
+        content,
+        timestamp: Date.now(),
+        isOriginal,
+      };
+      return { ...prev, [charId]: [...existing, newVersion] };
+    });
+  }, []);
+
+  /** Select a version from history, updating the character's description */
+  const selectCharacterVersion = useCallback((charIndex: number, charId: string, versionId: string) => {
+    const history = characterHistory[charId];
+    if (!history) return;
+    const version = history.find(v => v.id === versionId);
+    if (!version) return;
+    updateCharacter(charIndex, { description: version.content });
+  }, [characterHistory, updateCharacter]);
+
+  /** Delete a version from history */
+  const deleteCharacterVersion = useCallback((charId: string, versionId: string) => {
+    setCharacterHistory(prev => {
+      const existing = prev[charId] || [];
+      const filtered = existing.filter(v => v.id !== versionId);
+      if (filtered.length === 0) {
+        const next = { ...prev };
+        delete next[charId];
+        return next;
+      }
+      return { ...prev, [charId]: filtered };
+    });
+  }, []);
+
+  /** Save current description as a new manual version */
+  const saveCurrentAsVersion = useCallback((charId: string, content: string) => {
+    if (!content.trim()) return;
+    addToCharacterHistory(charId, content, false);
+    addToast('success', '已保存为新版本');
+  }, [addToCharacterHistory, addToast]);
 
   useEffect(() => {
     if (loading || editId || importedNovelRef.current) return;
@@ -190,16 +254,34 @@ ${e.content || ''}`)
     setGeneratingIndex(index);
     try {
       const hint = char.description || '';
+
+      // Save current description as original if this is the first generation
+      const existingHistory = characterHistory[char.id] || [];
+      if (existingHistory.length === 0 && hint.trim()) {
+        addToCharacterHistory(char.id, hint, true);
+      }
+
+      // Build context from other already-created characters
+      const otherCharsContext = draft.characters
+        .filter((c, i) => i !== index && c.name?.trim() && c.description?.trim())
+        .map(c => `### ${c.name}\n${c.description!.slice(0, 800)}`)
+        .join('\n\n');
+
       const result = await generateCharacterParsedStreaming(
         char.name,
         hint,
         () => {},
+        otherCharsContext || undefined,
       );
       if (typeof result === 'object' && result !== null) {
         const parsed = result as Record<string, unknown>;
-        const updates: Record<string, unknown> = {};
-        if (parsed.description) updates.description = parsed.description as string;
-        updateCharacter(index, updates);
+        if (parsed.description) {
+          const newDesc = parsed.description as string;
+          // Save AI result to history
+          addToCharacterHistory(char.id, newDesc, false);
+          // Update character description
+          updateCharacter(index, { description: newDesc });
+        }
         addToast('success', `${char.name} 生成完成`);
       }
     } catch (err: unknown) {
@@ -228,18 +310,33 @@ ${e.content || ''}`)
       setBatchProgress({ current: i + 1, total: toGenerate.length });
 
       try {
-        // Pass the full 角色设定 as constraint instructions for AI expansion
         const hint = char.description || '';
+
+        // Save current description as original if this is the first generation
+        const existingHistory = characterHistory[char.id] || [];
+        if (existingHistory.length === 0 && hint.trim()) {
+          addToCharacterHistory(char.id, hint, true);
+        }
+
+        // Build context from ALL other characters (including previously generated ones)
+        const otherCharsContext = draft.characters
+          .filter((c, ci) => ci !== index && c.name?.trim() && c.description?.trim())
+          .map(c => `### ${c.name}\n${c.description!.slice(0, 800)}`)
+          .join('\n\n');
+
         const result = await generateCharacterParsedStreaming(
           char.name,
           hint,
           () => {},
+          otherCharsContext || undefined,
         );
         if (typeof result === 'object' && result !== null) {
           const parsed = result as Record<string, unknown>;
-          const updates: Record<string, unknown> = {};
-          if (parsed.description) updates.description = parsed.description as string;
-          updateCharacter(index, updates);
+          if (parsed.description) {
+            const newDesc = parsed.description as string;
+            addToCharacterHistory(char.id, newDesc, false);
+            updateCharacter(index, { description: newDesc });
+          }
         }
         successCount++;
       } catch (err: unknown) {
@@ -259,13 +356,76 @@ ${e.content || ''}`)
     }
   };
 
+  // ── Partial modification of character description ──────────────────
+  const handleModifyCharacter = async (index: number, instructions: string) => {
+    const char = draft.characters[index];
+    if (!char?.name?.trim() || !char.description?.trim()) return;
+
+    setModifyingIndex(index);
+    try {
+      const currentDesc = char.description;
+      const modifiedDesc = await modifyCharacterDescription(
+        char.name,
+        currentDesc,
+        instructions,
+      );
+
+      if (modifiedDesc && modifiedDesc.trim()) {
+        // Save current to history before replacing
+        addToCharacterHistory(char.id, currentDesc, false);
+        // Save modified result to history
+        addToCharacterHistory(char.id, modifiedDesc.trim(), false);
+        // Update character
+        updateCharacter(index, { description: modifiedDesc.trim() });
+        addToast('success', `${char.name} 局部修改完成`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '修改失败';
+      addToast('error', `修改「${char.name}」失败：${msg}`);
+    } finally {
+      setModifyingIndex(null);
+    }
+  };
+
+  // ── Polish selected text within character description ──────────────
+  const handlePolishSelection = async (index: number, selectedText: string, fullText: string) => {
+    const char = draft.characters[index];
+    if (!char?.name?.trim() || !selectedText) return;
+
+    setModifyingIndex(index);
+    try {
+      const polished = await polishSelection(
+        char.name,
+        fullText,
+        selectedText,
+      );
+
+      if (polished && polished.trim()) {
+        // Replace the selected portion in the full text
+        const newDesc = fullText.replace(selectedText, polished.trim());
+        // Save current to history
+        addToCharacterHistory(char.id, fullText, false);
+        // Save polished result to history
+        addToCharacterHistory(char.id, newDesc, false);
+        // Update character
+        updateCharacter(index, { description: newDesc });
+        addToast('success', `${char.name} 选段润色完成`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '润色失败';
+      addToast('error', `润色「${char.name}」失败：${msg}`);
+    } finally {
+      setModifyingIndex(null);
+    }
+  };
+
   // Update lorebook entries from StepCharacters inline editor
   const handleEntriesUpdate = useCallback((entries: LorebookEntry[]) => {
     updateDraft({ lorebookEntries: entries });
   }, [updateDraft]);
 
   const namedCharacterCount = draft.characters.filter(c => c.name?.trim()).length;
-  const isGenerating = batchGenerating || generatingIndex !== null;
+  const isGenerating = batchGenerating || generatingIndex !== null || modifyingIndex !== null;
 
   if (loading) {
     return (
@@ -295,8 +455,15 @@ ${e.content || ''}`)
             onRemove={removeCharacter}
             onUpdate={updateCharacter}
             onGenerateCharacter={handleGenerateCharacter}
+            onModifyCharacter={handleModifyCharacter}
+            onPolishSelection={handlePolishSelection}
             onEntriesUpdate={handleEntriesUpdate}
             generatingIndex={generatingIndex}
+            modifyingIndex={modifyingIndex}
+            characterHistory={characterHistory}
+            onSelectVersion={selectCharacterVersion}
+            onDeleteVersion={deleteCharacterVersion}
+            onSaveVersion={saveCurrentAsVersion}
           />
         );
       case 3:

@@ -13,7 +13,7 @@
  * Based on world-book-mcp v5 MVU methodology:
  *   schema.js → initvar.yaml → update-rules.yaml → variable-list.md → output-format.md
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { generateId } from '../../constants/defaults';
 import type { MvuConfig, MvuVariable, MvuVariableKind } from '../../constants/defaults';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
@@ -66,6 +66,9 @@ export function StepBeautify({
   const [appliedSet, setAppliedSet] = useState<Set<number>>(new Set());
   const [customBarLoading, setCustomBarLoading] = useState(false);
   const [customBarError, setCustomBarError] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragNodeRef = useRef<HTMLDivElement | null>(null);
   const { generateMvuVariables, correctMvuConfig, generateCustomStatusBar } = useAIGenerate();
 
   // ── Toggle MVU on/off ───────────────────────────────────────────────────
@@ -144,6 +147,19 @@ export function StepBeautify({
     setEditingVarId(newVar.id);
   }, [mvu, onChange]);
 
+  const addSeparator = useCallback(() => {
+    const newVar: MvuVariable = {
+      id: generateId(),
+      path: ['分隔线'],
+      kind: 'string',
+      defaultValue: '',
+      description: '',
+      isSeparator: true,
+    };
+    onChange({ ...mvu, variables: [...mvu.variables, newVar] });
+    setEditingVarId(newVar.id);
+  }, [mvu, onChange]);
+
   const removeVariable = useCallback((id: string) => {
     onChange({ ...mvu, variables: mvu.variables.filter(v => v.id !== id) });
     if (editingVarId === id) setEditingVarId(null);
@@ -155,6 +171,34 @@ export function StepBeautify({
       variables: mvu.variables.map(v => v.id === id ? { ...v, ...updates } : v),
     });
   }, [mvu, onChange]);
+
+  // ── Drag-and-drop reorder ─────────────────────────────────────────────
+
+  const handleDragStart = useCallback((index: number) => {
+    setDragIndex(index);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+      const vars = [...mvu.variables];
+      const [removed] = vars.splice(dragIndex, 1);
+      vars.splice(dragOverIndex, 0, removed);
+      onChange({ ...mvu, variables: vars });
+    }
+    setDragIndex(null);
+    setDragOverIndex(null);
+    dragNodeRef.current = null;
+  }, [dragIndex, dragOverIndex, mvu, onChange]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null);
+  }, []);
 
   // ── Generate preview ───────────────────────────────────────────────────
 
@@ -354,9 +398,14 @@ export function StepBeautify({
               <h3 className="text-sm font-semibold text-indigo-300">
                 变量列表 ({mvu.variables.length})
               </h3>
-              <Button variant="ghost" size="sm" onClick={addVariable}>
-                + 添加变量
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={addSeparator}>
+                  + 分隔线
+                </Button>
+                <Button variant="ghost" size="sm" onClick={addVariable}>
+                  + 添加变量
+                </Button>
+              </div>
             </div>
 
             {mvu.variables.length === 0 ? (
@@ -365,15 +414,36 @@ export function StepBeautify({
               </p>
             ) : (
               <div className="space-y-2">
-                {mvu.variables.map(v => (
-                  <VariableRow
+                {mvu.variables.map((v, index) => (
+                  <div
                     key={v.id}
-                    variable={v}
-                    editing={editingVarId === v.id}
-                    onEdit={() => setEditingVarId(editingVarId === v.id ? null : v.id)}
-                    onUpdate={(updates) => updateVariable(v.id, updates)}
-                    onRemove={() => removeVariable(v.id)}
-                  />
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      // Use a small timeout to avoid interfering with the drag image
+                      dragNodeRef.current = e.currentTarget as HTMLDivElement;
+                      handleDragStart(index);
+                    }}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragLeave={handleDragLeave}
+                    className={`transition-all duration-150 ${
+                      dragIndex === index ? 'opacity-40 scale-[0.98]' : ''
+                    } ${
+                      dragOverIndex === index && dragIndex !== index
+                        ? 'ring-2 ring-indigo-500/60 ring-offset-1 ring-offset-slate-900 rounded-lg'
+                        : ''
+                    }`}
+                  >
+                    <VariableRow
+                      variable={v}
+                      index={index}
+                      editing={editingVarId === v.id}
+                      onEdit={() => setEditingVarId(editingVarId === v.id ? null : v.id)}
+                      onUpdate={(updates) => updateVariable(v.id, updates)}
+                      onRemove={() => removeVariable(v.id)}
+                    />
+                  </div>
                 ))}
               </div>
             )}
@@ -722,12 +792,14 @@ export function StepBeautify({
 
 function VariableRow({
   variable,
+  index,
   editing,
   onEdit,
   onUpdate,
   onRemove,
 }: {
   variable: MvuVariable;
+  index: number;
   editing: boolean;
   onEdit: () => void;
   onUpdate: (updates: Partial<MvuVariable>) => void;
@@ -736,12 +808,92 @@ function VariableRow({
   const dotPath = variable.path.join('.');
   const kindLabel = KIND_OPTIONS.find(k => k.value === variable.kind)?.label ?? variable.kind;
 
+  // ── Separator mode: minimal label-only row ──
+  if (variable.isSeparator) {
+    if (!editing) {
+      return (
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-dashed border-slate-600 bg-slate-800/30 cursor-pointer hover:bg-slate-800/60 transition-colors"
+          onClick={onEdit}
+        >
+          <span
+            className="text-slate-600 cursor-grab active:cursor-grabbing select-none text-lg leading-none shrink-0 hover:text-slate-400 transition-colors"
+            title="拖拽排序"
+            onClick={(e) => e.stopPropagation()}
+          >
+            ⠿
+          </span>
+          <span className="text-sm text-indigo-400 font-semibold tracking-wide">{dotPath}</span>
+          <span className="flex-1 border-b border-slate-700 mx-2" />
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-500">分隔线</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="text-xs text-red-400 hover:text-red-300 ml-2"
+          >
+            x
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-lg border border-indigo-600/50 bg-slate-800/80 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span
+            className="text-slate-600 cursor-grab active:cursor-grabbing select-none text-lg leading-none shrink-0 hover:text-slate-400 transition-colors"
+            title="拖拽排序"
+          >
+            ⠿
+          </span>
+          <span className="text-xs text-slate-500 font-mono">#{index + 1}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-800/40 text-indigo-300">分隔线</span>
+          <span className="text-xs text-slate-500 ml-auto">拖拽左侧手柄调整顺序</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-slate-400 w-16 shrink-0">标题</label>
+          <input
+            type="text"
+            value={variable.path.join('.')}
+            onChange={(e) => {
+              const newPath = e.target.value.split('.').map(s => s.trim()).filter(Boolean);
+              if (newPath.length > 0) onUpdate({ path: newPath });
+            }}
+            className="flex-1 text-sm bg-slate-700 text-white border border-slate-600 rounded px-2 py-1 font-mono"
+            placeholder="分隔线标题"
+          />
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => onUpdate({ isSeparator: false })}
+            className="text-xs text-slate-400 hover:text-slate-200"
+          >
+            转为普通变量
+          </button>
+          <button
+            onClick={onEdit}
+            className="text-xs text-indigo-400 hover:text-indigo-300 ml-auto"
+          >
+            完成编辑
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Regular variable: non-editing view ──
   if (!editing) {
     return (
       <div
         className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 bg-slate-800/50 cursor-pointer hover:bg-slate-800 transition-colors"
         onClick={onEdit}
       >
+        <span
+          className="text-slate-600 cursor-grab active:cursor-grabbing select-none text-lg leading-none shrink-0 hover:text-slate-400 transition-colors"
+          title="拖拽排序"
+          onClick={(e) => e.stopPropagation()}
+        >
+          ⠿
+        </span>
         <div className="flex-1 min-w-0">
           <span className="text-sm text-white font-mono">{dotPath}</span>
           <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
@@ -767,8 +919,20 @@ function VariableRow({
     );
   }
 
+  // ── Regular variable: editing view ──
   return (
     <div className="rounded-lg border border-indigo-600/50 bg-slate-800/80 p-4 space-y-3">
+      {/* Drag handle + header */}
+      <div className="flex items-center gap-2">
+        <span
+          className="text-slate-600 cursor-grab active:cursor-grabbing select-none text-lg leading-none shrink-0 hover:text-slate-400 transition-colors"
+          title="拖拽排序"
+        >
+          ⠿
+        </span>
+        <span className="text-xs text-slate-500 font-mono">#{index + 1}</span>
+        <span className="text-xs text-slate-500 ml-auto">拖拽左侧手柄调整顺序</span>
+      </div>
       {/* Path */}
       <div className="flex items-center gap-2">
         <label className="text-xs text-slate-400 w-16 shrink-0">路径</label>
@@ -902,6 +1066,12 @@ function VariableRow({
           />
           <span className="text-xs text-slate-400">_ 只读 (AI 不更新)</span>
         </label>
+        <button
+          onClick={() => onUpdate({ isSeparator: true, kind: 'string', defaultValue: '' })}
+          className="text-xs text-slate-400 hover:text-slate-200"
+        >
+          转为分隔线
+        </button>
         <button
           onClick={onEdit}
           className="text-xs text-indigo-400 hover:text-indigo-300 ml-auto"

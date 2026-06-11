@@ -13,6 +13,7 @@ import { CharacterEditor } from './CharacterEditor';
 import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
 import type { WizardCharacter, LorebookEntry } from '../../constants/defaults';
+import type { CharacterVersion } from '../../pages/WizardPage';
 
 interface StepCharactersProps {
   characters: WizardCharacter[];
@@ -21,8 +22,15 @@ interface StepCharactersProps {
   onRemove: (index: number) => void;
   onUpdate: (index: number, updates: Partial<WizardCharacter>) => void;
   onGenerateCharacter: (index: number) => void;
+  onModifyCharacter: (index: number, instructions: string) => void;
+  onPolishSelection: (index: number, selectedText: string, fullText: string) => void;
   onEntriesUpdate: (entries: LorebookEntry[]) => void;
   generatingIndex: number | null;
+  modifyingIndex: number | null;
+  characterHistory: Record<string, CharacterVersion[]>;
+  onSelectVersion: (charIndex: number, charId: string, versionId: string) => void;
+  onDeleteVersion: (charId: string, versionId: string) => void;
+  onSaveVersion: (charId: string, content: string) => void;
 }
 
 export function StepCharacters({
@@ -32,8 +40,15 @@ export function StepCharacters({
   onRemove,
   onUpdate,
   onGenerateCharacter,
+  onModifyCharacter,
+  onPolishSelection,
   onEntriesUpdate,
   generatingIndex,
+  modifyingIndex,
+  characterHistory,
+  onSelectVersion,
+  onDeleteVersion,
+  onSaveVersion,
 }: StepCharactersProps) {
   const lastEditorRef = useRef<HTMLDivElement>(null);
 
@@ -95,8 +110,15 @@ export function StepCharacters({
               onUpdate={(updates) => onUpdate(i, updates)}
               onRemove={() => onRemove(i)}
               onGenerate={onGenerateCharacter}
+              onModify={onModifyCharacter}
+              onPolishSelection={onPolishSelection}
               canRemove={characters.length > 1}
               isGenerating={generatingIndex === i}
+              isModifying={modifyingIndex === i}
+              history={characterHistory[char.id] || []}
+              onSelectVersion={(versionId) => onSelectVersion(i, char.id, versionId)}
+              onDeleteVersion={(versionId) => onDeleteVersion(char.id, versionId)}
+              onSaveVersion={(content) => onSaveVersion(char.id, content)}
             />
           </div>
         ))}

@@ -22,6 +22,8 @@ import {
   MVU_VARIABLES_PROMPT,
   TRANSLATE_CARD_PROMPT,
   CARD_DIAGNOSIS_PROMPT,
+  MODIFY_CHARACTER_PROMPT,
+  POLISH_SELECTION_PROMPT,
   parseAIJson,
 } from '../constants/prompts';
 import type {
@@ -35,10 +37,15 @@ import type {
 export function useAIGenerate() {
   /**
    * Generate a character profile (non-streaming).
+   * @param otherCharactersContext - Optional context about other already-created characters
    * @returns Parsed character object or raw text if parse fails
    */
-  const generateCharacter = useCallback(async (characterName: string, hint: string): Promise<string> => {
-    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint);
+  const generateCharacter = useCallback(async (
+    characterName: string,
+    hint: string,
+    otherCharactersContext?: string,
+  ): Promise<string> => {
+    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
@@ -51,8 +58,9 @@ export function useAIGenerate() {
     characterName: string,
     hint: string,
     onChunk: StreamCallback,
+    otherCharactersContext?: string,
   ): Promise<string> => {
-    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint);
+    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
@@ -60,8 +68,12 @@ export function useAIGenerate() {
    * Generate character and parse as JSON.
    * Returns parsed object with name and description.
    */
-  const generateCharacterParsed = useCallback(async (characterName: string, hint: string) => {
-    const text = await generateCharacter(characterName, hint);
+  const generateCharacterParsed = useCallback(async (
+    characterName: string,
+    hint: string,
+    otherCharactersContext?: string,
+  ) => {
+    const text = await generateCharacter(characterName, hint, otherCharactersContext);
     const parsed = parseAIJson(text) as AIGeneratedCharacter | null;
 
     if (!parsed) return { description: text };
@@ -80,8 +92,9 @@ export function useAIGenerate() {
     characterName: string,
     hint: string,
     onChunk: StreamCallback,
+    otherCharactersContext?: string,
   ) => {
-    const text = await generateCharacterStreaming(characterName, hint, onChunk);
+    const text = await generateCharacterStreaming(characterName, hint, onChunk, otherCharactersContext);
     const parsed = parseAIJson(text) as AIGeneratedCharacter | null;
 
     if (!parsed) return { description: text };
@@ -417,6 +430,35 @@ export function useAIGenerate() {
     };
   }, []);
 
+  /**
+   * Partially modify a character description based on user instructions.
+   * Preserves the overall structure while applying targeted changes.
+   */
+  const modifyCharacterDescription = useCallback(async (
+    characterName: string,
+    currentDescription: string,
+    instructions: string,
+  ): Promise<string> => {
+    const prompts = MODIFY_CHARACTER_PROMPT(characterName);
+    const userPrompt = prompts.user
+      .replace('{currentDescription}', currentDescription)
+      .replace('{instructions}', instructions);
+    return callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.8, max_tokens: 4000, presetMode: 'force' });
+  }, []);
+
+  /**
+   * Polish/rewrite a selected portion of text within a character description.
+   * Returns only the rewritten selection, not the full description.
+   */
+  const polishSelection = useCallback(async (
+    characterName: string,
+    fullText: string,
+    selectedText: string,
+  ): Promise<string> => {
+    const prompts = POLISH_SELECTION_PROMPT(characterName, fullText, selectedText);
+    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 2000, presetMode: 'force' });
+  }, []);
+
   return {
     generateCharacter,
     generateCharacterStreaming,
@@ -439,5 +481,7 @@ export function useAIGenerate() {
     diagnoseCard,
     correctMvuConfig,
     generateCustomStatusBar,
+    modifyCharacterDescription,
+    polishSelection,
   };
 }

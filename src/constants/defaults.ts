@@ -124,6 +124,7 @@ export interface MvuVariable {
   max?: number;
   hidden?: boolean;        // $ prefix: invisible to AI
   readonly?: boolean;      // _ prefix: visible but not updatable by AI
+  isSeparator?: boolean;   // true for separator/label-only rows (no value)
 }
 
 /** Suggested MVU variable from AI analysis */

@@ -3,14 +3,19 @@
  * Users chat with AI to brainstorm, review, and improve their cards.
  * All conversations are saved locally and can be revisited anytime.
  * Mobile: collapsible history panel, full-width chat.
+ *
+ * Features:
+ *   - Enter to send on desktop, Enter for newline on mobile (touch devices)
+ *   - Regenerate last AI response
+ *   - Per-session message history with DB persistence
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../components/shared/Button';
 import { useToast } from '../components/shared/Toast';
 import { callAIStreaming } from '../services/ai-service';
 import { db, type CreatorChat } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { History, X } from 'lucide-react';
+import { History, X, RefreshCw } from 'lucide-react';
 import type { AIMessage } from '../services/ai-service';
 
 interface ChatMessage {
@@ -40,6 +45,12 @@ export function DialogueCreator() {
   const { addToast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Detect touch device (mobile / tablet) ──────────────────────────────────
+  const isTouchDevice = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(pointer: coarse)').matches;
+  }, []);
 
   // ── Conversation history from DB ──────────────────────────────────────────
   const allChats = useLiveQuery(() =>
@@ -200,11 +211,63 @@ export function DialogueCreator() {
   }, [handleNewChat, addToast]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // On touch devices (mobile/tablet), Enter always inserts a newline.
+    // Users tap the Send button to submit.
+    if (isTouchDevice) return;
+    // On desktop: Enter sends, Shift+Enter inserts newline
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend]);
+  }, [handleSend, isTouchDevice]);
+
+  // ── Regenerate last AI response ───────────────────────────────────────────
+  const handleRegenerate = useCallback(async () => {
+    if (isStreaming || messages.length < 2) return;
+
+    // Find the last assistant message index
+    const lastAssistantIdx = messages.length - 1;
+    const lastMsg = messages[lastAssistantIdx];
+    if (lastMsg.role !== 'assistant') return;
+
+    // Find the last user message before it
+    const lastUserIdx = messages.slice(0, lastAssistantIdx).findLastIndex(m => m.role === 'user');
+    if (lastUserIdx === -1) return;
+
+    // Remove the last assistant message
+    const trimmedMessages = messages.slice(0, lastAssistantIdx);
+    setMessages(trimmedMessages);
+    setIsStreaming(true);
+    setStreamingText('');
+    setIsNewMessage(true);
+
+    try {
+      const apiMessages: AIMessage[] = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...trimmedMessages.map(m => ({ role: m.role, content: m.content })),
+      ];
+
+      let fullText = '';
+      await callAIStreaming({ messages: apiMessages }, (chunk) => {
+        fullText += chunk;
+        setStreamingText(fullText);
+      });
+
+      const assistantMsg: ChatMessage = { role: 'assistant', content: fullText };
+      const finalMessages = [...trimmedMessages, assistantMsg];
+      setMessages(finalMessages);
+      setStreamingText('');
+
+      await saveChat(currentChatId, finalMessages);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'AI 回复失败';
+      addToast('error', msg);
+    } finally {
+      setIsStreaming(false);
+      setStreamingText('');
+      setIsNewMessage(false);
+    }
+  }, [isStreaming, messages, currentChatId, saveChat, addToast]);
 
   const quickPrompts = [
     '帮我设计一个有反差感的角色',
@@ -328,17 +391,33 @@ export function DialogueCreator() {
               </div>
             )}
 
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm whitespace-pre-wrap leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-800 border border-slate-700 text-slate-200'
-                }`}>
-                  {msg.content}
+            {messages.map((msg, i) => {
+              const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1;
+              return (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm whitespace-pre-wrap leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-800 border border-slate-700 text-slate-200'
+                  }`}>
+                    {msg.content}
+                    {/* Regenerate button on the last assistant message */}
+                    {isLastAssistant && !isStreaming && messages.length >= 2 && (
+                      <div className="mt-2 pt-2 border-t border-slate-700/50 flex items-center gap-2">
+                        <button
+                          onClick={handleRegenerate}
+                          className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-indigo-400 transition-colors"
+                          title="重新生成"
+                        >
+                          <RefreshCw size={12} />
+                          <span>重新生成</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {isStreaming && (
               <div className="flex justify-start">
@@ -365,7 +444,7 @@ export function DialogueCreator() {
                   textareaRef(e.currentTarget);
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="说说你的创作问题，Shift+Enter 换行..."
+                placeholder={isTouchDevice ? "说说你的创作问题..." : "说说你的创作问题，Shift+Enter 换行..."}
                 disabled={isStreaming}
                 rows={1}
               />
