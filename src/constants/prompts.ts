@@ -605,7 +605,13 @@ ${existingIssues || '(无)'}
  * Takes the current description + user instructions and returns a modified version.
  * Preserves the overall structure while applying targeted changes.
  */
-export const MODIFY_CHARACTER_PROMPT = (characterName: string) => ({
+export const MODIFY_CHARACTER_PROMPT = (characterName: string, otherCharactersContext?: string) => {
+  const hasOtherChars = !!otherCharactersContext?.trim();
+  const otherCharsBlock = hasOtherChars
+    ? `\n\n## 同一作品中的其他角色（已设定，修改时请保持关联一致性）\n${otherCharactersContext}`
+    : '';
+
+  return {
   system: `你是一位 SillyTavern 角色卡编辑专家。你的任务是根据用户的修改指令，对角色描述进行**局部修改或润色**。
 
 核心原则：
@@ -615,6 +621,7 @@ export const MODIFY_CHARACTER_PROMPT = (characterName: string) => ({
 - 如果用户要求"润色"某段，保留原意但提升文字质量
 - 保持原描述的格式风格（列表、键值对、标题结构等）
 - 保持指令式写法（"你说话时……"而非"她说话时……"）
+${hasOtherChars ? '- 修改涉及角色关系时，必须参考其他角色的已有设定，确保关系描述一致且具体' : ''}
 
 输出规则：
 - 直接输出修改后的完整描述文本
@@ -623,13 +630,14 @@ export const MODIFY_CHARACTER_PROMPT = (characterName: string) => ({
   user: `角色名称：${characterName}
 
 ## 当前角色描述
-{currentDescription}
+{currentDescription}${otherCharsBlock}
 
 ## 修改指令
 {instructions}
 
 请直接输出修改后的完整描述：`,
-});
+};
+};
 
 /**
  * Polish/rewrite selected text within a character description.

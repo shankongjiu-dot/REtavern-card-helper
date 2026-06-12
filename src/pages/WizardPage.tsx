@@ -264,7 +264,7 @@ ${e.content || ''}`)
       // Build context from other already-created characters
       const otherCharsContext = draft.characters
         .filter((c, i) => i !== index && c.name?.trim() && c.description?.trim())
-        .map(c => `### ${c.name}\n${c.description!.slice(0, 800)}`)
+        .map(c => `### ${c.name}\n${c.description!.slice(0, 2000)}`)
         .join('\n\n');
 
       const result = await generateCharacterParsedStreaming(
@@ -302,6 +302,16 @@ ${e.content || ''}`)
     setBatchGenerating(true);
     setBatchProgress({ current: 0, total: toGenerate.length });
 
+    // Track generated descriptions locally so subsequent characters
+    // can see earlier ones' results (fixes stale closure over draft.characters)
+    const generatedDescriptions = new Map<string, string>();
+    // Pre-fill with existing descriptions from draft
+    for (const c of draft.characters) {
+      if (c.id && c.description?.trim()) {
+        generatedDescriptions.set(c.id, c.description);
+      }
+    }
+
     let successCount = 0;
     let errorCount = 0;
 
@@ -318,10 +328,16 @@ ${e.content || ''}`)
           addToCharacterHistory(char.id, hint, true);
         }
 
-        // Build context from ALL other characters (including previously generated ones)
+        // Build context from ALL other characters, using locally tracked
+        // generated descriptions (which include results from earlier in this loop)
         const otherCharsContext = draft.characters
-          .filter((c, ci) => ci !== index && c.name?.trim() && c.description?.trim())
-          .map(c => `### ${c.name}\n${c.description!.slice(0, 800)}`)
+          .filter((c, ci) => ci !== index && c.name?.trim())
+          .map(c => {
+            // Prefer the latest generated description from our local tracker
+            const desc = generatedDescriptions.get(c.id) || c.description || '';
+            return desc.trim() ? `### ${c.name}\n${desc.slice(0, 2000)}` : null;
+          })
+          .filter((s): s is string => s !== null)
           .join('\n\n');
 
         const result = await generateCharacterParsedStreaming(
@@ -336,6 +352,8 @@ ${e.content || ''}`)
             const newDesc = parsed.description as string;
             addToCharacterHistory(char.id, newDesc, false);
             updateCharacter(index, { description: newDesc });
+            // Store in local tracker for subsequent characters in this batch
+            generatedDescriptions.set(char.id, newDesc);
           }
         }
         successCount++;
@@ -364,10 +382,18 @@ ${e.content || ''}`)
     setModifyingIndex(index);
     try {
       const currentDesc = char.description;
+
+      // Build context from other characters for relationship consistency
+      const otherCharsContext = draft.characters
+        .filter((c, i) => i !== index && c.name?.trim() && c.description?.trim())
+        .map(c => `### ${c.name}\n${c.description!.slice(0, 2000)}`)
+        .join('\n\n');
+
       const modifiedDesc = await modifyCharacterDescription(
         char.name,
         currentDesc,
         instructions,
+        otherCharsContext || undefined,
       );
 
       if (modifiedDesc && modifiedDesc.trim()) {

@@ -438,8 +438,9 @@ export function useAIGenerate() {
     characterName: string,
     currentDescription: string,
     instructions: string,
+    otherCharactersContext?: string,
   ): Promise<string> => {
-    const prompts = MODIFY_CHARACTER_PROMPT(characterName);
+    const prompts = MODIFY_CHARACTER_PROMPT(characterName, otherCharactersContext);
     const userPrompt = prompts.user
       .replace('{currentDescription}', currentDescription)
       .replace('{instructions}', instructions);
