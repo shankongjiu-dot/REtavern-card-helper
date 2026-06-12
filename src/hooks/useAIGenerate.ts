@@ -34,6 +34,40 @@ import type {
   AIGeneratedMvuVariable,
 } from '../constants/defaults';
 
+/**
+ * Post-process AI-generated character to fix common format issues:
+ * - Replace {{user}} in name field with the actual character name
+ * - Replace {{user}} in "姓名：{{user}}" within description
+ */
+function sanitizeCharacterResult(
+  characterName: string,
+  result: { name?: string; description?: string },
+): { name?: string; description?: string } {
+  let name = result.name;
+  let description = result.description;
+
+  // Fix name field: must be the character name, never {{user}}
+  if (!name || name.trim() === '{{user}}' || name.trim() === '') {
+    name = characterName;
+  }
+
+  if (description) {
+    // Fix "姓名：{{user}}" → "姓名：角色名"
+    description = description.replace(
+      /姓名[：:]\s*\{\{user\}\}/gi,
+      `姓名：${characterName}`,
+    );
+    // Fix "身份：{{user}}..." patterns where {{user}} is used as character identity
+    // Only fix if {{user}} appears at the start of an identity line (not in "与{{user}}关系")
+    description = description.replace(
+      /身份[：:]\s*\{\{user\}\}/gi,
+      `身份：${characterName}`,
+    );
+  }
+
+  return { name, description };
+}
+
 export function useAIGenerate() {
   /**
    * Generate a character profile (non-streaming).
@@ -78,10 +112,10 @@ export function useAIGenerate() {
 
     if (!parsed) return { description: text };
 
-    return {
+    return sanitizeCharacterResult(characterName, {
       name: parsed.name,
       description: parsed.description,
-    };
+    });
   }, [generateCharacter]);
 
   /**
@@ -99,10 +133,10 @@ export function useAIGenerate() {
 
     if (!parsed) return { description: text };
 
-    return {
+    return sanitizeCharacterResult(characterName, {
       name: parsed.name,
       description: parsed.description,
-    };
+    });
   }, [generateCharacterStreaming]);
 
   /**
