@@ -36,36 +36,43 @@ import type {
 
 /**
  * Post-process AI-generated character to fix common format issues:
- * - Replace {{user}} in name field with the actual character name
- * - Replace {{user}} in "姓名：{{user}}" within description
+ * - Ensure description has proper ## section headers
+ * - Add missing ## headers when sections exist but are unlabeled
+ * - Ensure proper newline separation between sections
  */
 function sanitizeCharacterResult(
-  characterName: string,
+  _characterName: string,
   result: { name?: string; description?: string },
 ): { name?: string; description?: string } {
-  let name = result.name;
   let description = result.description;
 
-  // Fix name field: must be the character name, never {{user}}
-  if (!name || name.trim() === '{{user}}' || name.trim() === '') {
-    name = characterName;
-  }
-
   if (description) {
-    // Fix "姓名：{{user}}" → "姓名：角色名"
-    description = description.replace(
-      /姓名[：:]\s*\{\{user\}\}/gi,
-      `姓名：${characterName}`,
-    );
-    // Fix "身份：{{user}}..." patterns where {{user}} is used as character identity
-    // Only fix if {{user}} appears at the start of an identity line (not in "与{{user}}关系")
-    description = description.replace(
-      /身份[：:]\s*\{\{user\}\}/gi,
-      `身份：${characterName}`,
-    );
+    // Fix: if description has no ## headers at all but contains known section keywords,
+    // prepend ## headers to create proper structure
+    const hasNoHeaders = !description.includes('## ');
+    if (hasNoHeaders) {
+      const sectionPatterns: [RegExp, string][] = [
+        [/^(基本信息|姓名[：:]|年龄[：:]|身份[：:])/m, '## 基本信息\n'],
+        [/^(外貌|外貌特征|外表|长相)/m, '\n\n## 外貌特征\n'],
+        [/^(性格|性格调色盘|性情|脾气)/m, '\n\n## 性格调色盘\n'],
+        [/^(背景|背景设定|身世|过往|历史)/m, '\n\n## 背景设定\n'],
+        [/^(关系|关系设定|人际|与.*关系)/m, '\n\n## 关系设定\n'],
+      ];
+      for (const [pattern, header] of sectionPatterns) {
+        if (pattern.test(description) && !description.includes(header.trim())) {
+          description = description.replace(pattern, header + '$1');
+        }
+      }
+    }
+
+    // Fix: ensure sections are separated by double newlines before ## headers
+    description = description.replace(/\n(## )/g, '\n\n$1');
+
+    // Fix: collapse triple+ newlines into double
+    description = description.replace(/\n{3,}/g, '\n\n');
   }
 
-  return { name, description };
+  return { name: result.name, description };
 }
 
 export function useAIGenerate() {
