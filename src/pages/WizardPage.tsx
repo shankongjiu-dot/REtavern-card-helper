@@ -275,14 +275,19 @@ ${e.content || ''}`)
       );
       if (typeof result === 'object' && result !== null) {
         const parsed = result as Record<string, unknown>;
-        if (parsed.description) {
-          const newDesc = parsed.description as string;
+        const newDesc = (parsed.description as string)?.trim();
+        if (newDesc && newDesc.length > 20) {
           // Save AI result to history
           addToCharacterHistory(char.id, newDesc, false);
           // Update character description
           updateCharacter(index, { description: newDesc });
+          addToast('success', `${char.name} 生成完成`);
+        } else {
+          console.warn(`[生成] ${char.name} AI 返回内容为空或过短:`, parsed.description);
+          addToast('error', `「${char.name}」AI 返回了空内容，请重试`);
         }
-        addToast('success', `${char.name} 生成完成`);
+      } else {
+        addToast('error', `「${char.name}」AI 返回格式异常，请重试`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '生成失败';
@@ -355,18 +360,24 @@ ${e.content || ''}`)
 
           if (result && typeof result === 'object') {
             const parsed = result as Record<string, unknown>;
-            if (parsed.description) {
-              const newDesc = parsed.description as string;
+            const newDesc = (parsed.description as string)?.trim();
+            if (newDesc && newDesc.length > 20) {
               addToCharacterHistory(char.id, newDesc, false);
               updateCharacter(index, { description: newDesc });
               // Store in local tracker for subsequent characters in this batch
               generatedDescriptions.set(char.id, newDesc);
               console.log(`[批量生成] 角色 ${char.name} 描述已更新 (${newDesc.length} chars)`);
+              successCount++;
             } else {
-              console.warn(`[批量生成] 角色 ${char.name} 返回结果无 description:`, result);
+              console.warn(`[批量生成] 角色 ${char.name} AI 返回内容为空或过短:`, parsed.description);
+              addToast('error', `「${char.name}」AI 返回了空内容，已跳过`);
+              errorCount++;
             }
+          } else {
+            console.warn(`[批量生成] 角色 ${char.name} 返回格式异常:`, result);
+            addToast('error', `「${char.name}」AI 返回格式异常，已跳过`);
+            errorCount++;
           }
-          successCount++;
         } catch (err: unknown) {
           errorCount++;
           const msg = err instanceof Error ? err.message : '未知错误';
