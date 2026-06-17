@@ -9,5 +9,9 @@
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.js" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
