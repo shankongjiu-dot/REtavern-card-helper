@@ -197,6 +197,9 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             newEntries.forEach(e => next.set(e.id, 'collapsed'));
             return next;
           });
+          addToast('success', `已生成 ${newEntries.length} 条世界书条目`);
+        } else {
+          addToast('error', 'AI 返回的内容无法解析为世界书条目，请重试');
         }
       }
       setAiStatus('done');
@@ -207,8 +210,6 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       addToast('error', `世界书生成失败：${msg}`);
     } finally {
       setGenerating(false);
-      setTopic('');
-      setWorldRules('');
     }
   };
 
