@@ -167,7 +167,7 @@ export function useAIGenerate() {
     rules?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
     const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: 6000, presetMode: 'force' });
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: 12000, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
       comment: sk.comment || '未命名',
@@ -191,7 +191,7 @@ export function useAIGenerate() {
     rules?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
     const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules);
-    const text = await callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: 6000, presetMode: 'force' });
+    const text = await callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: 12000, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
       comment: sk.comment || '未命名',
@@ -207,7 +207,7 @@ export function useAIGenerate() {
    */
   const generateLorebook = useCallback(async (cardName: string, characterSummaries: string, topic: string, rules?: string, nsfw?: boolean): Promise<string> => {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, rules, nsfw);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 8000, presetMode: 'force' });
+    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 16000, presetMode: 'force' });
   }, []);
 
   /**
@@ -222,7 +222,7 @@ export function useAIGenerate() {
     nsfw?: boolean,
   ): Promise<string> => {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, rules, nsfw);
-    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, max_tokens: 8000, presetMode: 'force' });
+    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, max_tokens: 16000, presetMode: 'force' });
   }, []);
 
   /**
