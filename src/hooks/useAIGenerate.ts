@@ -178,6 +178,30 @@ export function useAIGenerate() {
   }, []);
 
   /**
+   * Generate lorebook skeleton entries in batch with streaming.
+   * Avoids Vercel serverless timeout by establishing SSE connection early.
+   */
+  const generateLorebookSkeletonStreaming = useCallback(async (
+    cardName: string,
+    characterSummaries: string,
+    topic: string,
+    batchSize: number,
+    existingTitles: string,
+    onChunk: StreamCallback,
+    rules?: string,
+  ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
+    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules);
+    const text = await callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: 6000, presetMode: 'force' });
+    const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
+    return (parsed || []).map((sk) => ({
+      comment: sk.comment || '未命名',
+      content: sk.content || '(待展开)',
+      keys: Array.isArray(sk.keys) ? sk.keys : [],
+      strategy: sk.strategy || 'selective',
+    }));
+  }, []);
+
+  /**
    * Generate lorebook entries in batch.
    * @returns Raw text response
    */
@@ -522,6 +546,7 @@ export function useAIGenerate() {
     generateLorebookParsed,
     generateLorebookParsedStreaming,
     generateLorebookSkeleton,
+    generateLorebookSkeletonStreaming,
     generateFirstMessage,
     generateFirstMessageStreaming,
     generateExampleDialogues,

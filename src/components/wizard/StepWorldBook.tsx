@@ -45,7 +45,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   const [expandingIndex, setExpandingIndex] = useState<number | null>(null);
   // Collapse state: Map of entry ID → expand level
   const [expandLevels, setExpandLevels] = useState<Map<string, EntryExpandLevel>>(new Map());
-  const { generateLorebookParsed, generateLorebookSkeleton, organizeEntries, generateEntryKeys, expandLorebookEntry } = useAIGenerate();
+  const { generateLorebookParsedStreaming, generateLorebookSkeletonStreaming, organizeEntries, generateEntryKeys, expandLorebookEntry } = useAIGenerate();
   const { addToast } = useToast();
 
   /** Cycle expand level: collapsed → preview → edit → collapsed */
@@ -101,8 +101,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           const batchSize = Math.min(remaining, 5);
           batchIndex++;
           const existingTitles = allSkeletons.map((s) => s.comment).join('、');
-          const skeletons = await generateLorebookSkeleton(
-            cardName, characterSummaries, topic, batchSize, existingTitles, consistencyRules || undefined,
+          const skeletons = await generateLorebookSkeletonStreaming(
+            cardName, characterSummaries, topic, batchSize, existingTitles, () => {}, consistencyRules || undefined,
           );
           allSkeletons = [...allSkeletons, ...skeletons];
           remaining -= batchSize;
@@ -134,7 +134,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         addToast('success', `已生成 ${newEntries.length} 条骨架，点击「✨ AI 展开」逐条扩展`);
       } else {
         // ── Full mode: original behavior ──
-        const result = await generateLorebookParsed(cardName, characterSummaries, topic, consistencyRules || undefined, nsfw);
+        const result = await generateLorebookParsedStreaming(cardName, characterSummaries, topic, () => {}, consistencyRules || undefined, nsfw);
         if (Array.isArray(result) && result.length > 0) {
           const newEntries = result.map((item) => {
             const base = createEmptyLorebookEntry();
