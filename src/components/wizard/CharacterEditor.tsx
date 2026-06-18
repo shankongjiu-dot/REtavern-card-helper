@@ -111,7 +111,34 @@ export function CharacterEditor({
   }, [streamingText]);
 
   useEffect(() => { setLocalName(character.name ?? ''); }, [character.name]);
-  useEffect(() => { setLocalDesc(character.description ?? ''); }, [character.description]);
+  useEffect(() => { 
+    console.log('[CharacterEditor 诊断] character.description 变化 → 同步 localDesc:', {
+      charName: character.name,
+      newDescLen: (character.description ?? '').length,
+      newDescPreview: (character.description ?? '').slice(0, 60)
+    });
+    setLocalDesc(character.description ?? ''); 
+  }, [character.description]);
+
+  // Force-sync localDesc when generation finishes (fallback for state timing issues)
+  const prevGeneratingRef = useRef(isGenerating);
+  useEffect(() => {
+    const wasGenerating = prevGeneratingRef.current;
+    prevGeneratingRef.current = isGenerating;
+    if (wasGenerating && !isGenerating) {
+      // Generation just finished — force sync localDesc from character prop
+      const newDesc = character.description ?? '';
+      console.log('[CharacterEditor 诊断] 生成结束，强制同步 localDesc:', {
+        charName: character.name,
+        newDescLen: newDesc.length,
+        newDescPreview: newDesc.slice(0, 60),
+        currentLocalDescLen: localDesc.length
+      });
+      if (newDesc) {
+        setLocalDesc(newDesc);
+      }
+    }
+  }, [isGenerating, character.description]);
 
   const hasName = (character.name ?? '').trim().length > 0;
   const hasHistory = history.length > 0;
