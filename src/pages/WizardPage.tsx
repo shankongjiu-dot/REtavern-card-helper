@@ -5,8 +5,7 @@
  * Architecture: Characters are the source of truth. When generated/edited,
  * their content is auto-injected as world book entries for efficient token usage.
  */
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { flushSync } from 'react-dom';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useWizardState } from '../hooks/useWizardState';
 import { useAIGenerate } from '../hooks/useAIGenerate';
@@ -17,12 +16,12 @@ import { StepCardName } from '../components/wizard/StepCardName';
 import { StepCharacters } from '../components/wizard/StepCharacters';
 import { StepWorldBook } from '../components/wizard/StepWorldBook';
 import { StepFirstMessage } from '../components/wizard/StepFirstMessage';
-import { StepExampleDialogues } from '../components/wizard/StepExampleDialogues';
-import { StepBeautify } from '../components/wizard/StepBeautify';
-import { StepReview } from '../components/wizard/StepReview';
-import { generateId, createEmptyLorebookEntry } from '../constants/defaults';
+import { StepMvuVariables } from '../components/wizard/StepMvuVariables';
+import { StepPolishExport } from '../components/wizard/StepPolishExport';
+import { generateId, createEmptyLorebookEntry, createEmptyMvuConfig } from '../constants/defaults';
 import type { LorebookEntry, WizardCharacter } from '../constants/defaults';
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
+import { useTranslation } from '../i18n/I18nContext';
 
 /** A single version in the character generation history */
 export interface CharacterVersion {
@@ -43,6 +42,7 @@ export interface CharacterVersion {
 function syncCharacterEntries(
   characters: WizardCharacter[],
   existingEntries: LorebookEntry[],
+  t: (key: string, params?: Record<string, string>) => string,
 ): { entries: LorebookEntry[]; characters: WizardCharacter[] } {
   const allCharEntryIds = new Set<string>();
   for (const c of characters) {
@@ -70,18 +70,77 @@ function syncCharacterEntries(
       const entryId = existingId || generateId();
       const existing = existingEntries.find(e => e.id === entryId);
 
-      const entry = existing || createEmptyLorebookEntry();
-      entry.id = entryId;
-      entry.name = `${char.name} - 角色设定`;
-      entry.keys = [char.name];
-      entry.content = char.description;
-      entry.constant = true;
-      entry.insertion_order = 1;
-      entry.priority = 100;
-      entry.comment = `${char.name} 的角色设定`;
-      entry.prevent_recursion = true;
-      charEntryIds.push(entryId);
-      newCharEntries.push(entry);
+      // Split long content (>2000 chars) into multiple entries for better token management
+      const content = char.description.trim();
+      const maxChunkLen = 2000;
+
+      if (content.length > maxChunkLen) {
+        // Split by double-newline paragraphs first, then force-split long paragraphs
+        const paragraphs = content.split(/\n\n+/).filter(p => p.trim());
+        const chunks: string[] = [];
+        let current = '';
+
+        for (const para of paragraphs) {
+          if ((current + '\n\n' + para).length > maxChunkLen && current.length > 0) {
+            chunks.push(current.trim());
+            current = para;
+          } else {
+            current += (current ? '\n\n' : '') + para;
+          }
+        }
+        if (current.trim()) chunks.push(current.trim());
+
+        // Force-split any remaining oversized chunks
+        const finalChunks: string[] = [];
+        for (const chunk of chunks) {
+          if (chunk.length <= maxChunkLen) {
+            finalChunks.push(chunk);
+          } else {
+            let remaining = chunk;
+            while (remaining.length > maxChunkLen) {
+              const cutPoint = remaining.lastIndexOf('\n', maxChunkLen);
+              const point = cutPoint > maxChunkLen * 0.5 ? cutPoint : maxChunkLen;
+              finalChunks.push(remaining.slice(0, point).trim());
+              remaining = remaining.slice(point);
+            }
+            if (remaining.trim()) finalChunks.push(remaining.trim());
+          }
+        }
+
+        // Create entries for each chunk
+        for (let ci = 0; ci < finalChunks.length; ci++) {
+          const subEntryId = ci === 0 ? entryId : generateId();
+          const subExisting = ci === 0 ? existing : undefined;
+          const entry = subExisting ? { ...subExisting } : createEmptyLorebookEntry();
+          entry.id = subEntryId;
+          entry.name = t('wizard.roleSettingEntryName', { name: char.name }) + (ci > 0 ? ` (${ci + 1})` : '');
+          entry.keys = [char.name];
+          entry.content = finalChunks[ci];
+          entry.constant = true;
+          entry.insertion_order = 1;
+          entry.priority = 100 - ci; // earlier chunks get higher priority
+          entry.comment = t('wizard.roleSettingComment', { name: char.name }) + (ci > 0 ? ` (续${ci + 1})` : '');
+          entry.prevent_recursion = true;
+          entry.selective = false;
+          charEntryIds.push(subEntryId);
+          newCharEntries.push(entry);
+        }
+      } else {
+        // Short content: single entry (original behavior)
+        const entry = existing ? { ...existing } : createEmptyLorebookEntry();
+        entry.id = entryId;
+        entry.name = t('wizard.roleSettingEntryName', { name: char.name });
+        entry.keys = [char.name];
+        entry.content = content;
+        entry.constant = true;
+        entry.insertion_order = 1;
+        entry.priority = 100;
+        entry.comment = t('wizard.roleSettingComment', { name: char.name });
+        entry.prevent_recursion = true;
+        entry.selective = false;
+        charEntryIds.push(entryId);
+        newCharEntries.push(entry);
+      }
     }
 
     updatedCharacters.push({ ...char, entryIds: charEntryIds });
@@ -94,6 +153,7 @@ function syncCharacterEntries(
 }
 
 export function WizardPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,6 +175,8 @@ export function WizardPage() {
     goPrev,
     setCurrentStep,
     saveCard,
+    saveDraftNow,
+    clearDraft,
     isEditMode,
   } = useWizardState(editId);
 
@@ -123,6 +185,7 @@ export function WizardPage() {
   const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
   const [modifyingIndex, setModifyingIndex] = useState<number | null>(null);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [pngBuffer, setPngBuffer] = useState<ArrayBuffer | null>(null);
   const { generateCharacterParsedStreaming, modifyCharacterDescription, polishSelection } = useAIGenerate();
   const { addToast } = useToast();
 
@@ -181,8 +244,8 @@ export function WizardPage() {
   const saveCurrentAsVersion = useCallback((charId: string, content: string) => {
     if (!content.trim()) return;
     addToCharacterHistory(charId, content, false);
-    addToast('success', '已保存为新版本');
-  }, [addToCharacterHistory, addToast]);
+    addToast('success', t('wizard.savedAsVersion'));
+  }, [addToCharacterHistory, addToast, t]);
 
   useEffect(() => {
     if (loading || editId || importedNovelRef.current) return;
@@ -193,11 +256,11 @@ export function WizardPage() {
 
     importedNovelRef.current = true;
     updateDraft({
-      cardName: draft.cardName || payload.title || '小说分析角色卡',
+      cardName: draft.cardName || payload.title || t('wizard.cardNameFallback'),
       lorebookEntries: [...draft.lorebookEntries, ...payload.entries],
     });
     setCurrentStep(3);
-    addToast('success', `已导入 ${payload.entries.length} 条小说世界书素材`);
+    addToast('success', t('wizard.importedNovelSuccess', { count: String(payload.entries.length) }));
     navigate('/wizard', { replace: true });
   }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, updateDraft, setCurrentStep, addToast, navigate]);
 
@@ -212,38 +275,26 @@ export function WizardPage() {
     .map((c) => c.name)
     .join(', ');
 
-  // World book summary for MVU prompts
-  const worldbookSummary = draft.lorebookEntries
-    .filter(e => e.name)
-    .map(e => `${e.name}: ${(e.content || '').slice(0, 80)}`)
-    .join('\n');
-
   const worldbookContext = draft.lorebookEntries
     .filter(e => e.enabled !== false && (e.name || e.content))
-    .map((e, index) => `[${index + 1}] ${e.name || e.comment || '未命名条目'}
-触发词: ${(e.keys || []).join('、') || '(无)'}
-类型: ${e.constant ? '常驻' : '触发'} · 位置: ${e.position} · 优先级: ${e.priority}
-内容:
+    .map((e, index) => `[${index + 1}] ${e.name || e.comment || t('wizard.unnamedEntry')}
+${t('characters.keysLabel', { value: (e.keys || []).join('、') || `(${t('common.none')})` })}
+${t('common.type')}: ${e.constant ? t('wizard.entryTypeConstant') : t('wizard.entryTypeTrigger')} · ${t('common.position')}: ${e.position} · ${t('common.priority')}: ${e.priority}
+${t('common.content')}:
 ${e.content || ''}`)
     .join('\n\n---\n\n');
 
-  // Keep a ref to draft so that injectCharacterEntries always reads the latest state
-  const draftRef = useRef(draft);
-  useEffect(() => { draftRef.current = draft; }, [draft]);
-
-  /** Sync character data to world book entries and update draft */
-  const getDraftWithCharacterEntries = useCallback(() => {
-    // Read from ref to always get the latest draft (avoids stale closure issues)
-    const currentDraft = draftRef.current;
-    const { entries, characters } = syncCharacterEntries(currentDraft.characters, currentDraft.lorebookEntries);
-    return { ...currentDraft, lorebookEntries: entries, characters };
-  }, []); // No deps needed — always reads from ref
+  /** Sync character data to world book entries; recomputed whenever draft changes. */
+  const draftWithCharacterEntries = useMemo(() => {
+    const { entries, characters } = syncCharacterEntries(draft.characters, draft.lorebookEntries, t);
+    return { ...draft, lorebookEntries: entries, characters };
+  }, [draft, t]);
 
   const injectCharacterEntries = useCallback(() => {
-    updateDraft(getDraftWithCharacterEntries());
-  }, [getDraftWithCharacterEntries, updateDraft]);
+    updateDraft(draftWithCharacterEntries);
+  }, [draftWithCharacterEntries, updateDraft]);
 
-  /** Navigate to next step, injecting entries when leaving Step 2 */
+  /** Navigate to next step, injecting entries when leaving Step 2. */
   const handleNext = useCallback(() => {
     if (currentStep === 2) {
       injectCharacterEntries();
@@ -253,9 +304,16 @@ ${e.content || ''}`)
   }, [currentStep, injectCharacterEntries, goNext]);
 
   const handleSave = async () => {
-    const success = await saveCard(getDraftWithCharacterEntries());
+    const success = await saveCard(draftWithCharacterEntries);
     if (success) {
       navigate('/library');
+    }
+  };
+
+  const handleClear = async () => {
+    if (window.confirm(t('wizard.clearDraftConfirm'))) {
+      await clearDraft();
+      setStepError(null);
     }
   };
 
@@ -302,25 +360,20 @@ ${e.content || ''}`)
         const parsed = result as Record<string, unknown>;
         const newDesc = (parsed.description as string)?.trim();
         if (newDesc && newDesc.length > 20) {
-          // Update character description (fills the text field; pre-generation content already saved to history above)
-          // Use flushSync to ensure React processes the state update synchronously,
-          // so draftRef.current is updated before we call injectCharacterEntries
-          flushSync(() => {
-            updateCharacter(index, { description: newDesc });
-          });
-          // Now safe to sync world book entries — draftRef.current has the new description
-          injectCharacterEntries();
-          addToast('success', `${char.name} 生成完成`);
+          // Update character description directly — fills the textarea.
+          // World book sync happens when user clicks "下一步" (handleNext → injectCharacterEntries).
+          updateCharacter(index, { description: newDesc });
+          addToast('success', t('wizard.generateComplete', { name: char.name }));
         } else {
           console.warn(`[生成] ${char.name} AI 返回内容为空或过短:`, parsed.description);
-          addToast('error', `「${char.name}」AI 返回了空内容，请重试`);
+          addToast('error', t('wizard.generateEmpty', { name: char.name }));
         }
       } else {
-        addToast('error', `「${char.name}」AI 返回格式异常，请重试`);
+        addToast('error', t('wizard.generateFormatError', { name: char.name }));
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '生成失败';
-      addToast('error', `生成「${char.name}」失败：${msg}`);
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('wizard.generateFailed', { name: char.name, message: msg }));
     } finally {
       setGeneratingIndex(null);
     }
@@ -411,19 +464,19 @@ ${e.content || ''}`)
               successCount++;
             } else {
               console.warn(`[批量生成] 角色 ${char.name} AI 返回内容为空或过短:`, parsed.description);
-              addToast('error', `「${char.name}」AI 返回了空内容，已跳过`);
+              addToast('error', t('wizard.batchGenerateSkippedEmpty', { name: char.name }));
               errorCount++;
             }
           } else {
             console.warn(`[批量生成] 角色 ${char.name} 返回格式异常:`, result);
-            addToast('error', `「${char.name}」AI 返回格式异常，已跳过`);
+            addToast('error', t('wizard.batchGenerateSkippedFormat', { name: char.name }));
             errorCount++;
           }
         } catch (err: unknown) {
           errorCount++;
-          const msg = err instanceof Error ? err.message : '未知错误';
+          const msg = err instanceof Error ? err.message : t('common.unknownError');
           console.error(`[批量生成] 角色 ${char.name} 生成失败:`, err);
-          addToast('error', `「${char.name}」生成失败：${msg}`);
+          addToast('error', t('wizard.batchGenerateFailed', { name: char.name, message: msg }));
         } finally {
           setGeneratingIndex(null);
         }
@@ -435,7 +488,7 @@ ${e.content || ''}`)
       }
     } catch (unexpectedErr) {
       console.error('[批量生成] 意外错误，循环中断:', unexpectedErr);
-      addToast('error', '批量生成意外中断，请查看控制台');
+      addToast('error', t('wizard.batchGenerateInterrupted'));
     }
 
     setGeneratingIndex(null);
@@ -443,9 +496,9 @@ ${e.content || ''}`)
     setBatchProgress({ current: 0, total: 0 });
 
     if (successCount > 0 && errorCount > 0) {
-      addToast('success', `批量生成完成：${successCount} 成功，${errorCount} 失败`);
+      addToast('success', t('wizard.batchGeneratePartialSuccess', { success: String(successCount), error: String(errorCount) }));
     } else if (successCount > 0) {
-      addToast('success', `${successCount} 个角色全部生成完成`);
+      addToast('success', t('wizard.batchGenerateAllSuccess', { count: String(successCount) }));
     }
   };
 
@@ -476,11 +529,11 @@ ${e.content || ''}`)
         addToCharacterHistory(char.id, modifiedDesc.trim(), false);
         // Update character
         updateCharacter(index, { description: modifiedDesc.trim() });
-        addToast('success', `${char.name} 局部修改完成`);
+        addToast('success', t('wizard.modifyComplete', { name: char.name }));
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '修改失败';
-      addToast('error', `修改「${char.name}」失败：${msg}`);
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('wizard.modifyFailed', { name: char.name, message: msg }));
     } finally {
       setModifyingIndex(null);
     }
@@ -508,11 +561,11 @@ ${e.content || ''}`)
         addToCharacterHistory(char.id, newDesc, false);
         // Update character
         updateCharacter(index, { description: newDesc });
-        addToast('success', `${char.name} 选段润色完成`);
+        addToast('success', t('wizard.polishComplete', { name: char.name }));
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '润色失败';
-      addToast('error', `润色「${char.name}」失败：${msg}`);
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('wizard.polishFailed', { name: char.name, message: msg }));
     } finally {
       setModifyingIndex(null);
     }
@@ -576,9 +629,20 @@ ${e.content || ''}`)
             onUpdate={(entries) => updateDraft({ lorebookEntries: entries })}
             nsfw={draft.worldbookNsfw}
             onNsfwChange={(nsfw) => updateDraft({ worldbookNsfw: nsfw })}
+            mvu={draft.mvu}
           />
         );
       case 4:
+        return (
+          <StepMvuVariables
+            mvu={draft.mvu ?? createEmptyMvuConfig()}
+            lorebookEntries={draft.lorebookEntries}
+            onChange={(mvu) => updateDraft({ mvu })}
+            cardName={draft.cardName}
+            characterDescriptions={characterDescriptions}
+          />
+        );
+      case 5:
         return (
           <StepFirstMessage
             firstMessage={draft.firstMessage}
@@ -586,31 +650,22 @@ ${e.content || ''}`)
             characterDescriptions={characterDescriptions}
             worldbookContext={worldbookContext}
             onChange={(msg) => updateDraft({ firstMessage: msg })}
-          />
-        );
-      case 5:
-        return (
-          <StepExampleDialogues
-            exampleDialogues={draft.exampleDialogues}
-            cardName={draft.cardName}
-            characterDescriptions={characterDescriptions}
-            existingWorldbookContext={worldbookContext}
-            onChange={(d) => updateDraft({ exampleDialogues: d })}
+            mvu={draft.mvu}
           />
         );
       case 6:
         return (
-          <StepBeautify
-            mvu={draft.mvu}
+          <StepPolishExport
+            draft={draftWithCharacterEntries}
             cardName={draft.cardName}
-            characterSummaries={characterSummaries}
-            worldbookSummary={worldbookSummary}
-            firstMessageExcerpt={draft.firstMessage}
-            onChange={(mvu) => updateDraft({ mvu })}
+            characterDescriptions={characterDescriptions}
+            worldbookContext={worldbookContext}
+            pngBuffer={pngBuffer}
+            onPngFileSelect={setPngBuffer}
+            onFixEntries={(entries) => updateDraft({ lorebookEntries: entries })}
+            onUpdateDraft={updateDraft}
           />
         );
-      case 7:
-        return <StepReview draft={getDraftWithCharacterEntries()} />;
       default:
         return null;
     }
@@ -624,8 +679,8 @@ ${e.content || ''}`)
       disabled={isGenerating}
     >
       {batchGenerating
-        ? `生成中 ${batchProgress.current}/${batchProgress.total}...`
-        : 'AI 生成全部角色'
+        ? t('wizard.batchGenerateInProgress', { current: String(batchProgress.current), total: String(batchProgress.total) })
+        : t('wizard.batchGenerateAllCharacters')
       }
     </Button>
   ) : undefined;
@@ -633,10 +688,10 @@ ${e.content || ''}`)
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-1">
-        {isEditMode ? '编辑角色卡' : '创建角色卡'}
+        {isEditMode ? t('wizard.titleEdit') : t('wizard.titleCreate')}
       </h1>
       <p className="text-sm text-slate-400 mb-6">
-        {isEditMode ? '修改卡片内容并保存。' : '按步骤创建新的酒馆 AI 角色卡。'}
+        {isEditMode ? t('wizard.subtitleEdit') : t('wizard.subtitleCreate')}
       </p>
 
       <WizardShell
@@ -644,6 +699,8 @@ ${e.content || ''}`)
         onPrev={goPrev}
         onNext={handleNext}
         onSave={handleSave}
+        onSaveDraft={isEditMode ? undefined : saveDraftNow}
+        onClear={isEditMode ? undefined : handleClear}
         stepError={stepError}
         saving={saving}
         extraActions={step2ExtraActions}

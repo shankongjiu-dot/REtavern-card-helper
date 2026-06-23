@@ -11,8 +11,10 @@ import {
   togglePresetPrompt,
   type LoadedPreset,
 } from '../services/preset-service';
+import { useTranslation } from '../i18n/I18nContext';
 
 export function PresetPage() {
+  const { t } = useTranslation();
   const [preset, setPreset] = useState<LoadedPreset | null>(() => loadSavedPreset());
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -31,7 +33,7 @@ export function PresetPage() {
       const loaded = await importPresetFile(file);
       setPreset(loaded);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '导入失败');
+      setError(err instanceof Error ? err.message : t('preset.importError'));
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -52,9 +54,9 @@ export function PresetPage() {
 
   const typeLabel = (type: string) => {
     switch (type) {
-      case 'example': return <span className="text-xs px-2 py-0.5 rounded bg-green-900/30 text-green-300">示例对话</span>;
-      case 'jailbreak': return <span className="text-xs px-2 py-0.5 rounded bg-amber-900/30 text-amber-300">突破规则</span>;
-      default: return <span className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">系统提示</span>;
+      case 'example': return <span className="text-xs px-2 py-0.5 rounded bg-green-900/30 text-green-300">{t('preset.typeExample')}</span>;
+      case 'jailbreak': return <span className="text-xs px-2 py-0.5 rounded bg-amber-900/30 text-amber-300">{t('preset.typeJailbreak')}</span>;
+      default: return <span className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">{t('preset.typeSystem')}</span>;
     }
   };
 
@@ -75,10 +77,10 @@ export function PresetPage() {
           <div className="p-2 rounded-lg bg-indigo-600/20 animate-pulse-slow">
             <span className="text-xl">📋</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">写卡预设管理</h1>
+          <h1 className="text-2xl font-bold text-white">{t('preset.title')}</h1>
         </div>
         <p className="text-sm text-slate-400 ml-11">
-          导入 SillyTavern 预设文件，提取规则作为 AI 生成时的文风和写作指导
+          {t('preset.subtitle')}
         </p>
       </div>
 
@@ -91,7 +93,7 @@ export function PresetPage() {
           className="flex items-center gap-2 group"
         >
           <span className="text-lg transition-transform group-hover:rotate-12">📂</span>
-          {importing ? '导入中...' : preset ? '更换预设' : '导入预设文件'}
+          {importing ? t('preset.importing') : preset ? t('preset.importNew') : t('preset.importFile')}
         </Button>
         {preset && (
           <Button 
@@ -100,14 +102,14 @@ export function PresetPage() {
             className="group hover:scale-105 transition-transform"
           >
             <span className="mr-1 group-hover:animate-bounce">✕</span>
-            清除当前预设
+            {t('preset.clearPreset')}
           </Button>
         )}
         {preset && (
           <span className="text-sm text-slate-400 animate-badge-pop">
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-900/50 text-indigo-300">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-              已启用 {enabledCount}/{preset.prompts.length} 条规则
+              {t('preset.enabledCount', { enabled: String(enabledCount), total: String(preset.prompts.length) })}
             </span>
           </span>
         )}
@@ -130,17 +132,16 @@ export function PresetPage() {
             <div className="text-6xl animate-float">📋</div>
             <div className="absolute -top-2 -right-2 text-2xl animate-bounce">✨</div>
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">暂无预设</h3>
+          <h3 className="text-lg font-semibold text-white mb-2">{t('preset.emptyTitle')}</h3>
           <p className="text-sm text-slate-400 max-w-md mx-auto">
-            导入酒馆 .json 预设文件，提取其中的规则作为 AI 生成时的文风和写作指导。
-            支持 SillyTavern 标准预设格式、system_prompt 格式等。
+            {t('preset.emptyDescription')}
           </p>
           <div className="mt-6 p-4 rounded-lg bg-slate-900/50 text-left text-xs text-slate-500 max-w-md mx-auto animate-slide-up animation-delay-200">
-            <p className="font-medium text-slate-400 mb-2">支持的预设格式：</p>
+            <p className="font-medium text-slate-400 mb-2">{t('preset.supportedFormats')}</p>
             <ul className="list-disc list-inside space-y-1">
-              <li className="hover:text-slate-300 transition-colors cursor-default">SillyTavern 标准预设 (.json)</li>
-              <li className="hover:text-slate-300 transition-colors cursor-default">system_prompt 格式</li>
-              <li className="hover:text-slate-300 transition-colors cursor-default">包含 prompts 数组的 JSON 文件</li>
+              <li className="hover:text-slate-300 transition-colors cursor-default">{t('preset.formatSillyTavern')}</li>
+              <li className="hover:text-slate-300 transition-colors cursor-default">{t('preset.formatSystemPrompt')}</li>
+              <li className="hover:text-slate-300 transition-colors cursor-default">{t('preset.formatPromptsArray')}</li>
             </ul>
           </div>
         </div>
@@ -159,7 +160,7 @@ export function PresetPage() {
                 <h3 className="font-semibold text-white">{preset.fileName}</h3>
               </div>
               <span className="text-xs px-2 py-1 rounded-full bg-slate-700/50 text-slate-300">
-                共 {preset.prompts.length} 条规则
+                {t('preset.totalRules', { count: String(preset.prompts.length) })}
               </span>
             </div>
             {preset.description && (
@@ -171,7 +172,7 @@ export function PresetPage() {
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-slate-300 flex items-center gap-2">
               <span className="w-1 h-4 rounded-full bg-indigo-500"></span>
-              预设规则
+              {t('preset.rulesTitle')}
             </h4>
             <div className="rounded-lg border border-slate-700/50 bg-slate-800/20 overflow-hidden backdrop-blur-sm">
               {preset.prompts.map((p, i) => (
@@ -215,7 +216,7 @@ export function PresetPage() {
                     </p>
                   </div>
                   <span className="text-xs text-slate-600 shrink-0 transition-colors hover:text-slate-400">
-                    {p.content.length} 字
+                    {t('preset.charCount', { count: String(p.content.length) })}
                   </span>
                 </div>
               ))}
@@ -227,23 +228,23 @@ export function PresetPage() {
             <div className="flex items-start gap-2">
               <span className="text-lg mt-0.5">💡</span>
               <div>
-                <h4 className="text-sm font-medium text-indigo-300 mb-2">使用提示</h4>
+                <h4 className="text-sm font-medium text-indigo-300 mb-2">{t('preset.tipsTitle')}</h4>
                 <ul className="text-xs text-slate-400 space-y-1">
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400">•</span>
-                    <span>启用的规则会在 AI 生成时自动注入到提示词中</span>
+                    <span>{t('preset.tip1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400">•</span>
-                    <span>建议保持启用规则数量在 3-5 条，避免 Token 消耗过大</span>
+                    <span>{t('preset.tip2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400">•</span>
-                    <span>"示例对话"类型的规则对角色对话风格影响较大</span>
+                    <span>{t('preset.tip3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400">•</span>
-                    <span>预设会自动保存到本地存储，刷新页面不会丢失</span>
+                    <span>{t('preset.tip4')}</span>
                   </li>
                 </ul>
               </div>

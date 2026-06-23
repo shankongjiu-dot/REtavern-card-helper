@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Download, Sparkles, BookMarked } from 'lucide-react';
 import { Button } from '../components/shared/Button';
 import { TextArea } from '../components/shared/TextArea';
+import { useTranslation } from '../i18n/I18nContext';
 import {
   DEFAULT_NOVEL_OUTPUT_MAX_TOKENS,
   analyzeNovelText,
@@ -35,19 +36,20 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 type TokenMode = 'standard' | 'large' | 'extreme' | 'custom';
 
-const TOKEN_MODE_OPTIONS: Array<{ value: TokenMode; label: string; tokens: number; description: string }> = [
-  { value: 'standard', label: '标准', tokens: DEFAULT_NOVEL_OUTPUT_MAX_TOKENS, description: '适合普通章节抽样' },
-  { value: 'large', label: '大型', tokens: 32000, description: '更充分拆分人物和设定' },
-  { value: 'extreme', label: '极限', tokens: 128000, description: '适合长篇、多人物、多设定' },
-  { value: 'custom', label: '自定义', tokens: DEFAULT_NOVEL_OUTPUT_MAX_TOKENS, description: '按模型能力手动填写' },
+const TOKEN_MODE_OPTIONS = (t: (key: string) => string): Array<{ value: TokenMode; label: string; tokens: number; description: string }> => [
+  { value: 'standard', label: t('novel.standard'), tokens: DEFAULT_NOVEL_OUTPUT_MAX_TOKENS, description: t('novel.standardDesc') },
+  { value: 'large', label: t('novel.large'), tokens: 32000, description: t('novel.largeDesc') },
+  { value: 'extreme', label: t('novel.extreme'), tokens: 128000, description: t('novel.extremeDesc') },
+  { value: 'custom', label: t('novel.custom'), tokens: DEFAULT_NOVEL_OUTPUT_MAX_TOKENS, description: t('novel.custom') },
 ];
 
-function getTokenModeValue(mode: TokenMode, customTokens: number): number {
+function getTokenModeValue(mode: TokenMode, customTokens: number, t: (key: string) => string): number {
   if (mode === 'custom') return customTokens;
-  return TOKEN_MODE_OPTIONS.find((option) => option.value === mode)?.tokens ?? DEFAULT_NOVEL_OUTPUT_MAX_TOKENS;
+  return TOKEN_MODE_OPTIONS(t).find((option) => option.value === mode)?.tokens ?? DEFAULT_NOVEL_OUTPUT_MAX_TOKENS;
 }
 
 export function NovelAnalysisPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
@@ -83,22 +85,22 @@ export function NovelAnalysisPage() {
   }, [loading]);
 
   const totalChars = useMemo(() => text.trim().length, [text]);
-  const outputMaxTokens = useMemo(() => getTokenModeValue(tokenMode, customOutputTokens), [tokenMode, customOutputTokens]);
+  const outputMaxTokens = useMemo(() => getTokenModeValue(tokenMode, customOutputTokens, t), [tokenMode, customOutputTokens, t]);
   const lorebookCategoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     analysis?.lorebookEntries.forEach((entry) => {
-      const category = entry.category || '素材';
+      const category = entry.category || t('novel.material');
       counts[category] = (counts[category] || 0) + 1;
     });
     return counts;
-  }, [analysis]);
+  }, [analysis, t]);
 
   const handleChunk = () => {
     setError('');
     setAnalysis(null);
     const nextChunks = splitNovelText(text);
     setChunks(nextChunks);
-    if (nextChunks.length === 0) setError('请先输入或上传小说文本');
+    if (nextChunks.length === 0) setError(t('novel.errorNoText'));
   };
 
   const handleAnalyze = async () => {
@@ -108,7 +110,7 @@ export function NovelAnalysisPage() {
     const nextChunks = chunks.length > 0 ? chunks : splitNovelText(text);
     setChunks(nextChunks);
     if (nextChunks.length === 0) {
-      setError('请先输入或上传小说文本');
+      setError(t('novel.errorNoText'));
       return;
     }
 
@@ -130,7 +132,7 @@ export function NovelAnalysisPage() {
       setStreamingText('');
       setAnalysis(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '小说分析失败');
+      setError(err instanceof Error ? err.message : t('novel.analysisFailed'));
     } finally {
       setLoading(false);
     }
@@ -174,14 +176,14 @@ export function NovelAnalysisPage() {
           <div>
             <div className="flex items-center gap-2">
               <BookMarked className="text-emerald-300" size={22} />
-              <h1 className="text-2xl font-bold text-slate-100">小说分析提取</h1>
+              <h1 className="text-2xl font-bold text-slate-100">{t('novel.title')}</h1>
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              按世界书结构拆分小说素材：人物、外貌着装、关系枢纽、事件、地点、势力、特定设定与文风都会分条生成。
+              {t('novel.subtitle')}
             </p>
           </div>
           <Button variant="secondary" onClick={() => fileRef.current?.click()}>
-            <FileText size={16} /> 上传 TXT
+            <FileText size={16} /> {t('novel.uploadTxt')}
           </Button>
         </div>
       </div>
@@ -189,22 +191,22 @@ export function NovelAnalysisPage() {
       <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-900/35 p-4 backdrop-blur-sm">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-300">小说标题</label>
+            <label className="mb-1 block text-sm font-medium text-slate-300">{t('novel.novelTitleLabel')}</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="可选，例如：斗罗大陆"
+              placeholder={t('novel.titlePlaceholder')}
               className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
             />
           </div>
 
           <div className="rounded-lg border border-slate-700/50 bg-slate-950/30 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <label className="text-sm font-medium text-slate-300">小说分析输出 Token 模式</label>
-              <span className="text-xs text-emerald-300">当前：{outputMaxTokens.toLocaleString()} tokens</span>
+              <label className="text-sm font-medium text-slate-300">{t('novel.tokenModeLabel')}</label>
+              <span className="text-xs text-emerald-300">{t('novel.currentTokens', { count: outputMaxTokens.toLocaleString() })}</span>
             </div>
             <div className="grid gap-2 sm:grid-cols-4">
-              {TOKEN_MODE_OPTIONS.map((option) => (
+              {TOKEN_MODE_OPTIONS(t).map((option) => (
                 <button
                   key={option.value}
                   type="button"
@@ -212,7 +214,7 @@ export function NovelAnalysisPage() {
                   className={`rounded-lg border px-3 py-2 text-left transition ${tokenMode === option.value ? 'border-emerald-500 bg-emerald-950/40 text-emerald-100' : 'border-slate-700 bg-slate-900/40 text-slate-300 hover:border-slate-500'}`}
                 >
                   <div className="text-sm font-semibold">{option.label}</div>
-                  <div className="mt-0.5 text-[11px] text-slate-500">{option.value === 'custom' ? '手动填写' : `${option.tokens.toLocaleString()} tokens`}</div>
+                  <div className="mt-0.5 text-[11px] text-slate-500">{option.value === 'custom' ? t('novel.manualFill') : `${option.tokens.toLocaleString()} tokens`}</div>
                   <div className="mt-1 text-[10px] text-slate-500">{option.description}</div>
                 </button>
               ))}
@@ -228,20 +230,20 @@ export function NovelAnalysisPage() {
                   onChange={(e) => setCustomOutputTokens(parseInt(e.target.value) || DEFAULT_NOVEL_OUTPUT_MAX_TOKENS)}
                   className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
                 />
-                <p className="mt-1 text-[11px] text-slate-500">范围 4000 - 200000，最终是否可用取决于当前模型和中转站支持。</p>
+                <p className="mt-1 text-[11px] text-slate-500">{t('novel.customRangeHint')}</p>
               </div>
             )}
           </div>
 
           <TextArea
-            label="小说文本"
+            label={t('novel.textAreaLabel')}
             value={text}
             onChange={(e) => {
               setText(e.target.value);
               setAnalysis(null);
               setChunks([]);
             }}
-            placeholder="粘贴小说正文，或上传 .txt 文件。系统会自动识别 第X章 / 番外 / 序章 等章节标题。"
+            placeholder={t('novel.textAreaPlaceholder')}
             className="min-h-[360px]"
           />
 
@@ -263,18 +265,18 @@ export function NovelAnalysisPage() {
                   </span>
                   <span className="text-sm font-bold text-amber-200">
                     <Sparkles size={14} className="inline mr-1" />
-                    AI 正在结构化分析中
+                    {t('novel.analyzing')}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
                   <span className="text-amber-300/80 font-mono">
-                    ⏱ {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:{(elapsedSeconds % 60).toString().padStart(2, '0')}
+                    {t('novel.elapsedTime', { time: `${Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:${(elapsedSeconds % 60).toString().padStart(2, '0')}` })}
                   </span>
                   <span className="text-amber-300/80 font-mono">
-                    {streamingText.length} 字
+                    {t('novel.charCount', { count: String(streamingText.length) })}
                   </span>
                   <span className="text-amber-300 font-bold text-sm">
-                    {progressPercent}%
+                    {t('novel.progressPercent', { percent: String(progressPercent) })}
                   </span>
                 </div>
               </div>
@@ -290,24 +292,24 @@ export function NovelAnalysisPage() {
                   </div>
                 </div>
                 <div className="flex justify-between mt-1 text-[10px] text-slate-500">
-                  <span>开始</span>
-                  <span>≈{Math.round(outputMaxTokens * 2).toLocaleString()} 字</span>
-                  <span>完成</span>
+                  <span>{t('novel.start')}</span>
+                  <span>{t('novel.approxChars', { count: Math.round(outputMaxTokens * 2).toLocaleString() })}</span>
+                  <span>{t('novel.complete')}</span>
                 </div>
               </div>
           
               {/* Streaming text preview — auto-scrolling */}
               <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-medium text-slate-400">实时输出流</span>
-                  <span className="text-[10px] text-slate-600">自动滚动 · 只读</span>
+                  <span className="text-[11px] font-medium text-slate-400">{t('novel.liveOutput')}</span>
+                  <span className="text-[10px] text-slate-600">{t('novel.autoScrollReadonly')}</span>
                 </div>
                 <div
                   ref={streamPanelRef}
                   className="h-56 overflow-y-auto rounded-lg border border-slate-700/50 bg-slate-950/70 p-3 scrollbar-thin scrollbar-thumb-slate-700"
                 >
                   <pre className="whitespace-pre-wrap text-xs text-slate-300 leading-relaxed font-mono selection:bg-amber-500/30">
-                    {streamingText || '等待 AI 响应...'}
+                    {streamingText || t('novel.waitingResponse')}
                   </pre>
                   {streamingText && (
                     <span className="inline-block w-2 h-4 bg-amber-400/80 animate-pulse ml-0.5 align-middle" />
@@ -318,7 +320,7 @@ export function NovelAnalysisPage() {
               {/* Footer — “创作者无法介入” */}
               <div className="px-4 py-2.5 bg-slate-900/50 border-t border-slate-700/30 text-center">
                 <p className="text-[11px] text-amber-500/80">
-                  🚫 <strong>创作者无法介入</strong> — AI 正在生成结构化世界书分析，请勿操作，耐心等待完成
+                  {t('novel.noIntervene')}
                 </p>
               </div>
             </div>
@@ -326,44 +328,44 @@ export function NovelAnalysisPage() {
 
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={handleChunk} disabled={!text.trim()}>
-              智能切块
+              {t('novel.smartChunk')}
             </Button>
             <Button onClick={handleAnalyze} disabled={loading || !text.trim()}>
-              <Sparkles size={16} /> {loading ? '分析中...' : 'AI 分析提取'}
+              <Sparkles size={16} /> {loading ? t('novel.analyzingButton') : t('novel.aiAnalyze')}
             </Button>
             <Button variant="ghost" onClick={handleExport} disabled={!analysis}>
-              <Download size={16} /> 导出结果
+              <Download size={16} /> {t('novel.exportResult')}
             </Button>
             <Button variant="secondary" onClick={handleImportToWizard} disabled={!analysis || (analysis?.lorebookEntries.length ?? 0) === 0}>
-              导入到世界书
+              {t('novel.importToWorldBook')}
             </Button>
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
-            <Stat label="文本字数" value={totalChars} />
-            <Stat label="切块数量" value={chunks.length} />
-            <Stat label="输出上限" value={outputMaxTokens.toLocaleString()} />
-            <Stat label="人物" value={analysis?.characters.length ?? '-'} />
-            <Stat label="世界书条目" value={analysis?.lorebookEntries.length ?? '-'} />
-            <Stat label="人物关系" value={analysis?.relationshipMap.length ?? '-'} />
-            <Stat label="特定设定" value={analysis?.uniqueSettings.length ?? '-'} />
+            <Stat label={t('novel.statTotalChars')} value={totalChars} />
+            <Stat label={t('novel.statChunks')} value={chunks.length} />
+            <Stat label={t('novel.statOutputLimit')} value={outputMaxTokens.toLocaleString()} />
+            <Stat label={t('novel.statCharacters')} value={analysis?.characters.length ?? '-'} />
+            <Stat label={t('novel.statLorebookEntries')} value={analysis?.lorebookEntries.length ?? '-'} />
+            <Stat label={t('novel.statRelationships')} value={analysis?.relationshipMap.length ?? '-'} />
+            <Stat label={t('novel.statUniqueSettings')} value={analysis?.uniqueSettings.length ?? '-'} />
           </div>
 
           <div className="rounded-xl border border-slate-700/50 bg-slate-900/35 p-4 backdrop-blur-sm">
-            <h2 className="mb-3 text-sm font-semibold text-slate-200">切块预览</h2>
+            <h2 className="mb-3 text-sm font-semibold text-slate-200">{t('novel.chunkPreview')}</h2>
             {chunks.length === 0 ? (
-              <p className="text-sm text-slate-500">暂无切块。点击“智能切块”后查看章节结构。</p>
+              <p className="text-sm text-slate-500">{t('novel.noChunks')}</p>
             ) : (
               <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
                 {chunks.slice(0, 20).map((chunk) => (
                   <div key={chunk.id} className="rounded-lg bg-slate-800/60 px-3 py-2 text-xs">
                     <div className="font-medium text-slate-200">#{chunk.id} {chunk.title}</div>
-                    <div className="mt-1 text-slate-500">{chunk.content.length} 字</div>
+                    <div className="mt-1 text-slate-500">{t('novel.chunkChars', { count: String(chunk.content.length) })}</div>
                   </div>
                 ))}
-                {chunks.length > 20 && <div className="text-xs text-slate-500">仅显示前 20 个切块</div>}
+                {chunks.length > 20 && <div className="text-xs text-slate-500">{t('novel.showingTop20')}</div>}
               </div>
             )}
           </div>
@@ -373,96 +375,96 @@ export function NovelAnalysisPage() {
       {analysis && (
         <div className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-900/35 p-4 backdrop-blur-sm animate-fade-in-up">
           <div>
-            <h2 className="text-lg font-semibold text-slate-100">分析结果</h2>
+            <h2 className="text-lg font-semibold text-slate-100">{t('novel.analysisResult')}</h2>
             <p className="mt-1 text-sm text-slate-400">{analysis.genre} · {analysis.tone}</p>
           </div>
 
           <section>
-            <h3 className="mb-2 text-sm font-medium text-emerald-300">摘要</h3>
+            <h3 className="mb-2 text-sm font-medium text-emerald-300">{t('novel.summary')}</h3>
             <p className="whitespace-pre-wrap rounded-lg bg-slate-800/50 p-3 text-sm text-slate-300">{analysis.summary}</p>
           </section>
 
           <section>
-            <h3 className="mb-2 text-sm font-medium text-emerald-300">文风画像</h3>
+            <h3 className="mb-2 text-sm font-medium text-emerald-300">{t('novel.styleProfile')}</h3>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="rounded-lg bg-slate-800/50 p-3 text-sm text-slate-300">
-                <div className="font-medium text-slate-100">叙述</div>
-                <p className="mt-1 text-slate-400">{analysis.styleProfile.narration || '无'}</p>
+                <div className="font-medium text-slate-100">{t('novel.narration')}</div>
+                <p className="mt-1 text-slate-400">{analysis.styleProfile.narration || t('novel.none')}</p>
               </div>
               <div className="rounded-lg bg-slate-800/50 p-3 text-sm text-slate-300">
-                <div className="font-medium text-slate-100">对白</div>
-                <p className="mt-1 text-slate-400">{analysis.styleProfile.dialogue || '无'}</p>
+                <div className="font-medium text-slate-100">{t('novel.dialogue')}</div>
+                <p className="mt-1 text-slate-400">{analysis.styleProfile.dialogue || t('novel.none')}</p>
               </div>
               <div className="rounded-lg bg-slate-800/50 p-3 text-sm text-slate-300">
-                <div className="font-medium text-slate-100">节奏</div>
-                <p className="mt-1 text-slate-400">{analysis.styleProfile.pacing || '无'}</p>
+                <div className="font-medium text-slate-100">{t('novel.pacing')}</div>
+                <p className="mt-1 text-slate-400">{analysis.styleProfile.pacing || t('novel.none')}</p>
               </div>
               <div className="rounded-lg bg-slate-800/50 p-3 text-sm text-slate-300">
-                <div className="font-medium text-slate-100">意象</div>
-                <p className="mt-1 text-slate-400">{analysis.styleProfile.imagery || '无'}</p>
+                <div className="font-medium text-slate-100">{t('novel.imagery')}</div>
+                <p className="mt-1 text-slate-400">{analysis.styleProfile.imagery || t('novel.none')}</p>
               </div>
             </div>
             {analysis.styleProfile.taboos.length > 0 && (
               <div className="mt-3 rounded-lg border border-amber-700/40 bg-amber-950/20 p-3 text-sm text-amber-200">
-                避免：{analysis.styleProfile.taboos.join('、')}
+                {t('novel.taboos', { list: analysis.styleProfile.taboos.join('、') })}
               </div>
             )}
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="mb-2 text-sm font-medium text-emerald-300">人物逻辑枢纽</h3>
+              <h3 className="mb-2 text-sm font-medium text-emerald-300">{t('novel.characterHub')}</h3>
               <div className="space-y-2">
                 {analysis.characters.map((item, index) => (
                   <div key={`${item.name}-${index}`} className="rounded-lg border border-slate-700/40 bg-slate-800/40 p-3 text-sm">
                     <div className="font-semibold text-slate-100">{item.name} <span className="text-xs text-slate-500">{item.role}</span></div>
-                    <div className="mt-1 text-slate-400">逻辑枢纽：{item.logicHub || '无'}</div>
-                    <div className="mt-1 text-slate-500">外貌：{item.appearance || '无'}</div>
-                    {item.outfits?.length > 0 && <div className="mt-1 text-slate-500">着装：{item.outfits.map((outfit) => `${outfit.scene}：${outfit.description}`).join('；')}</div>}
-                    <div className="mt-1 text-slate-500">依据：{item.evidence}</div>
+                    <div className="mt-1 text-slate-400">{t('novel.logicHub', { value: item.logicHub || t('novel.none') })}</div>
+                    <div className="mt-1 text-slate-500">{t('novel.appearance', { value: item.appearance || t('novel.none') })}</div>
+                    {item.outfits?.length > 0 && <div className="mt-1 text-slate-500">{t('novel.outfits', { value: item.outfits.map((outfit) => `${outfit.scene}：${outfit.description}`).join('；') })}</div>}
+                    <div className="mt-1 text-slate-500">{t('novel.evidence', { value: item.evidence })}</div>
                   </div>
                 ))}
               </div>
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-medium text-emerald-300">人物关系网络</h3>
+              <h3 className="mb-2 text-sm font-medium text-emerald-300">{t('novel.relationshipNetwork')}</h3>
               <div className="space-y-2">
                 {analysis.relationshipMap.map((item, index) => (
                   <div key={`${item.source}-${item.target}-${index}`} className="rounded-lg border border-slate-700/40 bg-slate-800/40 p-3 text-sm">
                     <div className="font-semibold text-slate-100">{item.source} → {item.target}</div>
-                    <div className="mt-1 text-slate-400">{item.relation}：{item.conflictOrBond}</div>
-                    <div className="mt-1 text-slate-500">叙事功能：{item.storyFunction}</div>
+                    <div className="mt-1 text-slate-400">{t('novel.relationBond', { relation: item.relation, value: item.conflictOrBond })}</div>
+                    <div className="mt-1 text-slate-500">{t('novel.storyFunction', { value: item.storyFunction })}</div>
                   </div>
                 ))}
-                {analysis.relationshipMap.length === 0 && <p className="text-sm text-slate-500">暂无关系网络。</p>}
+                {analysis.relationshipMap.length === 0 && <p className="text-sm text-slate-500">{t('novel.noRelationshipNetwork')}</p>}
               </div>
             </div>
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="mb-2 text-sm font-medium text-emerald-300">特定设定</h3>
+              <h3 className="mb-2 text-sm font-medium text-emerald-300">{t('novel.uniqueSettings')}</h3>
               <div className="space-y-2">
                 {analysis.uniqueSettings.map((item, index) => (
                   <div key={`${item.name}-${index}`} className="rounded-lg border border-slate-700/40 bg-slate-800/40 p-3 text-sm">
                     <div className="font-semibold text-slate-100">{item.name} <span className="text-xs text-emerald-300">{item.category}</span></div>
                     <div className="mt-1 text-slate-400">{item.description}</div>
-                    <div className="mt-1 text-slate-500">独特性：{item.difference}</div>
-                    <div className="mt-1 text-slate-500">用途：{item.usage}</div>
+                    <div className="mt-1 text-slate-500">{t('novel.difference', { value: item.difference })}</div>
+                    <div className="mt-1 text-slate-500">{t('novel.usage', { value: item.usage })}</div>
                   </div>
                 ))}
-                {analysis.uniqueSettings.length === 0 && <p className="text-sm text-slate-500">暂无特定设定。</p>}
+                {analysis.uniqueSettings.length === 0 && <p className="text-sm text-slate-500">{t('novel.noUniqueSettings')}</p>}
               </div>
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-medium text-emerald-300">事件时间线</h3>
+              <h3 className="mb-2 text-sm font-medium text-emerald-300">{t('novel.timeline')}</h3>
               <div className="space-y-2">
                 {analysis.timeline.map((item) => (
                   <div key={item.order} className="rounded-lg border border-slate-700/40 bg-slate-800/40 p-3 text-sm">
                     <div className="font-semibold text-slate-100">{item.order}. {item.event}</div>
-                    <div className="mt-1 text-slate-500">影响：{item.impact}</div>
+                    <div className="mt-1 text-slate-500">{t('novel.impact', { value: item.impact })}</div>
                   </div>
                 ))}
               </div>
@@ -471,11 +473,11 @@ export function NovelAnalysisPage() {
 
           <section>
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-sm font-medium text-emerald-300">世界书条目</h3>
+              <h3 className="text-sm font-medium text-emerald-300">{t('novel.lorebookEntries')}</h3>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(lorebookCategoryCounts).map(([category, count]) => (
                   <span key={category} className="rounded-full bg-emerald-900/30 px-2 py-0.5 text-[11px] text-emerald-200">
-                    {category} × {count}
+                    {t('novel.categoryCount', { category, count: String(count) })}
                   </span>
                 ))}
               </div>
@@ -487,12 +489,12 @@ export function NovelAnalysisPage() {
                     <span className="font-semibold text-slate-100">{entry.name}</span>
                     <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[10px] text-emerald-300">{entry.category}</span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-500">触发词：{entry.keys?.join('、')}</div>
+                  <div className="mt-2 text-xs text-slate-500">{t('novel.triggerWords', { keys: entry.keys?.join('、') })}</div>
                   {(entry.parent || entry.purpose) && (
                     <div className="mt-1 text-xs text-slate-500">
-                      {entry.parent && <span>归属：{entry.parent}</span>}
-                      {entry.parent && entry.purpose && <span> · </span>}
-                      {entry.purpose && <span>用途：{entry.purpose}</span>}
+                      {entry.parent && <span>{t('novel.belongs', { value: entry.parent })}</span>}
+                      {entry.parent && entry.purpose && <span>{t('novel.separator')}</span>}
+                      {entry.purpose && <span>{t('novel.purpose', { value: entry.purpose })}</span>}
                     </div>
                   )}
                   <pre className="mt-2 whitespace-pre-wrap rounded bg-slate-950/40 p-2 text-xs text-slate-300">{entry.content}</pre>
@@ -503,7 +505,7 @@ export function NovelAnalysisPage() {
 
           {analysis.cleaningNotes.length > 0 && (
             <section>
-              <h3 className="mb-2 text-sm font-medium text-amber-300">清洗提示</h3>
+              <h3 className="mb-2 text-sm font-medium text-amber-300">{t('novel.cleaningNotes')}</h3>
               <ul className="list-disc space-y-1 pl-5 text-sm text-slate-400">
                 {analysis.cleaningNotes.map((note, index) => <li key={index}>{note}</li>)}
               </ul>

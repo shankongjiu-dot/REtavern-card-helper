@@ -5,6 +5,7 @@
  */
 import { TextInput } from '../shared/TextInput';
 import { TagInput } from '../shared/TagInput';
+import { useTranslation } from '../../i18n/I18nContext';
 
 interface StepCardNameProps {
   cardName: string;
@@ -14,31 +15,32 @@ interface StepCardNameProps {
 }
 
 export function StepCardName({ cardName, tags, onNameChange, onTagsChange }: StepCardNameProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-white mb-2">卡片名称</h2>
+        <h2 className="text-xl font-bold text-white mb-2">{t('cardName.title')}</h2>
         <p className="text-sm text-slate-400 mb-6">
-          为你的角色卡起一个名字，用于在卡片库中显示和搜索。
+          {t('cardName.description')}
         </p>
         <TextInput
-          label="卡片名称"
+          label={t('cardName.nameLabel')}
           value={cardName}
           onChange={(e) => onNameChange(e.target.value)}
-          placeholder="例如：神秘的流浪者"
+          placeholder={t('cardName.namePlaceholder')}
           autoFocus
         />
       </div>
 
       <div className="border-t border-white/5 pt-6">
-        <h3 className="text-lg font-semibold text-white mb-2">卡片标签（可选）</h3>
+        <h3 className="text-lg font-semibold text-white mb-2">{t('cardName.tagsTitle')}</h3>
         <p className="text-xs text-slate-400 mb-2">
-          用于分类和筛选，不会出现在 AI 提示词中。
+          {t('cardName.tagsDesc')}
         </p>
         <TagInput
           tags={tags}
           onChange={onTagsChange}
-          placeholder="例如：奇幻、校园、魔法..."
+          placeholder={t('cardName.tagsPlaceholder')}
         />
       </div>
     </div>

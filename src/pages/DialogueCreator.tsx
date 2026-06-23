@@ -16,6 +16,7 @@ import { callAIStreaming } from '../services/ai-service';
 import { db, type CreatorChat } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { History, X, RefreshCw } from 'lucide-react';
+import { useTranslation } from '../i18n/I18nContext';
 import type { AIMessage } from '../services/ai-service';
 
 interface ChatMessage {
@@ -26,7 +27,7 @@ interface ChatMessage {
 const SYSTEM_PROMPT = `你是一位经验丰富的 SillyTavern 角色卡创作助手。你的工作是帮助创作者完成以下任务：
 
 1. **灵感激发**：根据创作者的模糊想法，提出具体的角色设定、世界观、剧情走向建议
-2. **内容打磨**：帮助润色和优化角色描述、世界书条目、开场白、示例对话等文本
+2. **内容打磨**：帮助润色和优化角色描述、世界书条目、开场白等文本
 3. **问题诊断**：分析角色卡中可能存在的问题（如性格标签化、设定矛盾、触发词遗漏等）并给出修改建议
 4. **创意建议**：提供写作技巧、灵感来源、参考作品方向等
 
@@ -42,9 +43,11 @@ const SYSTEM_PROMPT = `你是一位经验丰富的 SillyTavern 角色卡创作�
 const LAST_CHAT_KEY = 'dialogue_creator_last_chat';
 
 export function DialogueCreator() {
+  const { t } = useTranslation();
   const { addToast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const systemPrompt = SYSTEM_PROMPT;
 
   // ── Detect touch device (mobile / tablet) ──────────────────────────────────
   const isTouchDevice = useMemo(() => {
@@ -113,7 +116,7 @@ export function DialogueCreator() {
   // ── Save chat to DB ───────────────────────────────────────────────────────
   const saveChat = useCallback(async (chatId: number | null, chatMessages: ChatMessage[], title?: string) => {
     const now = new Date();
-    const autoTitle = title || chatMessages.find(m => m.role === 'user')?.content.slice(0, 30) || '新对话';
+    const autoTitle = title || chatMessages.find(m => m.role === 'user')?.content.slice(0, 30) || t('dialogue.untitled');
 
     if (chatId) {
       await db.creator_chats.update(chatId, { messages: chatMessages, updatedAt: now });
@@ -143,8 +146,8 @@ export function DialogueCreator() {
     if (currentChatId === chatId) {
       handleNewChat();
     }
-    addToast('success', '对话已删除');
-  }, [currentChatId, handleNewChat, addToast]);
+    addToast('success', t('dialogue.deleted'));
+  }, [currentChatId, handleNewChat, addToast, t]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -175,7 +178,7 @@ export function DialogueCreator() {
 
     try {
       const apiMessages: AIMessage[] = [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         ...updatedMessages.map(m => ({ role: m.role, content: m.content })),
       ];
 
@@ -192,7 +195,7 @@ export function DialogueCreator() {
 
       await saveChat(currentChatId, finalMessages);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'AI 回复失败';
+      const msg = err instanceof Error ? err.message : t('dialogue.aiReplyError');
       addToast('error', msg);
     } finally {
       setIsStreaming(false);
@@ -203,12 +206,12 @@ export function DialogueCreator() {
 
   // ── Clear all chats ───────────────────────────────────────────────────────
   const handleClearAll = useCallback(async () => {
-    if (confirm('确定要清空所有对话记录吗？')) {
+    if (confirm(t('dialogue.clearConfirm'))) {
       await db.creator_chats.clear();
       handleNewChat();
-      addToast('success', '所有对话已清空');
+      addToast('success', t('dialogue.cleared'));
     }
-  }, [handleNewChat, addToast]);
+  }, [handleNewChat, addToast, t]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // On touch devices (mobile/tablet), Enter always inserts a newline.
@@ -243,7 +246,7 @@ export function DialogueCreator() {
 
     try {
       const apiMessages: AIMessage[] = [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         ...trimmedMessages.map(m => ({ role: m.role, content: m.content })),
       ];
 
@@ -260,7 +263,7 @@ export function DialogueCreator() {
 
       await saveChat(currentChatId, finalMessages);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'AI 回复失败';
+      const msg = err instanceof Error ? err.message : t('dialogue.aiReplyError');
       addToast('error', msg);
     } finally {
       setIsStreaming(false);
@@ -270,10 +273,10 @@ export function DialogueCreator() {
   }, [isStreaming, messages, currentChatId, saveChat, addToast]);
 
   const quickPrompts = [
-    '帮我设计一个有反差感的角色',
-    '这个角色描述怎么更有层次感？',
-    '世界书条目应该怎么写触发词？',
-    '帮我写一段体现性格的示例对话',
+    t('dialogue.quickPrompt1'),
+    t('dialogue.quickPrompt2'),
+    t('dialogue.quickPrompt3'),
+    t('dialogue.quickPrompt4'),
   ];
 
   return (
@@ -298,7 +301,7 @@ export function DialogueCreator() {
       >
         <div className="p-3 border-b border-slate-700 flex items-center justify-between gap-2">
           <Button variant="primary" size="sm" className="flex-1" onClick={handleNewChat}>
-            + 新对话
+            + {t('dialogue.newChat')}
           </Button>
           <button
             onClick={() => setHistoryOpen(false)}
@@ -309,7 +312,7 @@ export function DialogueCreator() {
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {allChats.length === 0 && (
-            <p className="text-xs text-slate-500 text-center py-4">暂无对话记录</p>
+            <p className="text-xs text-slate-500 text-center py-4">{t('dialogue.noHistory')}</p>
           )}
           {allChats.map((chat) => (
             <div
@@ -329,7 +332,7 @@ export function DialogueCreator() {
               <button
                 onClick={(e) => { e.stopPropagation(); handleDeleteChat(chat.id!); }}
                 className="opacity-0 group-hover:opacity-100 max-md:opacity-60 text-red-400 hover:text-red-300 text-xs transition-opacity"
-                title="删除"
+                title={t('dialogue.delete')}
               >
                 ×
               </button>
@@ -342,7 +345,7 @@ export function DialogueCreator() {
               onClick={handleClearAll}
               className="w-full text-xs text-red-400 hover:text-red-300 py-1.5 rounded hover:bg-red-900/20 transition-colors"
             >
-              清空所有记录
+              {t('dialogue.clearAll')}
             </button>
           </div>
         )}
@@ -355,16 +358,16 @@ export function DialogueCreator() {
           <button
             onClick={() => setHistoryOpen(true)}
             className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="历史记录"
+            title={t('dialogue.historyTitle')}
           >
             <History size={18} />
           </button>
           <div className="min-w-0">
             <h1 className="text-base sm:text-lg font-semibold text-white truncate">
-              {currentChatId ? allChats.find(c => c.id === currentChatId)?.title || '对话' : 'AI 创作助手'}
+              {currentChatId ? allChats.find(c => c.id === currentChatId)?.title || t('dialogue.untitled') : t('dialogue.title')}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
-              和 AI 助手聊天，收集灵感、打磨设定、优化内容
+              {t('dialogue.subtitle')}
             </p>
           </div>
         </div>
@@ -374,7 +377,7 @@ export function DialogueCreator() {
           <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
             {messages.length === 0 && !isStreaming && (
               <div className="text-center py-12 sm:py-16">
-                <p className="text-slate-500 text-sm mb-4 sm:mb-6">向 AI 助手提问关于角色卡创作的任何问题</p>
+                <p className="text-slate-500 text-sm mb-4 sm:mb-6">{t('dialogue.emptyPrompt')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg mx-auto px-2">
                   {quickPrompts.map((hint) => (
                     <button
@@ -407,10 +410,10 @@ export function DialogueCreator() {
                         <button
                           onClick={handleRegenerate}
                           className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-indigo-400 transition-colors"
-                          title="重新生成"
+                          title={t('dialogue.regenerate')}
                         >
                           <RefreshCw size={12} />
-                          <span>重新生成</span>
+                          <span>{t('dialogue.regenerate')}</span>
                         </button>
                       </div>
                     )}
@@ -422,7 +425,7 @@ export function DialogueCreator() {
             {isStreaming && (
               <div className="flex justify-start">
                 <div className="max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-slate-800 border border-slate-700 text-slate-200 whitespace-pre-wrap leading-relaxed">
-                  {streamingText || <span className="text-slate-400 animate-pulse">思考中...</span>}
+                  {streamingText || <span className="text-slate-400 animate-pulse">{t('dialogue.thinking')}</span>}
                 </div>
               </div>
             )}
@@ -444,7 +447,7 @@ export function DialogueCreator() {
                   textareaRef(e.currentTarget);
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={isTouchDevice ? "说说你的创作问题..." : "说说你的创作问题，Shift+Enter 换行..."}
+                placeholder={isTouchDevice ? t('dialogue.inputMobilePlaceholder') : t('dialogue.inputPlaceholder')}
                 disabled={isStreaming}
                 rows={1}
               />
@@ -452,7 +455,7 @@ export function DialogueCreator() {
                 onClick={handleSend}
                 disabled={!inputValue.trim() || isStreaming}
               >
-                {isStreaming ? '...' : '发送'}
+                {isStreaming ? '...' : t('dialogue.send')}
               </Button>
             </div>
           </div>

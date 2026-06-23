@@ -5,11 +5,12 @@
  * Drafts are auto-saved to IndexedDB so navigating away and back preserves state.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createEmptyDraft, createEmptyCharacter, createEmptyLorebookEntry, WIZARD_STEPS } from '../constants/defaults';
+import { createEmptyDraft, createEmptyCharacter, createEmptyLorebookEntry, WIZARD_STEPS, WIZARD_DRAFT_VERSION } from '../constants/defaults';
 import type { WizardDraft } from '../constants/defaults';
 import { cardToDraft, assembleCard } from '../services/card-exporter';
 import { db } from '../db/database';
 import { useToast } from '../components/shared/Toast';
+import { useTranslation } from '../i18n/I18nContext';
 
 type DraftState = WizardDraft;
 
@@ -43,7 +44,8 @@ function normalizeDraft(raw: Partial<DraftState>): DraftState {
     })),
     tags: raw.tags ?? defaults.tags,
     alternate_greetings: raw.alternate_greetings ?? defaults.alternate_greetings,
-    mvu: { ...defaults.mvu, ...(raw.mvu ?? {}) },
+    mvu: raw.mvu ? { ...defaults.mvu, ...raw.mvu } : defaults.mvu,
+    useMvuExport: raw.useMvuExport ?? defaults.useMvuExport,
   };
   return merged;
 }
@@ -53,7 +55,9 @@ export function useWizardState(editId?: number) {
   const [draft, setDraft] = useState<DraftState>(createEmptyDraft());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isDraftDirty, setIsDraftDirty] = useState(false);
   const { addToast } = useToast();
+  const { t } = useTranslation();
 
   // Track whether the initial load has completed (prevents auto-save during load)
   const initialized = useRef(false);
@@ -75,9 +79,12 @@ export function useWizardState(editId?: number) {
         } else {
           // New card mode — try restoring unsaved draft
           const saved = await db.wizard_drafts.get(DRAFT_KEY_NEW);
-          if (saved) {
+          if (saved && saved.version === WIZARD_DRAFT_VERSION) {
             setDraft(normalizeDraft(saved.data as Partial<DraftState>));
             setCurrentStep(saved.currentStep || 1);
+          } else if (saved) {
+            // Stale draft from an older app version: discard it to avoid shape mismatches.
+            await db.wizard_drafts.delete(DRAFT_KEY_NEW);
           }
         }
       } catch {
@@ -93,6 +100,7 @@ export function useWizardState(editId?: number) {
   useEffect(() => {
     if (!initialized.current || loading || editId) return;
 
+    setIsDraftDirty(true);
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       try {
@@ -100,8 +108,10 @@ export function useWizardState(editId?: number) {
           id: DRAFT_KEY_NEW,
           data: draft,
           currentStep,
+          version: WIZARD_DRAFT_VERSION,
           updatedAt: new Date(),
         });
+        setIsDraftDirty(false);
       } catch {
         // Silently ignore save failures (non-critical)
       }
@@ -110,9 +120,13 @@ export function useWizardState(editId?: number) {
     return () => clearTimeout(saveTimerRef.current);
   }, [draft, currentStep, loading, editId]);
 
-  /** Update draft with partial changes */
-  const updateDraft = useCallback((partial: Partial<DraftState>) => {
-    setDraft((prev) => ({ ...prev, ...partial }));
+  /** Update draft with partial changes or an updater function. */
+  const updateDraft = useCallback((partialOrUpdater: Partial<DraftState> | ((prev: DraftState) => DraftState | Partial<DraftState>)) => {
+    setDraft((prev) => {
+      const updates = typeof partialOrUpdater === 'function' ? partialOrUpdater(prev) : partialOrUpdater;
+      return { ...prev, ...updates };
+    });
+    setIsDraftDirty(true);
   }, []);
 
   /** Add a new character */
@@ -162,14 +176,14 @@ export function useWizardState(editId?: number) {
         return null;
       }
       case 4:
-        // First message can be empty (user may generate later)
+        // MVU Variables — always optional
         return null;
       case 5:
-        return null; // Optional
+        // First message — required
+        return draft.firstMessage?.trim() ? null : '开场白不能为空';
       case 6:
-        return null; // Optional: MVU & Beautification
-      case 7:
-        return null; // Review step
+        // Polish & Export — always valid
+        return null;
       default:
         return null;
     }
@@ -233,6 +247,7 @@ export function useWizardState(editId?: number) {
         await db.wizard_drafts.delete(DRAFT_KEY_NEW);
       }
 
+      setIsDraftDirty(false);
       addToast('success', editId ? '卡片已更新！' : '卡片已保存到库！');
       return true;
     } catch (err: unknown) {
@@ -243,11 +258,59 @@ export function useWizardState(editId?: number) {
     }
   }, [draft, editId, addToast]);
 
+  /** Manually save the current draft to IndexedDB (new card mode only). */
+  const saveDraftNow = useCallback(async () => {
+    if (editId) return false;
+    try {
+      await db.wizard_drafts.put({
+        id: DRAFT_KEY_NEW,
+        data: draft,
+        currentStep,
+        version: WIZARD_DRAFT_VERSION,
+        updatedAt: new Date(),
+      });
+      setIsDraftDirty(false);
+      addToast('success', t('wizard.draftSaved'));
+      return true;
+    } catch {
+      addToast('error', t('wizard.draftSaveFailed'));
+      return false;
+    }
+  }, [draft, currentStep, editId, addToast, t]);
+
+  /** Reset the wizard to a blank state and clear any saved draft. */
+  const clearDraft = useCallback(async () => {
+    setDraft(createEmptyDraft());
+    setCurrentStep(1);
+    setIsDraftDirty(false);
+    if (!editId) {
+      try {
+        await db.wizard_drafts.delete(DRAFT_KEY_NEW);
+      } catch {
+        // Non-critical cleanup failure
+      }
+    }
+    addToast('info', t('wizard.draftCleared'));
+  }, [editId, addToast, t]);
+
+  // Warn before closing/refreshing the page if there are unsaved changes.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDraftDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDraftDirty]);
+
   return {
     currentStep,
     draft,
     loading,
     saving,
+    isDraftDirty,
     updateDraft,
     addCharacter,
     removeCharacter,
@@ -258,6 +321,8 @@ export function useWizardState(editId?: number) {
     goToStep,
     setCurrentStep,
     saveCard,
+    saveDraftNow,
+    clearDraft,
     isEditMode: !!editId,
   };
 }

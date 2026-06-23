@@ -26,6 +26,8 @@ export interface ThemeSettings {
   inputBgColor: string;
   /** Input field border color (hex) */
   inputBorderColor: string;
+  /** Card/content surface background color (hex) */
+  cardBgColor: string;
 }
 
 export const DEFAULT_THEME: ThemeSettings = {
@@ -39,6 +41,7 @@ export const DEFAULT_THEME: ThemeSettings = {
   cardShadow: 4,
   inputBgColor: '#0f172a', // slate-900
   inputBorderColor: '#475569', // slate-600
+  cardBgColor: '#1e293b', // slate-800
 };
 
 /**
@@ -111,6 +114,20 @@ export const INPUT_BORDER_PRESETS = [
 ];
 
 /**
+ * Card/content surface background color presets
+ */
+export const CARD_BG_PRESETS = [
+  { name: '石板灰', value: '#1e293b' },
+  { name: '深夜蓝', value: '#0f172a' },
+  { name: '墨蓝', value: '#172554' },
+  { name: '深紫', value: '#2e1065' },
+  { name: '深绿', value: '#064e3b' },
+  { name: '深红', value: '#4c0519' },
+  { name: '暖棕', value: '#451a03' },
+  { name: '纯黑', value: '#000000' },
+];
+
+/**
  * Get current theme settings from localStorage.
  */
 export function getThemeSettings(): ThemeSettings {
@@ -146,12 +163,21 @@ export function resetTheme(): ThemeSettings {
 }
 
 /**
+ * Convert hex color to RGB components.
+ */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  return {
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+/**
  * Convert hex color to rgba with alpha.
  */
 function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  const { r, g, b } = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
@@ -203,6 +229,12 @@ export function applyTheme(settings: ThemeSettings): void {
   } else {
     root.style.setProperty('--input-border', settings.inputBorderColor);
   }
+
+  // Apply card background color as RGB channels so opacity can be layered
+  const { r, g, b } = hexToRgb(settings.cardBgColor);
+  root.style.setProperty('--card-bg-r', r.toString());
+  root.style.setProperty('--card-bg-g', g.toString());
+  root.style.setProperty('--card-bg-b', b.toString());
 }
 
 /**

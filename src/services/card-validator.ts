@@ -22,10 +22,6 @@ const VALID_POSITIONS = [
   'at_depth',
 ];
 
-function estimateTokens(text: string): number {
-  return Math.round((text || '').length * 1.3);
-}
-
 export function validateCard(card: Record<string, unknown>): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -51,9 +47,7 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
     errors.push('卡片名称 (name) 是必填项');
   }
 
-  if (!data.description || typeof data.description !== 'string') {
-    warnings.push('描述 (description) 为空 — 角色可能无法正确显示');
-  }
+  // 国内写卡通常把角色设定放在世界书，description 保持为空是正常做法
 
   if (!data.first_mes || typeof data.first_mes !== 'string') {
     warnings.push('开场白 (first_mes) 为空 — 对话将没有开场');
@@ -95,7 +89,6 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
     }
 
     if (charBook.entries && Array.isArray(charBook.entries)) {
-      let constantTokenEstimate = 0;
       let enabledCount = 0;
       let disabledWithContentCount = 0;
       let emptyContentCount = 0;
@@ -115,7 +108,6 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
         if (enabled) enabledCount++;
         if (!enabled && content.trim()) disabledWithContentCount++;
         if (!content.trim()) emptyContentCount++;
-        if (enabled && constant) constantTokenEstimate += estimateTokens(content);
 
         // keys: required for non-constant entries
         if (!entry.keys || !Array.isArray(entry.keys)) {
@@ -139,10 +131,6 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
         // content: should not be empty
         if (!content.trim()) {
           warnings.push(`世界书条目 "${entryName}" 内容为空`);
-        }
-
-        if (content.length > 2500) {
-          warnings.push(`世界书条目 "${entryName}" 内容较长（>2500 字符），建议拆分为多个条目`);
         }
 
         // insertion_order: should be a number
@@ -173,16 +161,74 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
         warnings.push(`存在 ${emptyContentCount} 个空内容世界书条目，建议导出前清理`);
       }
 
-      const tokenBudget = typeof charBook.token_budget === 'number' ? charBook.token_budget : 1500;
-      if (constantTokenEstimate > tokenBudget) {
-        warnings.push(`常驻世界书约 ${constantTokenEstimate} Token，超过当前世界书预算 ${tokenBudget}`);
-      }
-    }
-  }
+      // ── MVU entries validation ──────────────────────────────────────────
+      const mvuEntryNames = ['[InitVar]请勿打开', '[mvu_update]变量更新规则', 'EJS预处理', '变量列表.txt', '变量输出格式.txt'];
+      const mvuEntries = (charBook.entries as Record<string, unknown>[]).filter(e =>
+        mvuEntryNames.includes(e.name as string)
+      );
+      if (mvuEntries.length > 0) {
+        // Check initvar exists
+        const hasInitvar = mvuEntries.some(e => e.name === '[InitVar]请勿打开');
+        if (!hasInitvar) {
+          warnings.push('MVU 已启用但缺少 [InitVar] 初始变量条目');
+        }
+        // Check update rules exists
+        const hasUpdateRules = mvuEntries.some(e => e.name === '[mvu_update]变量更新规则');
+        if (!hasUpdateRules) {
+          warnings.push('MVU 已启用但缺少变量更新规则条目');
+        }
+        // Check all MVU entries are constant
+        for (const entry of mvuEntries) {
+          if (!entry.constant) {
+            warnings.push(`MVU 条目 "${entry.name}" 应为蓝灯条目 (constant)`);
+          }
+        }
 
-  // Token count estimation warning
-  if (typeof data.description === 'string' && data.description.length > 5000) {
-    warnings.push('描述过长（>5000 字符）— 建议将详细内容移至世界书条目中以节省 Token');
+        // Check MVU scripts and regex scripts in extensions
+        // SillyTavern / JS-Slash-Runner 要求 scripts 和 regex_scripts 都是数组
+        const ext = (data.extensions || {}) as Record<string, unknown>;
+        const tavernHelper = ext.tavern_helper as Record<string, unknown> | undefined;
+        const scripts = tavernHelper?.scripts as unknown[] | undefined;
+        const hasMvuScript = Array.isArray(scripts) && scripts.some(
+          s => typeof s === 'object' && s !== null && (s as { name?: string }).name === 'MVU'
+        );
+        const hasZodScript = Array.isArray(scripts) && scripts.some(
+          s => typeof s === 'object' && s !== null && (s as { name?: string }).name === 'Zod'
+        );
+        if (!hasMvuScript) {
+          warnings.push('MVU 已启用但酒馆助手脚本未注册 MVU 主脚本（extensions.tavern_helper.scripts 中缺少 name=MVU 的脚本）');
+        }
+        if (!hasZodScript) {
+          warnings.push('MVU 已启用但酒馆助手脚本未注册 Zod 校验脚本（extensions.tavern_helper.scripts 中缺少 name=Zod 的脚本）');
+        }
+
+        const regexScripts = ext.regex_scripts as unknown[] | undefined;
+        const hasHideUpdateScript = Array.isArray(regexScripts) && regexScripts.some(
+          s => typeof s === 'object' && s !== null && (s as { scriptName?: string }).scriptName === '对AI隐藏变量更新'
+        );
+        if (!hasHideUpdateScript) {
+          warnings.push('MVU 已启用但缺少变量更新隐藏正则脚本，<update> 标签会暴露给 AI');
+        }
+
+        // 状态栏通过 regex_scripts 实现
+        const hasStatusBar = ext.mvu_has_status_bar === true;
+        if (hasStatusBar) {
+          const hasStatusBarRegex = Array.isArray(regexScripts) && regexScripts.some(
+            s => typeof s === 'object' && s !== null && (s as { scriptName?: string }).scriptName === '状态栏界面'
+          );
+          const hasHideStatusBarRegex = Array.isArray(regexScripts) && regexScripts.some(
+            s => typeof s === 'object' && s !== null && (s as { scriptName?: string }).scriptName === '对AI隐藏状态栏'
+          );
+          if (!hasStatusBarRegex) {
+            warnings.push('MVU 已启用且包含状态栏，但 regex_scripts 中缺少 "状态栏界面" 正则脚本');
+          }
+          if (!hasHideStatusBarRegex) {
+            warnings.push('MVU 已启用且包含状态栏，但 regex_scripts 中缺少 "对AI隐藏状态栏" 正则脚本');
+          }
+        }
+      }
+
+    }
   }
 
   return { valid: errors.length === 0, errors, warnings };

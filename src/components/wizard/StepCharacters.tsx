@@ -12,6 +12,7 @@ import { useRef, useCallback } from 'react';
 import { CharacterEditor } from './CharacterEditor';
 import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
+import { useTranslation } from '../../i18n/I18nContext';
 import type { WizardCharacter, LorebookEntry } from '../../constants/defaults';
 import type { CharacterVersion } from '../../pages/WizardPage';
 import type { MutableRefObject } from 'react';
@@ -53,6 +54,7 @@ export function StepCharacters({
   onSaveVersion,
   streamingChunkCallbackRef,
 }: StepCharactersProps) {
+  const { t } = useTranslation();
   const lastEditorRef = useRef<HTMLDivElement>(null);
 
   const handleAdd = useCallback(() => {
@@ -84,22 +86,22 @@ export function StepCharacters({
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-white">角色配置</h2>
+        <h2 className="text-xl font-bold text-white">{t('characters.title')}</h2>
         <p className="text-sm text-slate-400 mt-1">
-          每个角色只需要：角色名称 + 角色设定。生成结果将自动转为世界书格式。
+          {t('characters.subtitle')}
         </p>
       </div>
 
       {/* Writing methodology guidance */}
       <div className="rounded-lg bg-indigo-900/20 border border-indigo-700/40 px-4 py-3 mb-4">
         <p className="text-xs text-indigo-300 leading-relaxed">
-          <span className="font-semibold">写作规则（参考 tavern-cards 方法论）：</span>
+          <span className="font-semibold">{t('characters.writingRulesTitle')}</span>
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1.5 text-[11px] text-indigo-300/80">
-          <p>✦ <strong>一句一意</strong>：写完一个态度就停，不补述同一件事</p>
-          <p>✦ <strong>数据库格式</strong>：用列表和键值对，不用散文段落</p>
-          <p>✦ <strong>行为展现性格</strong>：写具体行为，不贴抽象标签</p>
-          <p>✦ <strong>每句话过四问</strong>：删了AI会错吗？是信息还是装饰？列表能替代吗？不看原文能理解吗？</p>
+          <p>✦ <strong>{t('characters.writingRule1')}</strong></p>
+          <p>✦ <strong>{t('characters.writingRule2')}</strong></p>
+          <p>✦ <strong>{t('characters.writingRule3')}</strong></p>
+          <p>✦ <strong>{t('characters.writingRule4')}</strong></p>
         </div>
       </div>
 
@@ -131,7 +133,7 @@ export function StepCharacters({
       {/* Add character button */}
       <div className="mt-4">
         <Button variant="secondary" onClick={handleAdd}>
-          + 添加角色
+          + {t('characters.addCharacter')}
         </Button>
       </div>
 
@@ -139,13 +141,13 @@ export function StepCharacters({
       {linkedEntries.length > 0 && (
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-lg font-semibold text-indigo-300">生成结果（世界书格式）</h3>
+            <h3 className="text-lg font-semibold text-indigo-300">{t('characters.generatedResultsTitle')}</h3>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-600/20 text-indigo-400 border border-indigo-600/30">
-              自动注入
+              {t('characters.autoInjectBadge')}
             </span>
           </div>
           <p className="text-xs text-slate-500 mb-4">
-            以下条目由角色设定自动生成，可在进入下一步前修改。
+            {t('characters.generatedResultsHint')}
           </p>
           <div className="space-y-3">
             {linkedEntries.map((entry) => (
@@ -157,16 +159,16 @@ export function StepCharacters({
                   <span className="text-sm">{entry.constant ? '🔵' : '🟢'}</span>
                   <h4 className="text-sm font-medium text-white">{entry.name}</h4>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
-                    优先级: {entry.priority}
+                    {t('characters.priorityLabel', { value: String(entry.priority) })}
                   </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
-                    触发词: {entry.keys.join(', ') || '常驻'}
+                    {t('characters.keysLabel', { value: entry.keys.join(', ') || t('characters.constantLabel') })}
                   </span>
                 </div>
                 <TextArea
                   value={entry.content}
                   onChange={(e) => updateLinkedEntry(entry.id, e.target.value)}
-                  placeholder="条目内容..."
+                  placeholder={t('lorebook.contentPlaceholder')}
                   rows={3}
                 />
               </div>

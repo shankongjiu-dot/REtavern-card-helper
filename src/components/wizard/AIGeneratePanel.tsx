@@ -8,6 +8,7 @@ import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
 import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPanel';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
+import { useTranslation } from '../../i18n/I18nContext';
 
 interface AIGeneratePanelProps {
   topic: string;
@@ -52,6 +53,7 @@ export function AIGeneratePanel({
   characterSummaries,
   existingWorldbookContext,
 }: AIGeneratePanelProps) {
+  const { t } = useTranslation();
   const { generateWorldRulesStreaming } = useAIGenerate();
   const [rulesStatus, setRulesStatus] = useState<AIProgressStatus>('idle');
   const [rulesText, setRulesText] = useState('');
@@ -69,7 +71,7 @@ export function AIGeneratePanel({
 
   const handleGenerateRules = useCallback(async (isRetry = false) => {
     if (!canGenerateRules) {
-      setRulesError('请先填写卡片名称');
+      setRulesError(t('aiPanel.cardNameRequired'));
       return;
     }
     if (!isRetry) {
@@ -97,12 +99,12 @@ export function AIGeneratePanel({
         rulesRetryCountRef.current = isRetry ? rulesRetryCountRef.current + 1 : 1;
         const currentRetry = rulesRetryCountRef.current;
         if (currentRetry <= 2) {
-          setRulesText(`⚠️ AI 返回规则过短（${trimmed.length} 字），自动重试中 (${currentRetry}/2)...\n\n`);
+          setRulesText(t('aiPanel.rulesTooShortRetry', { length: String(trimmed.length), current: String(currentRetry) }));
           rulesRetryTimeoutRef.current = setTimeout(() => handleGenerateRules(true), 1000);
           return;
         } else {
           setRulesStatus('error');
-          setRulesError('AI 连续 3 次返回空内容或过短的规则。请检查 API 配置或主题描述后重试。');
+          setRulesError(t('aiPanel.rulesTooShortError'));
           return;
         }
       }
@@ -111,7 +113,7 @@ export function AIGeneratePanel({
       setPendingRules(fullText);
     } catch (err: unknown) {
       setRulesStatus('error');
-      setRulesError(err instanceof Error ? err.message : '生成失败');
+      setRulesError(err instanceof Error ? err.message : t('common.error'));
     }
   }, [canGenerateRules, cardName, characterSummaries, topic, worldRules, existingWorldbookContext, nsfw, generateWorldRulesStreaming]);
 
@@ -152,19 +154,19 @@ export function AIGeneratePanel({
           <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
         </label>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-300">NSFW 内容</span>
+          <span className="text-xs text-slate-300">{t('common.nsfw')}</span>
           <span className="text-[10px] text-slate-500">
-            {nsfw ? '允许生成成人内容' : '关闭（适配模型审核）'}
+            {nsfw ? t('aiPanel.nsfwAllowed') : t('aiPanel.nsfwDisabled')}
           </span>
         </div>
       </div>
 
       <div>
-        <label className="text-sm font-medium text-indigo-300">主题 / Theme</label>
+        <label className="text-sm font-medium text-indigo-300">{t('aiPanel.topicLabel')}</label>
         <TextInput
           value={topic}
           onChange={(e) => onTopicChange(e.target.value)}
-          placeholder="例如：修仙界、魔法学院、末日废土、赛博朋克..."
+          placeholder={t('aiPanel.topicPlaceholder')}
         />
       </div>
 
@@ -179,15 +181,15 @@ export function AIGeneratePanel({
                 onChange={(e) => onSkeletonModeChange(e.target.checked)}
                 className="rounded border-emerald-600 bg-slate-800 text-emerald-500"
               />
-              🦴 骨架模式
+              🦴 {t('aiPanel.skeletonMode')}
             </label>
             <p className="text-[10px] text-emerald-400/60 mt-0.5 ml-6">
-              快速生成简短骨架，之后用「✨ AI 展开」逐条扩展为完整设定
+              {t('aiPanel.skeletonHint')}
             </p>
           </div>
           {skeletonMode && (
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-emerald-400/70">条数</span>
+              <span className="text-xs text-emerald-400/70">{t('aiPanel.countLabel')}</span>
               <input
                 type="number"
                 value={skeletonCount}
@@ -211,7 +213,7 @@ export function AIGeneratePanel({
                     : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-emerald-600 hover:text-emerald-400'
                 }`}
               >
-                {n}条
+                {n}{t('common.countUnit')}
               </button>
             ))}
           </div>
@@ -221,7 +223,7 @@ export function AIGeneratePanel({
       {/* ── Full mode batch count ──────────────────── */}
       {!skeletonMode && (
         <div className="flex items-center gap-3">
-          <span className="text-xs text-indigo-300 shrink-0">生成条数</span>
+          <span className="text-xs text-indigo-300 shrink-0">{t('aiPanel.batchCountLabel')}</span>
           <input
             type="number"
             value={batchCount}
@@ -241,7 +243,7 @@ export function AIGeneratePanel({
                     : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-indigo-600 hover:text-indigo-400'
                 }`}
               >
-                {n}条
+                {n}{t('common.countUnit')}
               </button>
             ))}
           </div>
@@ -251,8 +253,8 @@ export function AIGeneratePanel({
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="text-sm font-medium text-indigo-300">
-            世界观约束与运行规则
-            <span className="text-xs text-slate-500 font-normal ml-2">（可选，定义世界法则、扮演规则等）</span>
+            {t('aiPanel.rulesLabel')}
+            <span className="text-xs text-slate-500 font-normal ml-2">{t('aiPanel.rulesHint')}</span>
           </label>
           {canGenerateRules && (
             <div className="flex items-center gap-2">
@@ -263,14 +265,14 @@ export function AIGeneratePanel({
                 disabled={rulesStatus === 'generating'}
               >
                 {rulesStatus === 'generating'
-                  ? '⏳ 生成中...'
-                  : (worldRules.trim() ? '🔄 扩展规则' : '✨ AI 生成规则')
+                  ? `⏳ ${t('common.generating')}`
+                  : (worldRules.trim() ? `🔄 ${t('aiPanel.extendRules')}` : `✨ ${t('aiPanel.generateRules')}`)
                 }
               </Button>
               {pendingRules && (
                 <>
-                  <Button size="sm" onClick={handleAcceptRules}>✅ 采纳</Button>
-                  <Button size="sm" variant="ghost" onClick={handleRejectRules}>丢弃</Button>
+                  <Button size="sm" onClick={handleAcceptRules}>✅ {t('aiPanel.accept')}</Button>
+                  <Button size="sm" variant="ghost" onClick={handleRejectRules}>{t('aiPanel.reject')}</Button>
                 </>
               )}
             </div>
@@ -284,7 +286,7 @@ export function AIGeneratePanel({
               status={rulesStatus}
               text={rulesText}
               error={rulesError}
-              title="AI 世界观规则生成"
+              title={t('aiPanel.generatedRulesTitle')}
               onClear={handleClearRules}
             />
           </div>
@@ -293,11 +295,11 @@ export function AIGeneratePanel({
         <TextArea
           value={worldRules}
           onChange={(e) => onWorldRulesChange(e.target.value)}
-          placeholder={`例如：\n- 修仙体系：炼气→筑基→金丹→元婴→化神→渡劫\n- 灵气复苏设定：现代都市+灵气渐浓\n- 势力格局：三大仙门+散修联盟+魔道\n- 战力规则：每个大境界分三层，突破需天材地宝\n- 扮演规则：角色严格按设定性格行事，不可崩人设`}
+          placeholder={t('aiPanel.rulesPlaceholder')}
           rows={6}
         />
         <p className="text-[10px] text-slate-500 mt-1">
-          填写世界观设定、力量体系、势力关系、运行规则等，AI 将据此生成符合约束的世界书条目
+          {t('aiPanel.rulesHelp')}
         </p>
       </div>
       <div className="flex items-center gap-2 pt-1">
@@ -310,13 +312,13 @@ export function AIGeneratePanel({
             transition-all duration-200 hover:scale-105 active:scale-95
             disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
         >
-          {generating ? '⏳ 生成中...' : '🚀 生成世界书'}
+          {generating ? `⏳ ${t('common.generating')}` : `🚀 ${t('aiPanel.generateButton')}`}
         </button>
         {(topic || worldRules) && (
           <span className="text-[10px] text-slate-500 ml-auto">
-            {topic && '主题: ' + topic.slice(0, 30) + (topic.length > 30 ? '...' : '')}
+            {topic && `${t('aiPanel.topicSummary')}: ${topic.slice(0, 30) + (topic.length > 30 ? '...' : '')}`}
             {topic && worldRules && ' · '}
-            {worldRules && worldRules.length + ' 字规则'}
+            {worldRules && t('aiPanel.rulesSummary', { count: String(worldRules.length) })}
           </span>
         )}
       </div>

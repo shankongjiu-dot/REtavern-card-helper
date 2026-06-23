@@ -3,6 +3,7 @@
  * Shows streaming tokens as they arrive, with status and controls.
  */
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from '../../i18n/I18nContext';
 
 export type AIProgressStatus = 'idle' | 'generating' | 'done' | 'error';
 
@@ -18,9 +19,11 @@ export function AIProgressPanel({
   status,
   text,
   error,
-  title = 'AI 实时输出',
+  title,
   onClear,
 }: AIProgressPanelProps) {
+  const { t } = useTranslation();
+  const displayTitle = title || t('aiProgress.titleDefault');
   const [collapsed, setCollapsed] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
 
@@ -39,10 +42,10 @@ export function AIProgressPanel({
   }, [status]);
 
   const statusConfig = {
-    idle: { label: '等待中', color: 'text-slate-400', dot: 'bg-slate-400' },
-    generating: { label: '生成中', color: 'text-amber-400', dot: 'bg-amber-400 animate-pulse' },
-    done: { label: '完成', color: 'text-emerald-400', dot: 'bg-emerald-400' },
-    error: { label: '错误', color: 'text-red-400', dot: 'bg-red-400' },
+    idle: { label: t('aiProgress.idle'), color: 'text-slate-400', dot: 'bg-slate-400' },
+    generating: { label: t('aiProgress.generating'), color: 'text-amber-400', dot: 'bg-amber-400 animate-pulse' },
+    done: { label: t('aiProgress.done'), color: 'text-emerald-400', dot: 'bg-emerald-400' },
+    error: { label: t('aiProgress.error'), color: 'text-red-400', dot: 'bg-red-400' },
   };
 
   const { label, color, dot } = statusConfig[status];
@@ -60,13 +63,13 @@ export function AIProgressPanel({
       >
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${dot}`} />
-          <span className="text-sm font-medium text-white">{title}</span>
+          <span className="text-sm font-medium text-white">{displayTitle}</span>
           <span className={`text-xs ${color}`}>{label}</span>
         </div>
         <div className="flex items-center gap-3">
           {text && (
             <span className="text-[10px] text-slate-500">
-              {charCount} 字符 / ~{estimatedTokens} tokens
+              {t('aiProgress.charTokenEstimate', { chars: String(charCount), tokens: String(estimatedTokens) })}
             </span>
           )}
           {status === 'done' && onClear && (
@@ -77,7 +80,7 @@ export function AIProgressPanel({
               }}
               className="text-xs text-slate-400 hover:text-white transition-colors"
             >
-              清空
+              {t('aiProgress.clear')}
             </button>
           )}
           <svg
@@ -100,11 +103,11 @@ export function AIProgressPanel({
           {text ? (
             <span>{text}</span>
           ) : status === 'generating' ? (
-            <span className="text-slate-500 italic">等待 AI 响应...</span>
+            <span className="text-slate-500 italic">{t('aiProgress.waitingResponse')}</span>
           ) : status === 'error' ? (
-            <span className="text-red-400">{error || '未知错误'}</span>
+            <span className="text-red-400">{error || t('aiProgress.unknownError')}</span>
           ) : (
-            <span className="text-slate-500 italic">点击上方按钮开始生成</span>
+            <span className="text-slate-500 italic">{t('aiProgress.clickToStart')}</span>
           )}
           {status === 'generating' && text && (
             <span className="inline-block w-2 h-4 bg-amber-400 animate-pulse ml-0.5 align-middle" />

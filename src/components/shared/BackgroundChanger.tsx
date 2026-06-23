@@ -3,8 +3,10 @@
  */
 import { useState } from 'react';
 import { fileToDataUrl, setBackground, clearBackground, getStoredBackground } from '../../services/background-service';
+import { useTranslation } from '../../i18n/I18nContext';
 
 export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
+  const { t } = useTranslation();
   const [hasCustomBg, setHasCustomBg] = useState(() => !!getStoredBackground());
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -42,10 +44,10 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-        title="更换背景图片"
+        title={t('theme.changeBackground')}
       >
         <span className="flex items-center gap-1.5">
-          🎨 背景
+          🎨 {t('theme.backgroundLabel')}
         </span>
         <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
           ▾
@@ -60,14 +62,14 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
               onClick={handleUpload}
               className="w-full text-left px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-700 rounded transition-colors"
             >
-              📤 上传图片
+              📤 {t('theme.uploadImage')}
             </button>
             {hasCustomBg && (
               <button
                 onClick={handleReset}
                 className="w-full text-left px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-700 rounded transition-colors"
               >
-                🔄 恢复默认
+                🔄 {t('theme.resetDefault')}
               </button>
             )}
           </div>

@@ -12,8 +12,10 @@ import {
   togglePresetPrompt,
   type LoadedPreset,
 } from '../../services/preset-service';
+import { useTranslation } from '../../i18n/I18nContext';
 
 export function PresetPanel() {
+  const { t } = useTranslation();
   const [preset, setPreset] = useState<LoadedPreset | null>(() => loadSavedPreset());
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -32,7 +34,7 @@ export function PresetPanel() {
       const loaded = await importPresetFile(file);
       setPreset(loaded);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '导入失败');
+      setError(err instanceof Error ? err.message : t('preset.importError'));
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -53,9 +55,9 @@ export function PresetPanel() {
 
   const typeLabel = (type: string) => {
     switch (type) {
-      case 'example': return <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/30 text-green-300">示例</span>;
-      case 'jailbreak': return <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-300">JB</span>;
-      default: return <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">system</span>;
+      case 'example': return <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/30 text-green-300">{t('preset.typeExampleShort')}</span>;
+      case 'jailbreak': return <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-300">{t('preset.typeJailbreakShort')}</span>;
+      default: return <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">{t('preset.typeSystem')}</span>;
     }
   };
 
@@ -72,10 +74,10 @@ export function PresetPanel() {
 
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">📋 写卡预设</span>
+          <span className="text-sm font-semibold text-white">{t('preset.panelTitle')}</span>
           {preset && (
             <span className="text-[10px] text-indigo-300 bg-indigo-900/30 px-1.5 py-0.5 rounded">
-              {enabledCount}/{preset.prompts.length} 条规则已启用
+              {t('preset.enabledRulesShort', { enabled: String(enabledCount), total: String(preset.prompts.length) })}
             </span>
           )}
         </div>
@@ -86,11 +88,11 @@ export function PresetPanel() {
             onClick={handleImport}
             disabled={importing}
           >
-            {importing ? '导入中...' : preset ? '🔄 更换预设' : '📂 导入预设'}
+            {importing ? t('preset.importing') : preset ? t('preset.panelChange') : t('preset.panelImport')}
           </Button>
           {preset && (
             <Button variant="danger" size="sm" onClick={handleClear}>
-              ✕ 清除
+              {t('preset.panelClear')}
             </Button>
           )}
         </div>
@@ -104,8 +106,7 @@ export function PresetPanel() {
       {/* Empty state */}
       {!preset && !error && (
         <p className="text-xs text-slate-500">
-          导入酒馆 .json 预设文件，提取其中的规则作为 AI 生成时的文风和写作指导。
-          支持 SillyTavern 标准预设格式、system_prompt 格式等。
+          {t('preset.panelEmptyDescription')}
         </p>
       )}
 
@@ -113,7 +114,7 @@ export function PresetPanel() {
       {preset && (
         <div className="mt-2 space-y-1">
           <p className="text-[10px] text-slate-500">
-            来源: {preset.fileName} · 已加载 {preset.prompts.length} 条规则
+            {t('preset.panelSource', { fileName: preset.fileName, count: String(preset.prompts.length) })}
           </p>
           <div className="max-h-[200px] overflow-y-auto space-y-0.5">
             {preset.prompts.map((p, i) => (
@@ -132,7 +133,7 @@ export function PresetPanel() {
                 </span>
                 {typeLabel(p.type)}
                 <span className="text-[10px] text-slate-600 ml-auto shrink-0">
-                  {p.content.length} 字
+                  {t('preset.charCount', { count: String(p.content.length) })}
                 </span>
               </label>
             ))}

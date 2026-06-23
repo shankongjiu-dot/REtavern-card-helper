@@ -6,8 +6,10 @@
 import { Suspense, useState, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { useTranslation } from '../../i18n/I18nContext';
 
 export function AppShell() {
+  const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const toggleSidebar = useCallback(() => {
@@ -38,7 +40,7 @@ export function AppShell() {
           <button
             onClick={toggleSidebar}
             className="p-1.5 -ml-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            aria-label="打开菜单"
+            aria-label={t('sidebar.openMenu')}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="3" y1="6" x2="21" y2="6" />
@@ -46,7 +48,7 @@ export function AppShell() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>吟游手册</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>{t('common.appName')}</span>
         </div>
 
         <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8">

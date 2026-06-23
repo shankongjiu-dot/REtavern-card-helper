@@ -8,6 +8,8 @@ import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
 import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPanel';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
+import { useTranslation } from '../../i18n/I18nContext';
+import type { MvuConfig } from '../../constants/defaults';
 
 interface StepFirstMessageProps {
   firstMessage: string;
@@ -15,14 +17,16 @@ interface StepFirstMessageProps {
   characterDescriptions: string;
   worldbookContext: string;
   onChange: (message: string) => void;
+  /** MVU config — used to show initvar context for consistency */
+  mvu?: MvuConfig;
 }
 
-const WORD_COUNT_PRESETS = [
-  { label: '不限', value: 0 },
-  { label: '200 字', value: 200 },
-  { label: '500 字', value: 500 },
-  { label: '800 字', value: 800 },
-  { label: '1200 字', value: 1200 },
+const WORD_COUNT_PRESETS = (t: (key: string, vars?: Record<string, string>) => string) => [
+  { label: t('firstMessage.unlimited'), value: 0 },
+  { label: t('firstMessage.wordCountPreset', { count: String(200) }), value: 200 },
+  { label: t('firstMessage.wordCountPreset', { count: String(500) }), value: 500 },
+  { label: t('firstMessage.wordCountPreset', { count: String(800) }), value: 800 },
+  { label: t('firstMessage.wordCountPreset', { count: String(1200) }), value: 1200 },
 ];
 
 /** Minimum acceptable content length for a valid response */
@@ -30,7 +34,8 @@ const MIN_RESPONSE_LENGTH = 50;
 /** Maximum number of auto-retries when AI returns empty/too-short content */
 const MAX_AUTO_RETRIES = 2;
 
-export function StepFirstMessage({ firstMessage, cardName, characterDescriptions, worldbookContext, onChange }: StepFirstMessageProps) {
+export function StepFirstMessage({ firstMessage, cardName, characterDescriptions, worldbookContext, onChange, mvu }: StepFirstMessageProps) {
+  const { t } = useTranslation();
   const { generateFirstMessageStreaming } = useAIGenerate();
   const [aiStatus, setAiStatus] = useState<AIProgressStatus>('idle');
   const [aiText, setAiText] = useState('');
@@ -79,13 +84,13 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
         setRetryCount(currentRetry);
         if (currentRetry <= MAX_AUTO_RETRIES) {
           // Auto-retry
-          setAiText(`⚠️ AI 返回内容过短（${trimmed.length} 字），自动重试中 (${currentRetry}/${MAX_AUTO_RETRIES})...\n\n`);
+          setAiText(t('firstMessage.tooShortRetry', { length: String(trimmed.length), current: String(currentRetry), max: String(MAX_AUTO_RETRIES) }));
           retryTimeoutRef.current = setTimeout(() => handleStreamGenerate(true), 1000);
           return;
         } else {
           // Exhausted retries
           setAiStatus('error');
-          setAiError(`AI 连续 ${MAX_AUTO_RETRIES + 1} 次返回空内容或过短内容（${trimmed.length} 字）。请检查：\n1. API 配置是否正确\n2. 模型是否支持当前 token 数量\n3. 角色描述是否为空\n\n你可以尝试：\n- 补充角色描述后重新生成\n- 手动撰写开场白\n- 更换 AI 模型`);
+          setAiError(t('firstMessage.tooShortError', { count: String(MAX_AUTO_RETRIES + 1), length: String(trimmed.length) }));
           return;
         }
       }
@@ -94,7 +99,7 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
       setPendingResult(fullText);
     } catch (err: unknown) {
       setAiStatus('error');
-      setAiError(err instanceof Error ? err.message : '生成失败');
+      setAiError(err instanceof Error ? err.message : t('common.error'));
     }
   }, [cardName, characterDescriptions, generateFirstMessageStreaming, targetWordCount, worldbookContext, writingRequirements]);
 
@@ -125,9 +130,9 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-white">开场白</h2>
+          <h2 className="text-xl font-bold text-white">{t('firstMessage.title')}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            角色在对话开始时发出的第一条消息。可用 {'{{user}}'} 作为用户占位符，角色直接使用设定名称。
+            {t('firstMessage.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -136,7 +141,7 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
             size="sm"
             onClick={() => setShowRequirements(!showRequirements)}
           >
-            {showRequirements ? '收起要求' : (writingRequirements.trim() ? '📝 写作要求 ✅' : '📝 写作要求')}
+            {showRequirements ? t('firstMessage.collapseRequirements') : (writingRequirements.trim() ? t('firstMessage.writingRequirementsActive') : t('firstMessage.writingRequirementsButton'))}
           </Button>
           <Button
             variant="secondary"
@@ -145,14 +150,14 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
             disabled={aiStatus === 'generating'}
           >
             {aiStatus === 'generating'
-              ? (retryCount > 0 ? `⏳ 重试中 (${retryCount}/${MAX_AUTO_RETRIES})...` : '⏳ 生成中...')
-              : '✨ AI 生成'
+              ? (retryCount > 0 ? `⏳ ${t('firstMessage.retrying', { current: String(retryCount), max: String(MAX_AUTO_RETRIES) })}` : `⏳ ${t('common.generating')}`)
+              : `✨ ${t('firstMessage.aiGenerate')}`
             }
           </Button>
           {pendingResult && (
             <>
-              <Button size="sm" onClick={handleAccept}>✅ 采纳</Button>
-              <Button size="sm" variant="ghost" onClick={handleReject}>丢弃</Button>
+              <Button size="sm" onClick={handleAccept}>✅ {t('firstMessage.accept')}</Button>
+              <Button size="sm" variant="ghost" onClick={handleReject}>{t('firstMessage.reject')}</Button>
             </>
           )}
         </div>
@@ -163,29 +168,29 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
         <div className="mb-4 rounded-xl border-2 border-amber-600/50 bg-amber-950/20 p-4 space-y-3 animate-fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-amber-300">⚠️ 开场白内容要求（最高优先级）</h3>
+              <h3 className="text-sm font-bold text-amber-300">⚠️ {t('firstMessage.writingReqTitle')}</h3>
             </div>
             {writingRequirements.trim() && (
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-800/40 text-emerald-300">✅ 已填写，AI 将严格遵守</span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-800/40 text-emerald-300">✅ {t('firstMessage.reqFilled')}</span>
             )}
           </div>
           <div className="rounded-lg bg-amber-900/20 border border-amber-700/30 px-3 py-2">
             <p className="text-[11px] text-amber-200/80 leading-relaxed">
-              <strong>重要：</strong>这里写的内容会<strong>覆盖</strong>角色设定的优先级。AI 会按照你的要求来写开场白的具体情节、场景和对话，而不是泛泛地基于角色设定自由发挥。写得越具体，效果越好。
+              {t('firstMessage.writingReqHint')}
             </p>
           </div>
           <textarea
             value={writingRequirements}
             onChange={(e) => setWritingRequirements(e.target.value)}
-            placeholder={"例如：\n- 开场白场景：深夜的酒吧，角色独自坐在角落喝酒\n- 用户走进酒吧，角色主动搭话\n- 语气要带点懒漫和不耐烦，但眼底有光\n- 必须包含一句对话：角色对 {{user}} 说\"这么晚了还来？\"\n- 结尾要留悬念，暗示角色有不可告人的过去"}
+            placeholder={t('firstMessage.writingReqPlaceholder')}
             className="w-full h-32 rounded-lg border border-amber-600/40 bg-slate-900/80 px-3 py-2 text-xs text-slate-200 placeholder-slate-500 resize-y focus:border-amber-500 focus:outline-none"
           />
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-slate-500">
-              💡 提示：场景、情节、对话、语气、必须包含的元素都可以写在这里。
+              💡 {t('firstMessage.writingReqTip')}
             </p>
             {writingRequirements.trim() && (
-              <span className="text-[10px] text-slate-500 shrink-0">{writingRequirements.length} 字</span>
+              <span className="text-[10px] text-slate-500 shrink-0">{writingRequirements.length}{t('common.words')}</span>
             )}
           </div>
         </div>
@@ -193,9 +198,9 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
 
       {/* Word count presets */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <span className="text-xs text-slate-400 shrink-0">目标字数：</span>
+        <span className="text-xs text-slate-400 shrink-0">{t('firstMessage.wordCountLabel')}</span>
         <div className="flex flex-wrap gap-1.5">
-          {WORD_COUNT_PRESETS.map((preset) => (
+          {WORD_COUNT_PRESETS(t).map((preset) => (
             <button
               key={preset.value}
               onClick={() => setTargetWordCount(preset.value)}
@@ -218,26 +223,57 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
             status={aiStatus}
             text={aiText}
             error={aiError}
-            title={retryCount > 0 ? `AI 开场白生成 (重试 ${retryCount}/${MAX_AUTO_RETRIES})` : 'AI 开场白生成'}
+            title={retryCount > 0 ? t('firstMessage.aiProgressRetryTitle', { current: String(retryCount), max: String(MAX_AUTO_RETRIES) }) : t('firstMessage.aiProgressTitle')}
             onClear={handleClear}
           />
+        </div>
+      )}
+
+      {/* MVU initvar context — ensures first message aligns with variable initial state */}
+      {mvu?.enabled && mvu.schemaSections.length > 0 && (
+        <div className="mb-4 rounded-xl border border-purple-700/40 bg-purple-950/20 p-4">
+          <details open>
+            <summary className="text-sm font-medium text-purple-300 cursor-pointer">
+              📐 MVU 变量初始状态参考
+            </summary>
+            <p className="text-[11px] text-purple-400/60 mt-2 mb-2">
+              开场白应体现以下变量的初始状态，确保与 initvar 一致：
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {mvu.schemaSections.flatMap(section =>
+                section.variables
+                  .filter(v => v.prefix !== '$')
+                  .map(v => (
+                    <div key={v.path} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 truncate">{v.path}</span>
+                      <span className="text-purple-300 font-mono ml-2">
+                        {String(v.initialValue ?? '?')}
+                      </span>
+                    </div>
+                  ))
+              )}
+            </div>
+            {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$').length === 0 && (
+              <p className="text-xs text-slate-500">暂无变量</p>
+            )}
+          </details>
         </div>
       )}
 
       <TextArea
         value={firstMessage}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="角色名缓缓睁开眼睛，冰冷的石板地面贴在背上..."
+        placeholder={t('firstMessage.placeholder')}
         rows={10}
         className="font-mono"
       />
       <div className="flex items-center justify-between mt-2">
         <p className="text-xs text-slate-500">
-          提示：好的开场白通常设置场景、包含感官细节，并给用户一个回应的钩子。
+          {t('firstMessage.tip')}
         </p>
         {firstMessage && (
           <span className="text-xs text-slate-500 shrink-0 ml-4">
-            当前 {firstMessage.length} 字
+            {t('firstMessage.currentLength', { count: String(firstMessage.length) })}
           </span>
         )}
       </div>

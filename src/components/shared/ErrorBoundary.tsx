@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { I18nContext, type I18nContextValue } from '../../i18n/I18nContext';
 
 interface Props {
   children: ReactNode;
@@ -19,6 +20,9 @@ interface State {
  * reproducible code bugs. Auto-retry usually resolves them.
  */
 export class ErrorBoundary extends Component<Props, State> {
+  static contextType = I18nContext;
+  declare context: I18nContextValue;
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null, retryCount: 0 };
@@ -64,7 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
         return (
           <div className="flex items-center justify-center min-h-screen bg-slate-900">
             <div className="text-center p-8">
-              <p className="text-sm text-slate-400">正在自动恢复...</p>
+              <p className="text-sm text-slate-400">{this.context.t('errorBoundary.recovering')}</p>
             </div>
           </div>
         );
@@ -74,9 +78,9 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex items-center justify-center min-h-screen bg-slate-900">
           <div className="max-w-2xl text-center space-y-4 p-8">
             <p className="text-4xl">⚠</p>
-            <h1 className="text-xl font-bold text-white">出现错误</h1>
+            <h1 className="text-xl font-bold text-white">{this.context.t('errorBoundary.title')}</h1>
             <p className="text-sm text-slate-400">
-              页面渲染时发生错误，请尝试刷新页面。
+              {this.context.t('errorBoundary.description')}
             </p>
             {this.state.error && (
               <div className="text-left">
@@ -91,18 +95,18 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleManualRetry}
                 className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-500 transition-colors"
               >
-                重试恢复
+                {this.context.t('errorBoundary.retry')}
               </button>
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-slate-700 text-white text-sm rounded-lg hover:bg-slate-600 transition-colors"
               >
-                刷新页面
+                {this.context.t('errorBoundary.reload')}
               </button>
             </div>
             {isDomError && (
               <p className="text-xs text-slate-500 mt-4">
-                此类 DOM 错误通常由浏览器扩展（翻译、密码管理等）引起，建议在无扩展环境下测试。
+                {this.context.t('errorBoundary.domErrorHint')}
               </p>
             )}
           </div>

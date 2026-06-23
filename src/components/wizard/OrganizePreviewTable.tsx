@@ -5,6 +5,7 @@
  * Extracted from StepWorldBook for better component granularity.
  */
 import { Button } from '../shared/Button';
+import { useTranslation } from '../../i18n/I18nContext';
 import type { LorebookEntry, AIOrganizeSuggestion } from '../../constants/defaults';
 
 interface OrganizePreviewTableProps {
@@ -20,26 +21,27 @@ export function OrganizePreviewTable({
   onApply,
   onDismiss,
 }: OrganizePreviewTableProps) {
+  const { t } = useTranslation();
   return (
     <div className="mb-4 rounded-lg border border-amber-700/40 bg-slate-900/80 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 bg-amber-900/20 border-b border-amber-700/30">
         <span className="text-sm font-semibold text-amber-300">
-          ⚡ AI 整理建议 ({suggestions.length} 处调整)
+          {t('worldBook.organizeSuggestionsTitle', { count: String(suggestions.length) })}
         </span>
         <div className="flex gap-2">
-          <Button size="sm" onClick={onApply}>✅ 应用全部</Button>
-          <Button size="sm" variant="ghost" onClick={onDismiss}>取消</Button>
+          <Button size="sm" onClick={onApply}>{t('common.applyAll')}</Button>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>{t('common.cancel')}</Button>
         </div>
       </div>
       <div className="max-h-[240px] overflow-y-auto overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-slate-400 border-b border-slate-700/50">
-              <th className="text-left px-3 py-2">条目</th>
-              <th className="text-left px-3 py-2">参数</th>
-              <th className="text-left px-3 py-2">当前值</th>
-              <th className="text-left px-3 py-2">建议值</th>
-              <th className="text-left px-3 py-2">原因</th>
+              <th className="text-left px-3 py-2">{t('worldBook.tableEntry')}</th>
+              <th className="text-left px-3 py-2">{t('worldBook.tableParam')}</th>
+              <th className="text-left px-3 py-2">{t('worldBook.tableCurrent')}</th>
+              <th className="text-left px-3 py-2">{t('worldBook.tableSuggested')}</th>
+              <th className="text-left px-3 py-2">{t('worldBook.tableReason')}</th>
             </tr>
           </thead>
           <tbody>
@@ -49,7 +51,7 @@ export function OrganizePreviewTable({
               return (
                 <tr key={i} className="border-b border-slate-800/50 hover:bg-amber-900/10">
                   <td className="px-3 py-1.5 font-medium text-slate-200 truncate max-w-[100px]">
-                    {entry.name || `条目 ${r.index + 1}`}
+                    {entry.name || t('lorebook.entryFallback', { index: String(r.index + 1) })}
                   </td>
                   <td className="px-3 py-1.5 text-slate-400 font-mono">
                     {r.position !== undefined && entry.position !== r.position && <div>position</div>}
@@ -73,7 +75,7 @@ export function OrganizePreviewTable({
                     {r.constant !== undefined && entry.constant !== r.constant && <div>{String(r.constant)}</div>}
                   </td>
                   <td className="px-3 py-1.5 text-slate-500 max-w-[150px] truncate">
-                    {r.reason || '-'}
+                    {r.reason || t('worldBook.noReason')}
                   </td>
                 </tr>
               );

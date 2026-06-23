@@ -6,12 +6,15 @@
 import { WIZARD_STEPS } from '../../constants/defaults';
 import { Button } from '../shared/Button';
 import { Check } from 'lucide-react';
+import { useTranslation } from '../../i18n/I18nContext';
 
 interface WizardShellProps {
   currentStep: number;
   onPrev: () => void;
   onNext: () => void;
   onSave: () => void;
+  onSaveDraft?: () => void;
+  onClear?: () => void;
   stepError: string | null;
   saving: boolean;
   /** Optional extra action buttons rendered next to "下一步" */
@@ -21,9 +24,11 @@ interface WizardShellProps {
   children: React.ReactNode;
 }
 
-export function WizardShell({ currentStep, onPrev, onNext, onSave, stepError, saving, extraActions, hideBottomNav, children }: WizardShellProps) {
+export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, onClear, stepError, saving, extraActions, hideBottomNav, children }: WizardShellProps) {
+  const { t } = useTranslation();
   const isFirst = currentStep === 1;
   const isLast = currentStep === WIZARD_STEPS.length;
+  const stepKeys = ['wizard.stepName','wizard.stepCharacters','wizard.stepWorldBook','wizard.stepMvu','wizard.stepFirstMessage','wizard.stepExport'];
 
   return (
     <div>
@@ -53,7 +58,7 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, stepError, sa
                     </div>
                     <span className={`mt-1 sm:mt-1.5 text-[10px] sm:text-[11px] font-medium whitespace-nowrap transition-colors duration-200
                       ${isCurrent ? 'text-indigo-300' : isCompleted ? 'text-emerald-400/70' : 'text-slate-600'}`}>
-                      {step.label}
+                      {t(stepKeys[step.id - 1])}
                     </span>
                   </div>
                   {/* Connector line */}
@@ -68,7 +73,7 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, stepError, sa
         </div>
         {/* Mobile: step progress text */}
         <p className="md:hidden text-center text-xs text-slate-500 mt-1">
-          步骤 {currentStep} / {WIZARD_STEPS.length}
+          {t('wizard.stepIndicator', { current: String(currentStep), total: String(WIZARD_STEPS.length) })}
         </p>
       </div>
 
@@ -88,27 +93,37 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, stepError, sa
       {!hideBottomNav && (
       <div className="mt-4 sm:mt-8 flex flex-col sm:flex-row justify-between gap-3 border-t border-white/5 pt-4 sm:pt-6">
         <Button variant="ghost" onClick={onPrev} disabled={isFirst}>
-          ← 上一步
+          ← {t('common.previous')}
         </Button>
         <div className="flex items-center gap-3 flex-wrap justify-end">
+          {onClear && (
+            <Button variant="ghost" onClick={onClear} disabled={saving}>
+              {t('wizard.clearDraft')}
+            </Button>
+          )}
+          {onSaveDraft && (
+            <Button variant="secondary" onClick={onSaveDraft} disabled={saving}>
+              {t('wizard.saveDraft')}
+            </Button>
+          )}
           {extraActions}
           {isLast ? (
             <Button onClick={onSave} disabled={saving}>
-              {saving ? '保存中...' : '保存卡片'}
+              {saving ? t('common.saving') : t('wizard.saveCard')}
             </Button>
           ) : (
             <Button onClick={onNext}>
-              下一步 →
+              {t('common.next')} →
             </Button>
           )}
         </div>
       </div>
       )}
-      {/* When bottom nav is hidden, still show "上一步" at the bottom */}
+      {/* When bottom nav is hidden, still show previous at the bottom */}
       {hideBottomNav && (
       <div className="mt-4 sm:mt-8 flex justify-start border-t border-white/5 pt-4 sm:pt-6">
         <Button variant="ghost" onClick={onPrev} disabled={isFirst}>
-          ← 上一步
+          ← {t('common.previous')}
         </Button>
       </div>
       )}

@@ -31,4 +31,20 @@ dist-ssr
 *.sln
 *.sw?
 
+# Temporary / debug files generated during development
+.temp_*
+*.local.json
+mvu_patch_decoded.json
+magvarupdate-bundle.js
+st-chats.js
+st-regex-engine*.js
+st-regex-index.js
+
+# External clones / local tooling
+ai4rpg-tavern-cards/
+js-slash-runner/
+magvarupdate/
+st-prompt-template/
+stagedog-tavern-helper-template/
+
 .vercel

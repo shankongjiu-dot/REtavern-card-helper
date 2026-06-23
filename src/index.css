@@ -24,6 +24,9 @@
   --card-shadow: 0 4px 8px rgba(0,0,0,0.3);
   --input-bg: #0f172a;
   --input-border: #475569;
+  --card-bg-r: 30;
+  --card-bg-g: 41;
+  --card-bg-b: 59;
 }
 
 * {
@@ -286,8 +289,8 @@ body {
 .glass-card {
   background: linear-gradient(
     135deg,
-    rgba(30, 41, 59, var(--surface-opacity)) 0%,
-    rgba(30, 41, 59, calc(var(--surface-opacity) * 0.9)) 100%
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), var(--surface-opacity)) 0%,
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), calc(var(--surface-opacity) * 0.9)) 100%
   );
   backdrop-filter: blur(var(--blur-intensity));
   border: 1px solid rgba(99, 102, 241, 0.12);
@@ -304,14 +307,31 @@ body {
 .card-surface {
   background: linear-gradient(
     135deg,
-    rgba(30, 41, 59, var(--surface-opacity)) 0%,
-    rgba(30, 41, 59, calc(var(--surface-opacity) * 0.92)) 100%
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), var(--surface-opacity)) 0%,
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), calc(var(--surface-opacity) * 0.92)) 100%
   );
   box-shadow: var(--card-shadow);
   transition: box-shadow 0.3s ease, transform 0.2s ease;
 }
 
 .card-surface:hover {
+  box-shadow: var(--card-shadow), 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Theme-aware card backgrounds in main content (excludes accent-colored cards) */
+main .rounded-xl.border[class*="bg-slate-"],
+main .rounded-2xl.border[class*="bg-slate-"] {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), var(--surface-opacity)) 0%,
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), calc(var(--surface-opacity) * 0.92)) 100%
+  ) !important;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.3s ease, transform 0.2s ease, border-color 0.3s ease;
+}
+
+main .rounded-xl.border[class*="bg-slate-"]:hover,
+main .rounded-2xl.border[class*="bg-slate-"]:hover {
   box-shadow: var(--card-shadow), 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 

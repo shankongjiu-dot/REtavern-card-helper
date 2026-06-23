@@ -1,27 +1,23 @@
 /**
  * useAIGenerate - hook for AI-powered content generation in the wizard.
- * Handles character, lorebook, first message, and example dialogue generation.
+ * Handles character, lorebook, and first message generation.
  * Supports both streaming and non-streaming modes.
  *
  * NOTE: Preset injection is handled globally in ai-service.ts (injectPreset).
  * All AI calls automatically include the active writing preset.
  */
 import { useCallback } from 'react';
+import { useTranslation } from '../i18n/I18nContext';
 import { callAIWithPrompt, callAIWithPromptStreaming, type StreamCallback } from '../services/ai-service';
 import {
   CHARACTER_GENERATE_PROMPT,
   LOREBOOK_GENERATE_PROMPT,
   LOREBOOK_SKELETON_PROMPT,
   EXPAND_ENTRY_PROMPT,
-  MVU_CORRECTION_PROMPT,
-  CUSTOM_STATUS_BAR_PROMPT,
   FIRST_MESSAGE_PROMPT,
-  EXAMPLE_DIALOGUES_PROMPT,
   WORLD_RULES_GENERATE_PROMPT,
   ORGANIZE_ENTRIES_PROMPT,
   GENERATE_KEYS_PROMPT,
-  MVU_VARIABLES_PROMPT,
-  TRANSLATE_CARD_PROMPT,
   CARD_DIAGNOSIS_PROMPT,
   MODIFY_CHARACTER_PROMPT,
   POLISH_SELECTION_PROMPT,
@@ -32,7 +28,6 @@ import type {
   AIGeneratedLorebookEntry,
   AIOrganizeSuggestion,
   AIGeneratedKeys,
-  AIGeneratedMvuVariable,
 } from '../constants/defaults';
 
 /**
@@ -77,6 +72,8 @@ function sanitizeCharacterResult(
 }
 
 export function useAIGenerate() {
+  const { lang } = useTranslation();
+
   /**
    * Generate a character profile (non-streaming).
    * @param otherCharactersContext - Optional context about other already-created characters
@@ -89,7 +86,7 @@ export function useAIGenerate() {
     alignment?: string,
     nsfw?: boolean,
   ): Promise<string> => {
-    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw);
+    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
@@ -106,7 +103,7 @@ export function useAIGenerate() {
     alignment?: string,
     nsfw?: boolean,
   ): Promise<string> => {
-    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw);
+    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
@@ -167,14 +164,14 @@ export function useAIGenerate() {
     existingTitles: string,
     rules?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
-    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules);
+    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules, lang);
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, max_tokens: 12000, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
       comment: sk.comment || '未命名',
       content: sk.content || '(待展开)',
       keys: Array.isArray(sk.keys) ? sk.keys : [],
-      strategy: sk.strategy || 'selective',
+      strategy: sk.strategy || 'normal',
     }));
   }, []);
 
@@ -191,14 +188,14 @@ export function useAIGenerate() {
     onChunk: StreamCallback,
     rules?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
-    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules);
+    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules, lang);
     const text = await callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: 12000, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
       comment: sk.comment || '未命名',
       content: sk.content || '(待展开)',
       keys: Array.isArray(sk.keys) ? sk.keys : [],
-      strategy: sk.strategy || 'selective',
+      strategy: sk.strategy || 'normal',
     }));
   }, []);
 
@@ -207,7 +204,7 @@ export function useAIGenerate() {
    * @returns Raw text response
    */
   const generateLorebook = useCallback(async (cardName: string, characterSummaries: string, topic: string, batchCount: number, rules?: string, nsfw?: boolean): Promise<string> => {
-    const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, rules, nsfw);
+    const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, rules, nsfw, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 16000, presetMode: 'force' });
   }, []);
 
@@ -223,7 +220,7 @@ export function useAIGenerate() {
     rules?: string,
     nsfw?: boolean,
   ): Promise<string> => {
-    const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, rules, nsfw);
+    const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, rules, nsfw, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, max_tokens: 16000, presetMode: 'force' });
   }, []);
 
@@ -263,7 +260,7 @@ export function useAIGenerate() {
     worldbookContext?: string,
     writingRequirements?: string,
   ): Promise<string> => {
-    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements);
+    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang);
     // 动态计算 max_tokens，但设置上限避免超出模型限制
     const maxTokens = targetWordCount
       ? Math.min(Math.max(4000, targetWordCount * 3), 16000)
@@ -281,29 +278,12 @@ export function useAIGenerate() {
     worldbookContext?: string,
     writingRequirements?: string,
   ): Promise<string> => {
-    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements);
+    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang);
     // 动态计算 max_tokens，但设置上限避免超出模型限制
     const maxTokens = targetWordCount
       ? Math.min(Math.max(4000, targetWordCount * 3), 16000)
       : 4000;
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, max_tokens: maxTokens, presetMode: 'force' });
-  }, []);
-
-  /** Generate example dialogues */
-  const generateExampleDialogues = useCallback(async (cardName: string, characterDescriptions: string, worldbookContext?: string): Promise<string> => {
-    const prompts = EXAMPLE_DIALOGUES_PROMPT(cardName, characterDescriptions, worldbookContext);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, max_tokens: 6000, presetMode: 'force' });
-  }, []);
-
-  /** Generate example dialogues with streaming */
-  const generateExampleDialoguesStreaming = useCallback(async (
-    cardName: string,
-    characterDescriptions: string,
-    onChunk: StreamCallback,
-    worldbookContext?: string,
-  ): Promise<string> => {
-    const prompts = EXAMPLE_DIALOGUES_PROMPT(cardName, characterDescriptions, worldbookContext);
-    return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, max_tokens: 6000, presetMode: 'force' });
   }, []);
 
   /** Generate worldview constraints / operation rules */
@@ -315,7 +295,7 @@ export function useAIGenerate() {
     existingWorldbookContext?: string,
     nsfw?: boolean,
   ): Promise<string> => {
-    const prompts = WORLD_RULES_GENERATE_PROMPT(cardName, characterSummaries, topic, existingRules, existingWorldbookContext, nsfw);
+    const prompts = WORLD_RULES_GENERATE_PROMPT(cardName, characterSummaries, topic, existingRules, existingWorldbookContext, nsfw, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.7, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
@@ -329,7 +309,7 @@ export function useAIGenerate() {
     existingWorldbookContext?: string,
     nsfw?: boolean,
   ): Promise<string> => {
-    const prompts = WORLD_RULES_GENERATE_PROMPT(cardName, characterSummaries, topic, existingRules, existingWorldbookContext, nsfw);
+    const prompts = WORLD_RULES_GENERATE_PROMPT(cardName, characterSummaries, topic, existingRules, existingWorldbookContext, nsfw, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.7, max_tokens: 4000, presetMode: 'force' });
   }, []);
 
@@ -348,7 +328,7 @@ export function useAIGenerate() {
     probability: number;
     constant: boolean;
   }>) => {
-    const prompts = ORGANIZE_ENTRIES_PROMPT(entries);
+    const prompts = ORGANIZE_ENTRIES_PROMPT(entries, lang);
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.3, max_tokens: 6000, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIOrganizeSuggestion[] | null;
     return parsed || [];
@@ -364,25 +344,9 @@ export function useAIGenerate() {
     content: string;
     existingKeys: string[];
   }>) => {
-    const prompts = GENERATE_KEYS_PROMPT(entries);
+    const prompts = GENERATE_KEYS_PROMPT(entries, lang);
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.5, max_tokens: 4000, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIGeneratedKeys[] | null;
-    return parsed || [];
-  }, []);
-
-  /**
-   * AI MVU Variable Suggestion: Analyze card content and suggest variables.
-   * Based on world-book-mcp v5 MVU methodology.
-   */
-  const generateMvuVariables = useCallback(async (
-    cardName: string,
-    characterSummaries: string,
-    worldbookSummary: string,
-    firstMessageExcerpt: string,
-  ) => {
-    const prompts = MVU_VARIABLES_PROMPT(cardName, characterSummaries, worldbookSummary, firstMessageExcerpt);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.6, max_tokens: 5000, presetMode: 'none' });
-    const parsed = parseAIJson(text) as AIGeneratedMvuVariable[] | null;
     return parsed || [];
   }, []);
 
@@ -403,7 +367,7 @@ export function useAIGenerate() {
     nsfw?: boolean,
   ) => {
     const isSkeleton = (entry.content || '').length < 120;
-    const prompts = EXPAND_ENTRY_PROMPT(entry, characterContext, isSkeleton, userRequirement, nsfw);
+    const prompts = EXPAND_ENTRY_PROMPT(entry, characterContext, isSkeleton, userRequirement, nsfw, lang);
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 6000, presetMode: 'force' });
     const parsed = parseAIJson(text) as { comment?: string; content?: string; keys?: string[]; strategy?: string } | null;
 
@@ -413,48 +377,6 @@ export function useAIGenerate() {
       keys: parsed?.keys ?? entry.keys,
       strategy: parsed?.strategy ?? entry.strategy,
     };
-  }, []);
-
-  /**
-   * Translate a character card's text fields between Chinese and English.
-   * @param cardData - The card's data object containing text fields
-   * @param targetLang - 'zh' for Chinese, 'en' for English
-   * @returns Translated card data object
-   */
-  const translateCard = useCallback(async (
-    cardData: Record<string, unknown>,
-    targetLang: 'zh' | 'en',
-  ): Promise<Record<string, unknown> | null> => {
-    // Extract translatable fields
-    const translatable: Record<string, unknown> = {};
-    const fields = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example',
-      'system_prompt', 'post_history_instructions', 'creator_notes'];
-
-    for (const key of fields) {
-      if (cardData[key] && typeof cardData[key] === 'string' && (cardData[key] as string).trim()) {
-        translatable[key] = cardData[key];
-      }
-    }
-
-    // Also translate world book entry content/comments
-    const charBook = cardData.character_book as Record<string, unknown> | undefined;
-    if (charBook?.entries && Array.isArray(charBook.entries)) {
-      translatable._worldbook_entries = (charBook.entries as Array<Record<string, unknown>>).map(e => ({
-        name: e.name || '',
-        comment: e.comment || '',
-        content: e.content || '',
-        keys: e.keys || [],
-      }));
-    }
-
-    if (Object.keys(translatable).length === 0) return null;
-
-    const prompts = TRANSLATE_CARD_PROMPT(targetLang);
-    const userPrompt = prompts.user.replace('{cardContent}', JSON.stringify(translatable, null, 2));
-
-    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.3, max_tokens: 12000, presetMode: 'none' });
-    const parsed = parseAIJson(text) as Record<string, unknown> | null;
-    return parsed;
   }, []);
 
   /**
@@ -500,47 +422,11 @@ export function useAIGenerate() {
       }));
     }
 
-    const prompts = CARD_DIAGNOSIS_PROMPT();
+    const prompts = CARD_DIAGNOSIS_PROMPT(lang);
     const userPrompt = prompts.user.replace('{cardContent}', JSON.stringify(diagContent, null, 2));
 
     const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.4, max_tokens: 4000, presetMode: 'none' });
     return parseAIJson(text) as ReturnType<typeof diagnoseCard> extends Promise<infer T> ? T : never;
-  }, []);
-
-  /**
-   * AI MVU config correction — analyze variables for semantic issues.
-   */
-  const correctMvuConfig = useCallback(async (
-    cardName: string,
-    variables: Array<{ path: string; kind: string; defaultValue: unknown; description: string }>,
-    existingIssues: string,
-  ) => {
-    const prompts = MVU_CORRECTION_PROMPT(cardName, variables, existingIssues);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.3, max_tokens: 2000, presetMode: 'none' });
-    const parsed = parseAIJson(text) as Array<{
-      path: string;
-      action: string;
-      reason: string;
-      suggestion: Record<string, unknown>;
-    }> | null;
-    return parsed || [];
-  }, []);
-
-  /**
-   * Generate custom status bar HTML + CSS based on user's visual style requirements.
-   */
-  const generateCustomStatusBar = useCallback(async (
-    styleDescription: string,
-    variables: Array<{ path: string; kind: string; label: string; defaultValue: unknown }>,
-    mode: 'safe_macro' | 'dynamic_js',
-  ) => {
-    const prompts = CUSTOM_STATUS_BAR_PROMPT(styleDescription, variables, mode);
-    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.7, max_tokens: 4000, presetMode: 'none' });
-    const parsed = parseAIJson(text) as { html?: string; css?: string } | null;
-    return {
-      html: parsed?.html || '',
-      css: parsed?.css || '',
-    };
   }, []);
 
   /**
@@ -553,7 +439,7 @@ export function useAIGenerate() {
     instructions: string,
     otherCharactersContext?: string,
   ): Promise<string> => {
-    const prompts = MODIFY_CHARACTER_PROMPT(characterName, otherCharactersContext);
+    const prompts = MODIFY_CHARACTER_PROMPT(characterName, otherCharactersContext, lang);
     const userPrompt = prompts.user
       .replace('{currentDescription}', currentDescription)
       .replace('{instructions}', instructions);
@@ -569,7 +455,7 @@ export function useAIGenerate() {
     fullText: string,
     selectedText: string,
   ): Promise<string> => {
-    const prompts = POLISH_SELECTION_PROMPT(characterName, fullText, selectedText);
+    const prompts = POLISH_SELECTION_PROMPT(characterName, fullText, selectedText, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, max_tokens: 2000, presetMode: 'force' });
   }, []);
 
@@ -586,19 +472,20 @@ export function useAIGenerate() {
     generateLorebookSkeletonStreaming,
     generateFirstMessage,
     generateFirstMessageStreaming,
-    generateExampleDialogues,
-    generateExampleDialoguesStreaming,
     generateWorldRules,
     generateWorldRulesStreaming,
     organizeEntries,
     generateEntryKeys,
-    generateMvuVariables,
     expandLorebookEntry,
-    translateCard,
     diagnoseCard,
-    correctMvuConfig,
-    generateCustomStatusBar,
     modifyCharacterDescription,
     polishSelection,
+    /** Simple text generation for non-structured prompts (e.g. MVU beginner mode) */
+    generateText: useCallback(async (
+      systemPrompt: string,
+      userPrompt: string,
+    ): Promise<string> => {
+      return callAIWithPrompt(systemPrompt, userPrompt, { temperature: 0.7, max_tokens: 4000, presetMode: 'force' });
+    }, []),
   };
 }

@@ -7,18 +7,19 @@ import { getAISettings, saveAISettings, maskApiKey, type AISettings } from '../d
 import { fetchModels } from '../services/ai-service';
 import { useToast } from '../components/shared/Toast';
 import { Button } from '../components/shared/Button';
-
-// ─── Preset endpoints (base URL only, /chat/completions auto-appended) ─────────
-const PRESETS = [
-  { label: 'OpenAI', url: 'https://api.openai.com/v1' },
-  { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
-  { label: 'DeepSeek', url: 'https://api.deepseek.com' },
-  { label: '本地 Oobabooga', url: 'http://127.0.0.1:5000/v1' },
-  { label: '本地 KoboldCPP', url: 'http://127.0.0.1:5001/v1' },
-];
-
+import { useTranslation } from '../i18n/I18nContext';
 export function SettingsPage() {
+  const { t } = useTranslation();
   const { addToast } = useToast();
+
+  // ─── Preset endpoints (base URL only, /chat/completions auto-appended) ─────────
+  const presets = [
+    { label: 'OpenAI', url: 'https://api.openai.com/v1' },
+    { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
+    { label: 'DeepSeek', url: 'https://api.deepseek.com' },
+    { label: t('settings.localOobabooga'), url: 'http://127.0.0.1:5000/v1' },
+    { label: t('settings.localKoboldCPP'), url: 'http://127.0.0.1:5001/v1' },
+  ];
   const [settings, setSettings] = useState<AISettings | null>(null);
   const [modelList, setModelList] = useState<Array<{ id: string; owned_by: string }>>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
@@ -49,7 +50,7 @@ export function SettingsPage() {
     const url = settings.apiUrl.trim();
     const key = tempKey.trim();
     if (!url) {
-      addToast('error', '请先填写 API 地址');
+      addToast('error', t('settings.urlRequired'));
       return;
     }
 
@@ -72,17 +73,17 @@ export function SettingsPage() {
         });
         setSettings(updated);
         setEditingKey(false);
-        addToast('success', `成功拉取 ${models.length} 个模型${currentInList ? '' : '，已自动选择第一个'}`);
+        addToast('success', `${t('settings.fetchSuccess', { count: String(models.length) })}${currentInList ? '' : t('settings.autoSelected')}`);
       } else {
-        addToast('error', '未找到可用模型，请检查地址和密钥');
+        addToast('error', t('settings.noModels'));
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '拉取模型失败';
+      const msg = err instanceof Error ? err.message : t('settings.fetchFailed');
       addToast('error', msg);
     } finally {
       setFetchingModels(false);
     }
-  }, [settings, tempKey, addToast]);
+  }, [settings, tempKey, addToast, t]);
 
   // ── Unlock key for editing ───────────────────────────────────────────────
   const handleUnlockKey = () => {
@@ -100,7 +101,7 @@ export function SettingsPage() {
     if (!settings) return;
     const updated = await saveAISettings(patch);
     setSettings(updated);
-    addToast('success', '设置已保存');
+    addToast('success', t('settings.saveSuccess'));
   };
 
   // Key display: masked if verified and not editing
@@ -109,7 +110,7 @@ export function SettingsPage() {
   if (!settings) {
     return (
       <div className="animate-fade-in flex items-center justify-center h-[calc(100dvh-4rem)]">
-        <p className="text-slate-400">加载中...</p>
+        <p className="text-slate-400">{t('common.loading')}</p>
       </div>
     );
   }
@@ -118,9 +119,9 @@ export function SettingsPage() {
     <div className="animate-fade-in max-w-3xl mx-auto">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">API 设置</h1>
+        <h1 className="text-2xl font-bold text-white">{t('settings.title')}</h1>
         <p className="text-sm text-slate-400 mt-1">
-          配置 AI 服务接口，支持所有 OpenAI 兼容接口（中转站、本地部署等）
+          {t('settings.subtitle')}
         </p>
       </div>
 
@@ -128,7 +129,7 @@ export function SettingsPage() {
       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6 space-y-6">
         {/* Row 1: API URL + Presets */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">API 地址</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1">{t('settings.apiUrl')}</label>
           <input
             className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none font-mono"
             value={settings.apiUrl}
@@ -136,10 +137,10 @@ export function SettingsPage() {
             placeholder="https://api.openai.com/v1"
           />
           <p className="text-[11px] text-slate-500 mt-0.5">
-            只需填写基础 URL，系统自动拼接 <code className="bg-slate-700 px-1 rounded">/chat/completions</code> 路径
+            {t('settings.apiUrlHint')}
           </p>
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
-            {PRESETS.map((p) => (
+            {presets.map((p) => (
               <button
                 key={p.label}
                 onClick={() => handlePresetClick(p.url)}
@@ -157,7 +158,7 @@ export function SettingsPage() {
 
         {/* Row 2: API Key */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">API 密钥</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1">{t('settings.apiKey')}</label>
           {keyIsLocked ? (
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 font-mono select-none">
@@ -167,7 +168,7 @@ export function SettingsPage() {
                 onClick={handleUnlockKey}
                 className="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded border border-slate-600 hover:border-indigo-500 transition-colors"
               >
-                ✏️ 修改
+                ✏️ {t('common.edit')}
               </button>
             </div>
           ) : (
@@ -176,7 +177,7 @@ export function SettingsPage() {
               className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none font-mono"
               value={tempKey}
               onChange={(e) => setTempKey(e.target.value)}
-              placeholder="sk-... 或中转站密钥"
+              placeholder={t('settings.keyPlaceholder')}
             />
           )}
         </div>
@@ -185,7 +186,7 @@ export function SettingsPage() {
         <div>
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-300 mb-1">模型</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">{t('settings.model')}</label>
               {modelList.length > 0 ? (
                 <select
                   value={settings.model}
@@ -204,7 +205,7 @@ export function SettingsPage() {
                   className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
                   value={settings.model}
                   onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                  placeholder="gpt-3.5-turbo"
+                  placeholder={t('settings.modelPlaceholder')}
                 />
               )}
             </div>
@@ -215,12 +216,12 @@ export function SettingsPage() {
               disabled={fetchingModels}
               className="shrink-0"
             >
-              {fetchingModels ? '⏳ 拉取中...' : '🔄 拉取模型'}
+              {fetchingModels ? `⏳ ${t('settings.fetching')}` : `🔄 ${t('settings.fetchModels')}`}
             </Button>
           </div>
           {modelList.length > 0 && (
             <p className="text-[11px] text-slate-500 mt-1">
-              已拉取 {modelList.length} 个模型 · 密钥已自动隐藏
+              {t('settings.fetchSuccess', { count: String(modelList.length) })} · {t('settings.keyHidden')}
             </p>
           )}
         </div>
@@ -229,7 +230,7 @@ export function SettingsPage() {
         <div className="grid grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-300">
-              温度: <span className="text-indigo-400">{settings.temperature.toFixed(1)}</span>
+              {t('settings.temperatureLabel')}: <span className="text-indigo-400">{settings.temperature.toFixed(1)}</span>
             </label>
             <input
               type="range"
@@ -241,12 +242,12 @@ export function SettingsPage() {
               className="w-full accent-indigo-600"
             />
             <div className="flex justify-between text-[10px] text-slate-500">
-              <span>精确 (0)</span>
-              <span>创意 (2)</span>
+              <span>{t('settings.precision')}</span>
+              <span>{t('settings.creative')}</span>
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">最大 Token 数</label>
+            <label className="text-xs font-medium text-slate-300">{t('settings.maxTokensLabel')}</label>
             <input
               type="number"
               min={100}
@@ -256,11 +257,11 @@ export function SettingsPage() {
               onChange={(e) => setSettings({ ...settings, maxTokens: parseInt(e.target.value) || 4000 })}
               className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 w-full"
             />
-            <p className="text-[10px] text-slate-500">按所选模型支持填写，上限放宽到 300000</p>
+            <p className="text-[10px] text-slate-500">{t('settings.maxTokensHint')}</p>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-300">
-              重试次数 <span className="text-slate-500">({settings.retryCount ?? 3})</span>
+              {t('settings.retryCountLabel')} <span className="text-slate-500">({settings.retryCount ?? 3})</span>
             </label>
             <input
               type="number"
@@ -271,7 +272,7 @@ export function SettingsPage() {
               onChange={(e) => setSettings({ ...settings, retryCount: parseInt(e.target.value) || 0 })}
               className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 w-full"
             />
-            <p className="text-[10px] text-slate-500">网络波动时自动重试</p>
+            <p className="text-[10px] text-slate-500">{t('settings.retryHint')}</p>
           </div>
         </div>
 
@@ -288,20 +289,20 @@ export function SettingsPage() {
               ...(editingKey ? { apiKey: tempKey } : {}),
             })}
           >
-            💾 保存设置
+            💾 {t('settings.saveButton')}
           </Button>
         </div>
       </div>
 
       {/* ── Help section ─────────────────────────────────────────────────────── */}
       <div className="mt-6 rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">💡 使用说明</h3>
+        <h3 className="text-sm font-medium text-slate-300 mb-3">💡 {t('settings.helpTitle')}</h3>
         <ul className="text-xs text-slate-400 space-y-2">
-          <li>• <strong>API 地址</strong>：填写兼容 OpenAI 格式的基础 URL</li>
-          <li>• <strong>API 密钥</strong>：官方 Key 或中转站密钥，验证后自动隐藏</li>
-          <li>• <strong>拉取模型</strong>：从 API 获取可用模型列表</li>
-          <li>• <strong>温度</strong>：0 = 更精确，2 = 更创意</li>
-          <li>• 支持：OpenAI、OpenRouter、DeepSeek、本地 Oobabooga、KoboldCPP 等</li>
+          <li>• {t('settings.helpApiUrl')}</li>
+          <li>• {t('settings.helpApiKey')}</li>
+          <li>• {t('settings.helpFetchModels')}</li>
+          <li>• {t('settings.helpTemperature')}</li>
+          <li>• {t('settings.helpSupports')}</li>
         </ul>
       </div>
     </div>

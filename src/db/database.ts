@@ -51,6 +51,7 @@ export interface WizardDraftRecord {
   id: string;
   data: unknown;
   currentStep: number;
+  version?: number;
   updatedAt: Date;
 }
 
@@ -62,7 +63,7 @@ export const db = new Dexie('TavernCardHelper') as Dexie & {
   wizard_drafts: EntityTable<WizardDraftRecord, 'id'>;
 };
 
-db.version(4).stores({
+db.version(5).stores({
   cards: '++id, name, updatedAt, createdAt, deletedAt',
   chat_sessions: '++id, cardId',
   ai_settings: 'id',

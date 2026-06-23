@@ -8,8 +8,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCardLibrary } from '../hooks/useCardLibrary';
 import { useAIChat } from '../hooks/useAIChat';
 import { Button } from '../components/shared/Button';
+import { useTranslation } from '../i18n/I18nContext';
 
 export function ChatPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { cards } = useCardLibrary();
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
@@ -42,23 +44,23 @@ export function ChatPage() {
     <div className="animate-fade-in flex flex-col h-[calc(100dvh-4rem)]">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold text-white">测试对话</h1>
+        <h1 className="text-2xl font-bold text-white">{t('chat.title')}</h1>
         <div className="flex gap-2 items-center">
           <select
             value={selectedCardId ?? ''}
             onChange={(e) => setSelectedCardId(e.target.value ? parseInt(e.target.value) : null)}
             className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 min-w-[200px]"
           >
-            <option value="">选择卡片...</option>
+            <option value="">{t('chat.selectCard')}</option>
             {cards.map((card) => (
               <option key={card.id} value={card.id}>
-                {card.name || 'Untitled'}
+                {card.name || t('chat.untitled')}
               </option>
             ))}
           </select>
           {selectedCardId && (
             <Button variant="ghost" size="sm" onClick={resetSession}>
-              🔄 重置
+              🔄 {t('chat.reset')}
             </Button>
           )}
         </div>
@@ -68,13 +70,13 @@ export function ChatPage() {
       {!selectedCard && (
         <div className="flex-1 flex items-center justify-center border border-dashed border-slate-700 rounded-xl">
           <div className="text-center">
-            <p className="text-slate-400 text-lg mb-2">选择一张角色卡开始对话</p>
-            <p className="text-slate-500 text-sm mb-4">从上方下拉菜单中选择</p>
+            <p className="text-slate-400 text-lg mb-2">{t('chat.noCardTitle')}</p>
+            <p className="text-slate-500 text-sm mb-4">{t('chat.noCardSubtitle')}</p>
             <button
               onClick={() => navigate('/settings')}
               className="text-xs text-indigo-400 hover:text-indigo-300 underline"
             >
-              前往 API 设置 →
+              {t('chat.gotoSettings')}
             </button>
           </div>
         </div>
@@ -86,7 +88,7 @@ export function ChatPage() {
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             {messages.length === 0 && (
               <div className="text-center py-8 text-slate-500 text-sm">
-                还没有消息。发送消息开始对话。
+                {t('chat.emptyMessages')}
               </div>
             )}
             {messages.map((msg, i) => (
@@ -108,14 +110,14 @@ export function ChatPage() {
             {sending && (
               <div className="flex justify-start">
                 <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-400">
-                  <span className="animate-pulse">思考中...</span>
+                  <span className="animate-pulse">{t('chat.thinking')}</span>
                 </div>
               </div>
             )}
             {error && (
               <div className="flex justify-center">
                 <div className="bg-red-900/30 border border-red-700 rounded-lg px-4 py-2 text-sm text-red-300">
-                  错误: {error}
+                  {t('chat.error', { message: error })}
                 </div>
               </div>
             )}
@@ -129,11 +131,11 @@ export function ChatPage() {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                placeholder="输入消息..."
+                placeholder={t('chat.inputPlaceholder')}
                 disabled={sending}
               />
               <Button onClick={handleSend} disabled={sending || !messageInput.trim()}>
-                发送
+                {t('chat.send')}
               </Button>
             </div>
           </div>

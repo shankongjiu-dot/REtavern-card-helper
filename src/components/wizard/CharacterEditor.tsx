@@ -12,6 +12,7 @@ import { TextInput } from '../shared/TextInput';
 import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
 import { CHARACTER_ALIGNMENTS } from '../../constants/defaults';
+import { useTranslation } from '../../i18n/I18nContext';
 import type { WizardCharacter } from '../../constants/defaults';
 import type { CharacterVersion } from '../../pages/WizardPage';
 import type { MutableRefObject } from 'react';
@@ -56,6 +57,7 @@ export function CharacterEditor({
   onSaveVersion,
   streamingChunkCallbackRef,
 }: CharacterEditorProps) {
+  const { t } = useTranslation();
   const [localName, setLocalName] = useState(character.name ?? '');
   const [localDesc, setLocalDesc] = useState(character.description ?? '');
   const [showHistory, setShowHistory] = useState(false);
@@ -169,7 +171,7 @@ export function CharacterEditor({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-white">
-          角色 {index + 1}{localName ? `: ${localName}` : ''}
+          {t('characters.characterIndex', { index: String(index + 1) })}{localName ? `: ${localName}` : ''}
         </h3>
         <div className="flex items-center gap-2">
           {hasName && (
@@ -179,12 +181,12 @@ export function CharacterEditor({
               onClick={wrappedOnGenerate}
               disabled={isGenerating}
             >
-              {isGenerating ? '生成中...' : 'AI 生成'}
+              {isGenerating ? t('characterEditor.generating') : t('characterEditor.generate')}
             </Button>
           )}
           {canRemove && (
             <Button variant="danger" size="sm" onClick={onRemove} disabled={isGenerating}>
-              移除
+              {t('characterEditor.remove')}
             </Button>
           )}
         </div>
@@ -192,19 +194,19 @@ export function CharacterEditor({
 
       {/* Fields */}
       <TextInput
-        label="角色名称"
+        label={t('characterEditor.nameLabel')}
         value={localName}
         onChange={(e) => setLocalName(e.target.value)}
         onBlur={(e) => onUpdate({ name: e.target.value })}
-        placeholder="输入角色名称"
+        placeholder={t('characterEditor.namePlaceholder')}
       />
 
       {/* Alignment selector (optional D&D nine-grid) — collapsible */}
       <details className="group">
         <summary className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-slate-400 mb-1.5 hover:text-slate-300 transition-colors">
           <span className="transition-transform group-open:rotate-90">▶</span>
-          人格阵营
-          <span className="text-slate-600 font-normal">（可选，约束 AI 生成的人格倾向）</span>
+          {t('characterEditor.alignment')}
+          <span className="text-slate-600 font-normal">{t('characterEditor.alignmentHint')}</span>
           {character.alignment && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/40 text-indigo-300 border border-indigo-700/40">
               {CHARACTER_ALIGNMENTS.find(a => a.value === character.alignment)?.label || character.alignment}
@@ -220,7 +222,7 @@ export function CharacterEditor({
                 : 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
             }`}
           >
-            不设定
+            {t('characterEditor.noAlignment')}
           </button>
           {CHARACTER_ALIGNMENTS.map((a) => (
             <button
@@ -251,20 +253,20 @@ export function CharacterEditor({
           <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
         </label>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-300">NSFW 内容</span>
+          <span className="text-xs text-slate-300">{t('characterEditor.nsfwContent')}</span>
           <span className="text-[10px] text-slate-500">
-            {character.nsfw ? '允许生成成人内容' : '关闭（适配模型审核）'}
+            {character.nsfw ? t('characterEditor.nsfwAllowed') : t('characterEditor.nsfwDisabled')}
           </span>
         </div>
       </div>
 
       <div>
         <TextArea
-          label="角色设定（AI 将基于此扩展生成）"
+          label={t('characterEditor.descLabel')}
           value={localDesc}
           onChange={(e) => setLocalDesc(e.target.value)}
           onBlur={(e) => onUpdate({ description: e.target.value })}
-          placeholder="写给 AI 的约束指令，如角色核心设定、行为准则、关系要求等。AI 会在此基础上扩展联想，生成完整的角色描述和世界书条目。"
+          placeholder={t('characterEditor.descPlaceholder')}
           rows={4}
           textareaRef={descTextareaRef}
           onSelect={handleDescSelect}
@@ -274,20 +276,20 @@ export function CharacterEditor({
         {selectedText && hasDescription && (
           <div className="mt-1.5 flex items-center gap-2">
             <span className="text-[10px] text-amber-400 bg-amber-900/20 px-2 py-0.5 rounded border border-amber-700/30">
-              已选中 {selectedText.length} 字
+              {t('characterEditor.selectedChars', { count: String(selectedText.length) })}
             </span>
             <button
               onClick={handlePolishSelection}
               disabled={isModifying}
               className="text-[10px] px-2 py-0.5 rounded bg-amber-800/30 text-amber-300 hover:bg-amber-700/40 transition-colors disabled:opacity-40"
             >
-              {isModifying ? 'AI 处理中...' : 'AI 润色选中'}
+              {isModifying ? t('characterEditor.polishing') : t('characterEditor.polishSelected')}
             </button>
             <button
               onClick={() => setSelectedText('')}
               className="text-[10px] text-slate-500 hover:text-slate-300"
             >
-              取消选中
+              {t('characterEditor.cancelSelection')}
             </button>
           </div>
         )}
@@ -301,9 +303,9 @@ export function CharacterEditor({
               {isGenerating && (
                 <span className="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
               )}
-              AI 生成实时输出
+              {t('characterEditor.streamingOutputTitle')}
             </h4>
-            <span className="text-[10px] text-slate-500">{streamingText.length} 字</span>
+            <span className="text-[10px] text-slate-500">{streamingText.length} {t('common.words')}</span>
           </div>
           <div
             ref={streamPreviewRef}
@@ -314,11 +316,11 @@ export function CharacterEditor({
                 {streamingText}
               </pre>
             ) : (
-              <p className="text-[11px] text-slate-500 italic">等待 AI 响应...</p>
+              <p className="text-[11px] text-slate-500 italic">{t('characterEditor.streamingWaiting')}</p>
             )}
           </div>
           <p className="text-[10px] text-slate-500 mt-2">
-            生成完成后，解析结果将自动填入上方文本框
+            {t('characterEditor.streamingHint')}
           </p>
         </div>
       )}
@@ -330,7 +332,7 @@ export function CharacterEditor({
             onClick={handleSaveCurrentAsVersion}
             className="text-[11px] px-2.5 py-1 rounded border border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
           >
-            保存当前为新版本
+            {t('characterEditor.saveAsVersion')}
           </button>
           <button
             onClick={() => setShowModifyPanel(!showModifyPanel)}
@@ -340,14 +342,14 @@ export function CharacterEditor({
                 : 'border-cyan-600/30 text-cyan-400 hover:text-cyan-300 hover:border-cyan-500/50'
             }`}
           >
-            {showModifyPanel ? '收起局部修改' : 'AI 局部修改'}
+            {showModifyPanel ? t('characterEditor.collapseModify') : t('characterEditor.modifyPanel')}
           </button>
           {hasHistory && (
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="text-[11px] px-2.5 py-1 rounded border border-indigo-600/40 text-indigo-400 hover:text-indigo-300 hover:border-indigo-500/60 transition-colors"
             >
-              {showHistory ? '收起版本历史' : `版本历史 (${history.length})`}
+              {showHistory ? t('characterEditor.collapsePreview') : `${t('characterEditor.versionHistory')} (${history.length})`}
             </button>
           )}
         </div>
@@ -357,13 +359,13 @@ export function CharacterEditor({
       {showModifyPanel && hasDescription && (
         <div className="rounded-lg border border-cyan-700/40 bg-cyan-950/15 p-3 space-y-2.5">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-cyan-300">AI 局部修改</h4>
-            <span className="text-[10px] text-slate-500">描述修改意图，AI 会保留其他内容不变</span>
+            <h4 className="text-xs font-semibold text-cyan-300">{t('characterEditor.modifyTitle')}</h4>
+            <span className="text-[10px] text-slate-500">{t('characterEditor.modifyHint')}</span>
           </div>
           <textarea
             value={modifyInstruction}
             onChange={(e) => setModifyInstruction(e.target.value)}
-            placeholder={"例如：在性格部分添加\"怕黑\"和\"喜欢猫\"的属性\n例如：把外貌描述润色得更有画面感\n例如：补充角色和{{user}}的过往纠葛\n例如：把背景设定改成赛博朋克风格"}
+            placeholder={t('characterEditor.modifyPlaceholder')}
             className="w-full h-16 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs text-slate-200 placeholder-slate-500 resize-y focus:border-cyan-500 focus:outline-none"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -379,13 +381,12 @@ export function CharacterEditor({
               onClick={handleModify}
               disabled={!modifyInstruction.trim() || isModifying}
             >
-              {isModifying ? 'AI 修改中...' : '执行修改'}
+              {isModifying ? t('characterEditor.modifying') : t('characterEditor.modifyButton')}
             </Button>
-            <span className="text-[10px] text-slate-500">Ctrl+Enter 快捷执行</span>
+            <span className="text-[10px] text-slate-500">{t('characterEditor.modifyShortcut')}</span>
           </div>
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            与"AI 生成"不同，局部修改会在现有描述基础上做定向修改，不会重写整个角色描述。
-            修改结果会自动保存到版本历史中，可随时回退。
+            {t('characterEditor.modifyDesc')}
           </p>
         </div>
       )}
@@ -394,8 +395,8 @@ export function CharacterEditor({
       {showHistory && hasHistory && (
         <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3 space-y-2">
           <div className="flex items-center justify-between mb-1">
-            <h4 className="text-xs font-semibold text-slate-300">版本历史</h4>
-            <span className="text-[10px] text-slate-500">点击版本可切换，展开可预览对比</span>
+            <h4 className="text-xs font-semibold text-slate-300">{t('characterEditor.versionHistory')}</h4>
+            <span className="text-[10px] text-slate-500">{t('characterEditor.versionHistoryHint')}</span>
           </div>
 
           <div className="space-y-1.5">
@@ -422,7 +423,7 @@ export function CharacterEditor({
                           ? 'bg-emerald-800/40 text-emerald-300'
                           : 'bg-violet-800/40 text-violet-300'
                       }`}>
-                        {version.isOriginal ? '原始' : `v${vIndex}`}
+                        {version.isOriginal ? t('characterEditor.original') : `v${vIndex}`}
                       </span>
                       <span className={`text-xs truncate ${isActive ? 'text-indigo-300' : 'text-slate-400'}`}>
                         {version.content.slice(0, 60)}{version.content.length > 60 ? '...' : ''}
@@ -434,7 +435,7 @@ export function CharacterEditor({
                     <button
                       onClick={() => setExpandedVersionId(isExpanded ? null : version.id)}
                       className="text-[10px] text-slate-500 hover:text-slate-300 shrink-0 px-1"
-                      title="展开预览"
+                      title={t('characterEditor.expandPreview')}
                     >
                       {isExpanded ? '▲' : '▼'}
                     </button>
@@ -442,7 +443,7 @@ export function CharacterEditor({
                       <button
                         onClick={(e) => { e.stopPropagation(); onDeleteVersion(version.id); }}
                         className="text-[10px] text-red-400/60 hover:text-red-400 shrink-0 px-1"
-                        title="删除此版本"
+                        title={t('common.delete')}
                       >
                         x
                       </button>
@@ -462,12 +463,12 @@ export function CharacterEditor({
                           onClick={() => handleSelectVersion(version)}
                           className="mt-1.5 text-[11px] px-2 py-1 rounded bg-indigo-800/30 text-indigo-300 hover:bg-indigo-700/40 transition-colors"
                         >
-                          使用此版本
+                          {t('characterEditor.useThisVersion')}
                         </button>
                       )}
                       {isActive && (
                         <span className="mt-1.5 inline-block text-[11px] text-indigo-400">
-                          当前使用中
+                          {t('characterEditor.currentInUse')}
                         </span>
                       )}
                     </div>

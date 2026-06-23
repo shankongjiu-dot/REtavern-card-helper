@@ -6,24 +6,26 @@ import { NavLink } from 'react-router-dom';
 import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch } from 'lucide-react';
 import { BackgroundChanger } from '../shared/BackgroundChanger';
 import { ThemeSettings } from '../shared/ThemeSettings';
+import { useTranslation } from '../../i18n/I18nContext';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const navItems = [
-  { to: '/', label: '首页', icon: Home, end: true },
-  { to: '/preset', label: '写卡预设', icon: ScrollText },
-  { to: '/wizard', label: '创建卡片', icon: Wand2 },
-  { to: '/library', label: '卡片库', icon: BookOpen },
-  { to: '/chat', label: '测试对话', icon: MessageCircle },
-  { to: '/dialogue', label: 'AI 创作助手', icon: PenTool },
-  { to: '/novel-analysis', label: '小说分析', icon: FileSearch },
-  { to: '/settings', label: 'API 设置', icon: Settings },
+const navItems = (t: (key: string) => string) => [
+  { to: '/', label: t('sidebar.home'), icon: Home, end: true },
+  { to: '/preset', label: t('sidebar.presets'), icon: ScrollText },
+  { to: '/wizard', label: t('sidebar.wizard'), icon: Wand2 },
+  { to: '/library', label: t('sidebar.library'), icon: BookOpen },
+  { to: '/chat', label: t('sidebar.chat'), icon: MessageCircle },
+  { to: '/dialogue', label: t('sidebar.dialogueCreator'), icon: PenTool },
+  { to: '/novel-analysis', label: t('sidebar.novelAnalysis'), icon: FileSearch },
+  { to: '/settings', label: t('sidebar.settings'), icon: Settings },
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { t } = useTranslation();
   return (
     <aside
       className={`
@@ -40,15 +42,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="px-5 py-6 border-b border-white/5 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-themed tracking-wide" style={{ color: 'var(--color-primary)' }}>
-            吟游手册
+            {t('common.appName')}
           </h1>
-          <p className="text-xs text-slate-500 mt-1">AI 角色卡辅助工具</p>
+          <p className="text-xs text-slate-500 mt-1">{t('home.subtitle')}</p>
         </div>
         {/* Mobile close button */}
         <button
           onClick={onClose}
           className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          aria-label="关闭菜单"
+          aria-label={t('common.close')}
         >
           <X size={20} />
         </button>
@@ -56,7 +58,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Navigation links */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => (
+        {navItems(t).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -85,7 +87,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="px-3 py-2 border-t border-white/5 space-y-1">
         <BackgroundChanger sidebarOpen={isOpen} />
         <ThemeSettings sidebarOpen={isOpen} />
-        <p className="text-[10px] text-slate-600 px-2 pt-2 pb-1">吟游手册 v1.0</p>
+        <p className="text-[10px] text-slate-600 px-2 pt-2 pb-1">{t('common.appName')} v1.0</p>
       </div>
     </aside>
   );

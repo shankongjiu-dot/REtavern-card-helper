@@ -49,6 +49,8 @@ export interface LorebookEntry {
   cooldown: number;
   delay: number;
   ignore_budget: boolean;
+  /** Optional SillyTavern runtime extensions (display_index, depth, etc.) */
+  extensions?: Record<string, unknown>;
 }
 
 /** Wizard character (Step 2) — simplified: name + description + optional alignment */
@@ -128,59 +130,93 @@ export interface AIGeneratedKeys {
   keys: string[];
 }
 
-/** MVU variable kind (aligned with world-book-mcp v5) */
-export type MvuVariableKind = 'string' | 'number' | 'boolean' | 'enum' | 'object' | 'record';
+/** MVU variable visibility prefix */
+export type MvuPrefix = '' | '_' | '$';
 
-/** A single MVU variable definition */
+/** MVU variable definition (derived from schema.ts) */
 export interface MvuVariable {
-  id: string;
-  path: string[];          // e.g. ['角色A', '好感度']
-  kind: MvuVariableKind;
-  defaultValue: unknown;
+  /** Variable path in dot notation (e.g. "角色.好感度") */
+  path: string;
+  /** Zod type: "z.string()", "z.coerce.number()", "z.enum([...])", "z.object({...})", "z.record(...)" */
+  zodType: string;
+  /** Human-readable description */
   description: string;
+  /** Visibility prefix: '' = visible+updatable, '_' = visible+readonly, '$' = hidden */
+  prefix: MvuPrefix;
+  /** Initial value (from initvar) */
+  initialValue: unknown;
+  /** For enum types: allowed values */
   enumValues?: string[];
-  min?: number;
-  max?: number;
-  hidden?: boolean;        // $ prefix: invisible to AI
-  readonly?: boolean;      // _ prefix: visible but not updatable by AI
-  isSeparator?: boolean;   // true for separator/label-only rows (no value)
+  /** For number types: range [min, max] */
+  range?: { min: number; max: number };
+  /** For number types: category segments */
+  categories?: Array<{ range: string; label: string }>;
+  /** For complex types: format hint */
+  format?: string;
 }
 
-/** Suggested MVU variable from AI analysis */
-export interface AIGeneratedMvuVariable {
-  path: string[];
-  kind: MvuVariableKind;
-  defaultValue: unknown;
-  description: string;
-  enumValues?: string[];
-  min?: number;
-  max?: number;
-  hidden?: boolean;
-  readonly?: boolean;
+/** MVU variable update rule */
+export interface MvuUpdateRule {
+  /** Variable path in dot notation */
+  path: string;
+  /** Type hint for AI: "number", "string", or union of string literals */
+  type?: string;
+  /** Numeric range: "0~100" */
+  range?: string;
+  /** Numeric range categories */
+  category?: Record<string, string>;
+  /** Format hint */
+  format?: string;
+  /** Natural language check rules */
+  check?: string[];
+  /** Value description */
+  value?: string;
 }
 
-/** MVU asset configuration for the card */
-export interface MvuConfig {
-  enabled: boolean;
+/** MVU schema section */
+export interface MvuSchemaSection {
+  /** Section name (e.g. "角色", "世界", "主角") */
+  name: string;
+  /** Variables in this section */
   variables: MvuVariable[];
-  // Generated asset text (cached for preview)
-  schemaJs: string;
-  initvarYaml: string;
-  updateRulesYaml: string;
-  variableListMd: string;
-  outputFormatMd: string;
-  // Frontend beautification
-  statusBarEnabled: boolean;
+}
+
+/** EJS entry configuration */
+export interface EjsEntryConfig {
+  /** Entry ID in lorebookEntries */
+  entryId: string;
+  /** EJS complexity level */
+  complexity: '显隐' | '段落控制' | '动态文本';
+  /** Condition expression (for @@if or if/else) */
+  condition: string;
+  /** Variable names used in this entry */
+  usedVariables: string[];
+}
+
+/** MVU + EJS configuration for the card */
+export interface MvuConfig {
+  /** Whether MVU is enabled */
+  enabled: boolean;
+  /** Editor mode: 'expert' = full manual control, 'beginner' = AI-assisted simplified */
+  mode: 'expert' | 'beginner';
+  /** Schema sections */
+  schemaSections: MvuSchemaSection[];
+  /** Update rules */
+  updateRules: MvuUpdateRule[];
+  /** EJS configurations */
+  ejsConfigs: EjsEntryConfig[];
+  /** EJS preprocess entry content (define() statements) */
+  ejsPreprocessContent: string;
+  /** Raw schema.ts content */
+  schemaTsContent: string;
+  /** Raw initvar.yaml content */
+  initvarYamlContent: string;
+  /** Raw 变量更新规则.yaml content */
+  updateRulesYamlContent: string;
+  /** Status bar HTML template (for SillyTavern render_after) */
   statusBarHtml: string;
-  statusBarCss: string;
-  statusBarMode: 'safe_macro' | 'dynamic_js';
-  // Custom beautification requirements (user-inputted description for AI generation)
-  statusBarStylePrompt: string;   // User's visual style description
-  statusBarCustomEnabled: boolean; // Whether to use custom style instead of default
-  // Story view beautification
-  storyBeautifyEnabled: boolean;
-  storyBeautifyTag: string;
-  storyBeautifyHtml: string;
+  /** Status bar style preset id */
+  statusBarStyle: string;
 }
 
 /** Wizard draft state shape (shared across pages, hooks, services) */
@@ -189,7 +225,6 @@ export interface WizardDraft {
   characters: WizardCharacter[];
   lorebookEntries: LorebookEntry[];
   firstMessage: string;
-  exampleDialogues: string;
   // V2 advanced fields
   scenario: string;
   system_prompt: string;
@@ -204,8 +239,10 @@ export interface WizardDraft {
   bookRecursiveScanning: boolean;
   /** Whether NSFW content generation is allowed for world book entries */
   worldbookNsfw?: boolean;
-  // Step 6: MVU & Beautification
-  mvu: MvuConfig;
+  /** MVU + EJS configuration */
+  mvu?: MvuConfig;
+  /** Whether to use MVU-aware export (embeds scripts, Zod.txt, regex) */
+  useMvuExport?: boolean;
 }
 
 /** Empty character template for Step 2 of the wizard */
@@ -305,6 +342,13 @@ export const LOREBOOK_ROLE_OPTIONS = [
 ] as const;
 
 /**
+ * Version number for persisted wizard drafts.
+ * Bump this whenever the draft shape changes incompatibly so that old cached
+ * drafts are discarded on app restart.
+ */
+export const WIZARD_DRAFT_VERSION = 4;
+
+/**
  * Empty wizard draft state.
  * Includes all SillyTavern V2 spec fields.
  */
@@ -318,63 +362,55 @@ export function createEmptyDraft(): WizardDraft {
     // Step 3: World Book / Character Book entries
     lorebookEntries: [],
 
-    // Step 4: First message
+    // Step 4: MVU Variables (optional)
+    mvu: {
+      enabled: false,
+      mode: 'beginner',
+      schemaSections: [],
+      updateRules: [],
+      ejsConfigs: [],
+      ejsPreprocessContent: '',
+      schemaTsContent: '',
+      initvarYamlContent: '',
+      updateRulesYamlContent: '',
+      statusBarHtml: '',
+      statusBarStyle: 'minimal-dark',
+    },
+    useMvuExport: false,
+
+    // Step 5: First message
     firstMessage: '',
 
-    // Step 5: Example dialogues (use <START> tags per SillyTavern convention)
-    exampleDialogues: '',
-
     // ── V2 Advanced Fields ──────────────────────────────────────────────────
-    // Scenario: circumstances and context of the dialogue (permanent token)
     scenario: '',
-
-    // System prompt override (empty = use user's default)
     system_prompt: '',
-
-    // Post-history instructions / jailbreak override
     post_history_instructions: '',
-
-    // Alternate greetings (shown as "swipes" on first message)
     alternate_greetings: [] as string[],
-
-    // Creator metadata (not used in prompt)
     creator_notes: '',
     creator: '',
     character_version: '',
-
-    // Tags for frontend sorting/filtering
     tags: [] as string[],
-
-    // Character Book-level settings
     bookScanDepth: 200,
     bookTokenBudget: 1500,
     bookRecursiveScanning: false,
     worldbookNsfw: false,
-
-    // Step 6: MVU & Beautification
-    mvu: createEmptyMvuConfig(),
   };
 }
 
-/** Empty MVU configuration */
+/** Create an empty MVU config (returns non-optional MvuConfig for type safety) */
 export function createEmptyMvuConfig(): MvuConfig {
   return {
     enabled: false,
-    variables: [],
-    schemaJs: '',
-    initvarYaml: '',
-    updateRulesYaml: '',
-    variableListMd: '',
-    outputFormatMd: '',
-    statusBarEnabled: false,
+    mode: 'beginner',
+    schemaSections: [],
+    updateRules: [],
+    ejsConfigs: [],
+    ejsPreprocessContent: '',
+    schemaTsContent: '',
+    initvarYamlContent: '',
+    updateRulesYamlContent: '',
     statusBarHtml: '',
-    statusBarCss: '',
-    statusBarMode: 'safe_macro',
-    statusBarStylePrompt: '',
-    statusBarCustomEnabled: false,
-    storyBeautifyEnabled: false,
-    storyBeautifyTag: 'story_view',
-    storyBeautifyHtml: '',
+    statusBarStyle: 'minimal-dark',
   };
 }
 
@@ -383,8 +419,7 @@ export const WIZARD_STEPS = [
   { id: 1, label: '卡片名称', required: true },
   { id: 2, label: '角色配置', required: true },
   { id: 3, label: '世界书', required: false },
-  { id: 4, label: '开场白', required: true },
-  { id: 5, label: '示例对话', required: false },
-  { id: 6, label: '美化/MVU', required: false },
-  { id: 7, label: '预览保存', required: true },
+  { id: 4, label: 'MVU变量', required: false },
+  { id: 5, label: '开场白', required: true },
+  { id: 6, label: '美化导出', required: false },
 ] as const;

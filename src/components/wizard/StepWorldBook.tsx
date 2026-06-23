@@ -7,11 +7,12 @@ import { Button } from '../shared/Button';
 import { useToast } from '../shared/Toast';
 import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPanel';
 import { LorebookEntryEditor, type EntryExpandLevel } from './LorebookEntryEditor';
+import { useTranslation } from '../../i18n/I18nContext';
 import { AIGeneratePanel } from './AIGeneratePanel';
 import { OrganizePreviewTable } from './OrganizePreviewTable';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import { createEmptyLorebookEntry } from '../../constants/defaults';
-import type { LorebookEntry, LorebookPosition, AIOrganizeSuggestion } from '../../constants/defaults';
+import type { LorebookEntry, LorebookPosition, AIOrganizeSuggestion, MvuConfig } from '../../constants/defaults';
 
 /** Rough token estimate (~1.3 tokens per char for CJK) */
 function estimateTokens(text: string): number {
@@ -27,9 +28,12 @@ interface StepWorldBookProps {
   /** Whether NSFW content generation is allowed for world book entries */
   nsfw?: boolean;
   onNsfwChange?: (nsfw: boolean) => void;
+  /** MVU config — used to show EJS indicators on entries */
+  mvu?: MvuConfig;
 }
 
-export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange }: StepWorldBookProps) {
+export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange, mvu }: StepWorldBookProps) {
+  const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
   const [topic, setTopic] = useState('');
   const [worldRules, setWorldRules] = useState('');
@@ -96,7 +100,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
     setStreamText('');
     const consistencyRules = [
       worldRules,
-      existingWorldbookContext ? `已有世界书（必须保持一致，不要冲突；新条目要补充空白、避免重复）：\n${existingWorldbookContext}` : '',
+      existingWorldbookContext ? `${t('worldBook.existingWorldbookHeader')}\n${existingWorldbookContext}` : '',
     ].filter(Boolean).join('\n\n');
     try {
       if (skeletonMode) {
@@ -109,14 +113,15 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           const batchSize = Math.min(remaining, 5);
           batchIndex++;
           const existingTitles = allSkeletons.map((s) => s.comment).join('、');
+          const batchMarker = t('worldBook.batchMarker', { index: String(batchIndex), count: String(remaining) });
           if (remaining < skeletonCount) {
-            setStreamText(prev => prev + `\n\n── 第 ${batchIndex} 批 (${remaining} 条) ──\n`);
+            setStreamText(prev => prev + `\n\n── ${batchMarker} ──\n`);
           }
           const skeletons = await generateLorebookSkeletonStreaming(
             cardName, characterSummaries, topic, batchSize, existingTitles,
             (_chunk, fullText) => setStreamText(prev => {
               // Replace current batch's streaming portion
-              const lastMarker = prev.lastIndexOf('── 第');
+              const lastMarker = prev.lastIndexOf('── ');
               if (lastMarker >= 0) {
                 const before = prev.slice(0, lastMarker);
                 const markerLine = prev.slice(lastMarker).split('\n')[0];
@@ -153,7 +158,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           newEntries.forEach(e => next.set(e.id, 'collapsed'));
           return next;
         });
-        addToast('success', `已生成 ${newEntries.length} 条骨架，点击「✨ AI 展开」逐条扩展`);
+        addToast('success', t('worldBook.skeletonGeneratedToast', { count: String(newEntries.length) }));
       } else {
         // ── Full mode: streaming with live preview ──
         const result = await generateLorebookParsedStreaming(
@@ -199,17 +204,17 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             newEntries.forEach(e => next.set(e.id, 'collapsed'));
             return next;
           });
-          addToast('success', `已生成 ${newEntries.length} 条世界书条目`);
+          addToast('success', t('worldBook.entriesGeneratedToast', { count: String(newEntries.length) }));
         } else {
-          addToast('error', 'AI 返回的内容无法解析为世界书条目，请重试');
+          addToast('error', t('worldBook.parseFailedToast'));
         }
       }
       setAiStatus('done');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '未知错误';
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
       setAiStatus('error');
       setStreamText(msg);
-      addToast('error', `世界书生成失败：${msg}`);
+      addToast('error', t('worldBook.generateFailedToast', { message: msg }));
     } finally {
       setGenerating(false);
     }
@@ -231,7 +236,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           position: entry.insertion_order,
         },
         existingWorldbookContext
-          ? `${characterSummaries}\n\n已有世界书（必须保持一致）：\n${existingWorldbookContext}`
+          ? `${characterSummaries}\n\n${t('worldBook.existingWorldbookHeaderBrief')}\n${existingWorldbookContext}`
           : characterSummaries,
         undefined,
         entry.expandNsfw,
@@ -242,10 +247,10 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         keys: result.keys,
         constant: result.strategy === 'constant',
       });
-      addToast('success', `「${result.comment || entry.name}」展开完成`);
+      addToast('success', t('worldBook.expandDone', { name: result.comment || entry.name }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '未知错误';
-      addToast('error', `展开失败：${msg}`);
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('worldBook.expandFailed', { message: msg }));
     } finally {
       setExpandingIndex(null);
     }
@@ -258,7 +263,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
     try {
       const results = await organizeEntries(entries.map((e, i) => ({
         index: i,
-        name: e.name || e.comment || `条目 ${i + 1}`,
+        name: e.name || e.comment || t('lorebook.entryFallback', { index: String(i + 1) }),
         content: e.content,
         keys: e.keys,
         position: e.position,
@@ -269,8 +274,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       })));
       setOrganizeResults(results.length > 0 ? results : null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '未知错误';
-      addToast('error', `智能整理失败：${msg}`);
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('worldBook.organizeFailed', { message: msg }));
     } finally {
       setOrganizing(false);
     }
@@ -305,7 +310,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
     try {
       const results = await generateEntryKeys(needsKeys.map(({ entry, index }) => ({
         index,
-        name: entry.name || entry.comment || `条目 ${index + 1}`,
+        name: entry.name || entry.comment || t('lorebook.entryFallback', { index: String(index + 1) }),
         content: entry.content,
         existingKeys: entry.keys,
       })));
@@ -321,8 +326,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         onUpdate(updated);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '未知错误';
-      addToast('error', `触发词生成失败：${msg}`);
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('worldBook.keysFailed', { message: msg }));
     } finally {
       setGeneratingKeys(false);
     }
@@ -331,24 +336,24 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   const cleanupEmptyEntries = () => {
     const updated = entries.filter(e => e.content?.trim() || e.name?.trim() || e.keys.length > 0);
     onUpdate(updated);
-    addToast('success', `已清理 ${entries.length - updated.length} 个空条目`);
+    addToast('success', t('worldBook.cleanupDone', { count: String(entries.length - updated.length) }));
   };
 
   const sortEntries = () => {
     onUpdate([...entries].sort((a, b) => a.insertion_order - b.insertion_order));
-    addToast('success', '已按 order 排序');
+    addToast('success', t('worldBook.sortDone'));
   };
 
   const disableEmptyKeyEntries = () => {
     const updated = entries.map(e => (!e.constant && e.keys.length === 0 ? { ...e, enabled: false } : e));
     const count = entries.filter(e => !e.constant && e.keys.length === 0 && e.enabled).length;
     onUpdate(updated);
-    addToast('success', `已禁用 ${count} 个无触发词条目`);
+    addToast('success', t('worldBook.disabledCount', { count: String(count) }));
   };
 
   const enableAllEntries = () => {
     onUpdate(entries.map(e => ({ ...e, enabled: true })));
-    addToast('success', '已启用全部条目');
+    addToast('success', t('worldBook.enabledAll'));
   };
 
   const q = searchQuery.trim().toLowerCase();
@@ -370,25 +375,30 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       {/* Guidance banner */}
       <div className="rounded-lg bg-indigo-900/20 border border-indigo-700/40 px-4 py-3 mb-4">
         <p className="text-xs text-indigo-300 leading-relaxed">
-          <span className="font-semibold">世界书 = 角色的详细设定库：</span>
-          每个条目通过<strong>关键词</strong>触发，聊天中提到相关内容时自动注入 AI 上下文。
+          <span className="font-semibold">{t('worldBook.guidanceTitle')}</span>
+          {t('worldBook.guidanceDesc')}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-indigo-300/60">
-          <p>✦ <strong>每句话过四问</strong>：删了AI会错吗？是信息还是装饰？列表能替代吗？不看原文能理解吗？</p>
-          <p>✦ <strong>数据库格式</strong>：用键值对和列表，不用散文</p>
-          <p>✦ <strong>不写AI已知信息</strong>：只写差异信息</p>
-          <p>✦ <strong>严禁单汉字关键词</strong>：用2字以上名称</p>
-          <p>✦ <strong>连接词用冒号/逗号替代</strong>：压缩信息量</p>
-          <p>✦ <strong>order 建议</strong>：背景=100 · 能力=200 · 关系=300 · 地点=400</p>
+          <p>✦ <strong>{t('worldBook.guidanceRule1')}</strong></p>
+          <p>✦ <strong>{t('worldBook.guidanceRule2')}</strong></p>
+          <p>✦ <strong>{t('worldBook.guidanceRule3')}</strong></p>
+          <p>✦ <strong>{t('worldBook.guidanceRule4')}</strong></p>
+          <p>✦ <strong>{t('worldBook.guidanceRule5')}</strong></p>
+          <p>✦ <strong>{t('worldBook.guidanceRule6')}</strong></p>
         </div>
       </div>
 
       {/* Stats bar */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 text-[11px]">
-        <span className="bg-indigo-900/30 text-indigo-300 px-2 py-0.5 rounded">{totalEntries} 总计</span>
-        <span className="bg-green-900/30 text-green-300 px-2 py-0.5 rounded">{enabledEntries} 启用</span>
-        <span className="bg-amber-900/30 text-amber-300 px-2 py-0.5 rounded">{constantEntries} 常驻</span>
-        <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded">~{totalTokens} Token</span>
+        <span className="bg-indigo-900/30 text-indigo-300 px-2 py-0.5 rounded">{t('worldBook.totalEntries', { count: String(totalEntries) })}</span>
+        <span className="bg-green-900/30 text-green-300 px-2 py-0.5 rounded">{t('worldBook.enabledEntries', { count: String(enabledEntries) })}</span>
+        <span className="bg-amber-900/30 text-amber-300 px-2 py-0.5 rounded">{t('worldBook.constantEntries', { count: String(constantEntries) })}</span>
+        <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded">{t('worldBook.tokenEstimate', { count: String(totalTokens) })}</span>
+        {mvu?.enabled && mvu.ejsConfigs.length > 0 && (
+          <span className="bg-teal-900/30 text-teal-300 px-2 py-0.5 rounded" title="EJS 动态渲染条目数">
+            ⚡ EJS ×{mvu.ejsConfigs.length}
+          </span>
+        )}
       </div>
 
       {/* Batch tools bar */}
@@ -398,19 +408,19 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索名称、内容、关键词..."
+              placeholder={t('worldBook.searchPlaceholder')}
               className="min-w-[220px] flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
             />
-            <Button variant="ghost" size="sm" onClick={sortEntries}>按 order 排序</Button>
-            <Button variant="ghost" size="sm" onClick={enableAllEntries}>全部启用</Button>
-            <Button variant="ghost" size="sm" onClick={disableEmptyKeyEntries}>禁用无触发词</Button>
-            <Button variant="ghost" size="sm" onClick={cleanupEmptyEntries}>清理空条目</Button>
+            <Button variant="ghost" size="sm" onClick={sortEntries}>{t('worldBook.sortByOrder')}</Button>
+            <Button variant="ghost" size="sm" onClick={enableAllEntries}>{t('worldBook.enableAll')}</Button>
+            <Button variant="ghost" size="sm" onClick={disableEmptyKeyEntries}>{t('worldBook.disableEmptyKeys')}</Button>
+            <Button variant="ghost" size="sm" onClick={cleanupEmptyEntries}>{t('worldBook.cleanupEmpty')}</Button>
             <Button variant="ghost" size="sm" onClick={allCollapsed ? expandAll : collapseAll}>
-              {allCollapsed ? '📖 全部展开' : '📕 全部折叠'}
+              {allCollapsed ? `📖 ${t('worldBook.expandAllEntries')}` : `📕 ${t('worldBook.collapseAll')}`}
             </Button>
           </div>
           {searchQuery && (
-            <p className="text-[11px] text-slate-500">搜索结果：{visibleEntries.length} / {entries.length}</p>
+            <p className="text-[11px] text-slate-500">{t('worldBook.searchResults', { visible: String(visibleEntries.length), total: String(entries.length) })}</p>
           )}
         </div>
       )}
@@ -418,14 +428,14 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       {/* AI Tools bar */}
       {entries.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-lg bg-amber-900/10 border border-amber-700/30">
-          <span className="text-xs text-amber-300 font-medium shrink-0">🧹 AI 工具：</span>
+          <span className="text-xs text-amber-300 font-medium shrink-0">🧹 {t('worldBook.aiToolsLabel')}</span>
           <Button
             variant="secondary"
             size="sm"
             onClick={handleOrganize}
             disabled={organizing || generatingKeys}
           >
-            {organizing ? '分析中...' : '⚡ 智能整理'}
+            {organizing ? t('worldBook.organizing') : `⚡ ${t('worldBook.smartOrganize')}`}
           </Button>
           <Button
             variant="secondary"
@@ -433,10 +443,10 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             onClick={handleGenerateKeys}
             disabled={generatingKeys || organizing}
           >
-            {generatingKeys ? '生成中...' : '🗝️ 补触发词'}
+            {generatingKeys ? t('worldBook.generatingKeys') : `🗝️ ${t('worldBook.generateKeys')}`}
           </Button>
           <span className="text-[10px] text-slate-500 ml-auto">
-            智能整理优化 position/depth/order/prob · 补触发词为缺少关键词的条目生成 keys
+            {t('worldBook.aiToolsHint')}
           </span>
         </div>
       )}
@@ -454,13 +464,13 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-white">世界书</h2>
+          <h2 className="text-xl font-bold text-white">{t('worldBook.title')}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            添加条目丰富角色设定。共 {entries.length} 个条目。
+            {t('worldBook.headerCount', { count: String(entries.length) })}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={addEntry}>+ 添加条目</Button>
+          <Button variant="secondary" onClick={addEntry}>+ {t('worldBook.addEntry')}</Button>
         </div>
       </div>
 
@@ -491,7 +501,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           <AIProgressPanel
             status={aiStatus}
             text={streamText}
-            title={skeletonMode ? 'AI 骨架生成' : 'AI 世界书生成'}
+            title={t(skeletonMode ? 'aiPanel.skeletonGenerationTitle' : 'aiPanel.worldBookGenerationTitle')}
             onClear={() => { setAiStatus('idle'); setStreamText(''); }}
           />
         </div>
@@ -499,12 +509,12 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
 
       {entries.length === 0 && (
         <div className="text-center py-12 text-slate-500 border border-dashed border-slate-700 rounded-xl">
-          <p>还没有世界书条目。</p>
-          <p className="text-sm mt-1">手动添加条目或使用 AI 批量生成。</p>
+          <p>{t('worldBook.emptyEntriesTitle')}</p>
+          <p className="text-sm mt-1">{t('worldBook.emptyEntriesHint')}</p>
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
         {visibleEntries.map(({ entry, index }) => {
           const isSkeleton = (entry.content || '').length < 120;
           return (
