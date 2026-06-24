@@ -179,11 +179,19 @@ router.post('/chat/stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
 
     // Pipe the upstream SSE stream to the client
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+
+    function writeSSE(line) {
+      res.write(line + '\n\n');
+      if (typeof res.flush === 'function') {
+        res.flush();
+      }
+    }
 
     try {
       while (true) {
@@ -197,7 +205,7 @@ router.post('/chat/stream', async (req, res) => {
         for (const rawLine of lines) {
           const line = rawLine.trimEnd();
           if (line.startsWith('data:')) {
-            res.write(line + '\n\n');
+            writeSSE(line);
             if (line.slice(5).trim() === '[DONE]') {
               res.end();
               return;
@@ -213,9 +221,9 @@ router.post('/chat/stream', async (req, res) => {
     if (!res.writableEnded) {
       const lastLine = buffer.trim();
       if (lastLine.startsWith('data:') && lastLine.slice(5).trim() !== '[DONE]') {
-        res.write(lastLine + '\n\n');
+        writeSSE(lastLine);
       }
-      res.write('data: [DONE]\n\n');
+      writeSSE('data: [DONE]');
       res.end();
     }
   } catch (err) {
