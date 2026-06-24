@@ -34,6 +34,16 @@ interface AIRequestPayload {
 const PRESET_HEADER = '## 写卡预设规则（必须严格遵守）';
 const DEFAULT_MODEL = 'gpt-3.5-turbo';
 const MAX_RETRIES_CAP = 8;
+const MAX_CONTINUATION_ROUNDS = 4;
+
+const CONTINUE_USER_MSG = `你的回答因为长度限制在上一条被截断了。请**从中断处直接继续输出**，不要重复已经输出过的内容，不要加任何前缀说明，不要重新开始。直接输出剩余部分即可。如果输出的是JSON，请确保最终拼合后是合法的JSON。`;
+
+const CONTINUE_USER_MSG_JSON = `你的回答因为长度限制在上一条被截断了（在JSON中间断开）。请**从中断处直接继续输出剩余的JSON内容**，不要重复已经输出过的内容，不要加任何前缀、解释或markdown代码块标记。直接从断点位置继续输出，确保最终拼合后是一个合法完整的JSON。`;
+
+function looksLikeJsonStart(text: string): boolean {
+  const trimmed = text.trimStart();
+  return trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"description"') || trimmed.includes('"entries"');
+}
 
 /**
  * Normalize an API URL by ensuring it ends with /chat/completions.
@@ -203,13 +213,20 @@ function extractAIContent(data: unknown): string {
   return content.trim();
 }
 
-/**
- * Call the AI API through the Express proxy (non-streaming).
- * Credentials are read from IndexedDB and forwarded to the backend proxy.
- * Automatically retries on transient failures (5xx, network errors, 429 rate limit).
- */
-export async function callAI(options: AIRequestOptions): Promise<string> {
-  const { payload, maxRetries } = await buildPayload(options);
+function extractFinishReason(data: unknown): string | null {
+  const record = data as Record<string, unknown>;
+  const choices = Array.isArray(record?.choices) ? record.choices : [];
+  const firstChoice = choices[0] as Record<string, unknown> | undefined;
+  const reason = firstChoice?.finish_reason;
+  return typeof reason === 'string' ? reason : null;
+}
+
+interface SingleCallResult {
+  content: string;
+  finishReason: string | null;
+}
+
+async function callAIOnce(payload: AIRequestPayload, maxRetries: number): Promise<SingleCallResult> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -233,10 +250,11 @@ export async function callAI(options: AIRequestOptions): Promise<string> {
 
       const data = await response.json();
       const content = extractAIContent(data);
+      const finishReason = extractFinishReason(data);
       if (!content) {
         throw new Error('AI 响应没有内容，模型可能拒绝了请求');
       }
-      return content;
+      return { content, finishReason };
     } catch (err: unknown) {
       if (attempt < maxRetries && isRetryableError(err)) {
         lastError = err instanceof Error ? err : new Error('网络请求失败');
@@ -252,21 +270,59 @@ export async function callAI(options: AIRequestOptions): Promise<string> {
 }
 
 /**
+ * Call the AI API through the Express proxy (non-streaming).
+ * Credentials are read from IndexedDB and forwarded to the backend proxy.
+ * Automatically retries on transient failures (5xx, network errors, 429 rate limit).
+ * Automatically continues generation if finish_reason === "length" (token limit hit).
+ */
+export async function callAI(options: AIRequestOptions): Promise<string> {
+  const { payload: initialPayload, maxRetries } = await buildPayload(options);
+
+  let currentMessages: AIMessage[] = [...initialPayload.messages];
+  let fullContent = '';
+  let continuationRounds = 0;
+
+  while (true) {
+    const payload: AIRequestPayload = {
+      ...initialPayload,
+      messages: currentMessages,
+    };
+
+    const { content, finishReason } = await callAIOnce(payload, maxRetries);
+    fullContent = fullContent ? fullContent + content : content;
+
+    // If truncated (finish_reason === "length"), continue generation
+    if (finishReason === 'length' && continuationRounds < MAX_CONTINUATION_ROUNDS) {
+      continuationRounds++;
+      const isJson = looksLikeJsonStart(fullContent);
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant', content },
+        { role: 'user', content: isJson ? CONTINUE_USER_MSG_JSON : CONTINUE_USER_MSG },
+      ];
+      continue;
+    }
+
+    return fullContent;
+  }
+}
+
+/**
  * Callback for streaming progress.
  */
 export type StreamCallback = (chunk: string, fullText: string) => void;
 
-/**
- * Call AI with streaming via Server-Sent Events.
- * Returns a Promise that resolves with the full text when streaming completes.
- * The onChunk callback is called with each new token as it arrives.
- * Retries on transient connection failures before the stream starts.
- */
-export async function callAIStreaming(
-  options: AIRequestOptions,
+interface StreamCallResult {
+  fullText: string;
+  finishReason: string | null;
+}
+
+async function streamAIOnce(
+  payload: AIRequestPayload,
+  maxRetries: number,
   onChunk: StreamCallback,
-): Promise<string> {
-  const { payload, maxRetries } = await buildPayload(options);
+  existingFullText: string = '',
+): Promise<StreamCallResult> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -288,7 +344,6 @@ export async function callAIStreaming(
         throw new Error(errMsg);
       }
 
-      // Stream established — no more retries from here
       if (!response.body) {
         throw new Error('AI 流式响应为空');
       }
@@ -298,6 +353,7 @@ export async function callAIStreaming(
       let fullText = '';
       let buffer = '';
       let receivedAnyData = false;
+      let finishReason: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -314,16 +370,14 @@ export async function callAIStreaming(
           if (line.startsWith('data:')) {
             const data = line.slice(5).trim();
             if (data === '[DONE]') {
-              // Stream finished — check if we got any content
               if (!fullText.trim()) {
                 throw new Error('AI 返回了空内容（流式响应无数据）');
               }
-              return fullText;
+              return { fullText, finishReason };
             }
             try {
               const parsed = JSON.parse(data);
 
-              // Check for error in response
               if (parsed.error) {
                 const errMsg = typeof parsed.error === 'string'
                   ? parsed.error
@@ -332,7 +386,11 @@ export async function callAIStreaming(
               }
 
               const choice = parsed.choices?.[0];
-              // Try multiple content extraction paths for compatibility
+              // Capture finish_reason if present
+              if (choice?.finish_reason && typeof choice.finish_reason === 'string') {
+                finishReason = choice.finish_reason;
+              }
+
               const content =
                 textFromContentParts(choice?.delta?.content) ||
                 textFromContentParts(choice?.message?.content) ||
@@ -345,10 +403,9 @@ export async function callAIStreaming(
               if (content) {
                 receivedAnyData = true;
                 fullText += content;
-                onChunk(content, fullText);
+                onChunk(content, existingFullText + fullText);
               }
             } catch (parseErr) {
-              // If it's our thrown error (AI API error), re-throw it
               if (parseErr instanceof Error && parseErr.message.startsWith('AI API 返回错误')) {
                 throw parseErr;
               }
@@ -358,11 +415,10 @@ export async function callAIStreaming(
         }
       }
 
-      // Stream ended without [DONE] — check if we got content
       if (!fullText.trim()) {
         throw new Error('AI 返回了空内容（流结束但无数据）');
       }
-      return fullText;
+      return { fullText, finishReason };
     } catch (err: unknown) {
       if (attempt < maxRetries && isRetryableError(err)) {
         lastError = err instanceof Error ? err : new Error('网络请求失败');
@@ -375,6 +431,48 @@ export async function callAIStreaming(
   }
 
   throw lastError || new Error('AI 流式调用失败，已重试 ' + maxRetries + ' 次');
+}
+
+/**
+ * Call AI with streaming via Server-Sent Events.
+ * Returns a Promise that resolves with the full text when streaming completes.
+ * The onChunk callback is called with each new token as it arrives.
+ * Retries on transient connection failures before the stream starts.
+ * Automatically continues generation if finish_reason === "length" (token limit hit).
+ */
+export async function callAIStreaming(
+  options: AIRequestOptions,
+  onChunk: StreamCallback,
+): Promise<string> {
+  const { payload: initialPayload, maxRetries } = await buildPayload(options);
+
+  let currentMessages: AIMessage[] = [...initialPayload.messages];
+  let fullContent = '';
+  let continuationRounds = 0;
+
+  while (true) {
+    const payload: AIRequestPayload = {
+      ...initialPayload,
+      messages: currentMessages,
+    };
+
+    const { fullText, finishReason } = await streamAIOnce(payload, maxRetries, onChunk, fullContent);
+    fullContent += fullText;
+
+    // If truncated (finish_reason === "length"), continue generation
+    if (finishReason === 'length' && continuationRounds < MAX_CONTINUATION_ROUNDS) {
+      continuationRounds++;
+      const isJson = looksLikeJsonStart(fullContent);
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant', content: fullText },
+        { role: 'user', content: isJson ? CONTINUE_USER_MSG_JSON : CONTINUE_USER_MSG },
+      ];
+      continue;
+    }
+
+    return fullContent;
+  }
 }
 
 /**
