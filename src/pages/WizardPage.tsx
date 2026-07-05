@@ -737,10 +737,12 @@ ${e.content || ''}`)
         return (
           <StepFirstMessage
             firstMessage={draft.firstMessage}
+            alternateGreetings={draft.alternate_greetings}
             cardName={draft.cardName}
             characterDescriptions={characterDescriptions}
             worldbookContext={worldbookContext}
             onChange={(msg) => updateDraft({ firstMessage: msg })}
+            onAlternateGreetingsChange={(greetings) => updateDraft({ alternate_greetings: greetings })}
             mvu={draft.mvu}
           />
         );

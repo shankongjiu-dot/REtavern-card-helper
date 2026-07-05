@@ -1,5 +1,5 @@
 /**
- * Step 4: First Message - the character's opening message.
+ * Step 4: First Message - supports multiple greetings (primary + alternates).
  * Supports AI generation with real-time streaming progress, word count control,
  * custom writing requirements, and empty response detection with auto-retry.
  */
@@ -13,10 +13,12 @@ import type { MvuConfig } from '../../constants/defaults';
 
 interface StepFirstMessageProps {
   firstMessage: string;
+  alternateGreetings: string[];
   cardName: string;
   characterDescriptions: string;
   worldbookContext: string;
   onChange: (message: string) => void;
+  onAlternateGreetingsChange: (greetings: string[]) => void;
   /** MVU config — used to show initvar context for consistency */
   mvu?: MvuConfig;
 }
@@ -34,7 +36,16 @@ const MIN_RESPONSE_LENGTH = 50;
 /** Maximum number of auto-retries when AI returns empty/too-short content */
 const MAX_AUTO_RETRIES = 2;
 
-export function StepFirstMessage({ firstMessage, cardName, characterDescriptions, worldbookContext, onChange, mvu }: StepFirstMessageProps) {
+export function StepFirstMessage({
+  firstMessage,
+  alternateGreetings,
+  cardName,
+  characterDescriptions,
+  worldbookContext,
+  onChange,
+  onAlternateGreetingsChange,
+  mvu,
+}: StepFirstMessageProps) {
   const { t } = useTranslation();
   const { generateFirstMessageStreaming } = useAIGenerate();
   const [aiStatus, setAiStatus] = useState<AIProgressStatus>('idle');
@@ -47,11 +58,43 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showRequirements, setShowRequirements] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   // Clean up pending retry timeout on unmount
   useEffect(() => () => {
     if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
   }, []);
+
+  const greetings = [firstMessage, ...alternateGreetings];
+
+  const getCurrentText = useCallback(() => {
+    return greetings[activeIndex] ?? '';
+  }, [greetings, activeIndex]);
+
+  const setCurrentText = useCallback((text: string) => {
+    if (activeIndex === 0) {
+      onChange(text);
+    } else {
+      const idx = activeIndex - 1;
+      const next = [...alternateGreetings];
+      next[idx] = text;
+      onAlternateGreetingsChange(next);
+    }
+  }, [activeIndex, alternateGreetings, onChange, onAlternateGreetingsChange]);
+
+  const handleAddAlternate = useCallback(() => {
+    onAlternateGreetingsChange([...alternateGreetings, '']);
+    setActiveIndex(alternateGreetings.length + 1);
+  }, [alternateGreetings, onAlternateGreetingsChange]);
+
+  const handleDeleteAlternate = useCallback((index: number) => {
+    if (!window.confirm(t('firstMessage.deleteAlternateConfirm'))) return;
+    const next = alternateGreetings.filter((_, i) => i !== index - 1);
+    onAlternateGreetingsChange(next);
+    if (activeIndex >= index) {
+      setActiveIndex(Math.max(0, activeIndex - 1));
+    }
+  }, [alternateGreetings, activeIndex, onAlternateGreetingsChange, t]);
 
   const handleStreamGenerate = useCallback(async (isRetry = false) => {
     if (!isRetry) {
@@ -101,16 +144,16 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
       setAiStatus('error');
       setAiError(err instanceof Error ? err.message : t('common.error'));
     }
-  }, [cardName, characterDescriptions, generateFirstMessageStreaming, targetWordCount, worldbookContext, writingRequirements]);
+  }, [cardName, characterDescriptions, generateFirstMessageStreaming, targetWordCount, worldbookContext, writingRequirements, t]);
 
   const handleAccept = useCallback(() => {
     if (pendingResult) {
-      onChange(pendingResult);
+      setCurrentText(pendingResult);
       setPendingResult(null);
     }
     setAiStatus('idle');
     setAiText('');
-  }, [pendingResult, onChange]);
+  }, [pendingResult, setCurrentText]);
 
   const handleReject = useCallback(() => {
     setPendingResult(null);
@@ -126,40 +169,90 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
     setRetryCount(0);
   }, []);
 
+  const currentText = getCurrentText();
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-white">{t('firstMessage.title')}</h2>
-          <p className="text-sm text-slate-400 mt-1">
-            {t('firstMessage.subtitle')}
-          </p>
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white">{t('firstMessage.title')}</h2>
+            <p className="text-sm text-slate-400 mt-1">
+              {t('firstMessage.subtitle')}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowRequirements(!showRequirements)}
+            >
+              {showRequirements ? t('firstMessage.collapseRequirements') : (writingRequirements.trim() ? t('firstMessage.writingRequirementsActive') : t('firstMessage.writingRequirementsButton'))}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleStreamGenerate(false)}
+              disabled={aiStatus === 'generating'}
+            >
+              {aiStatus === 'generating'
+                ? (retryCount > 0 ? `⏳ ${t('firstMessage.retrying', { current: String(retryCount), max: String(MAX_AUTO_RETRIES) })}` : `⏳ ${t('common.generating')}`)
+                : `✨ ${t('firstMessage.aiGenerate')}`
+              }
+            </Button>
+            {pendingResult && (
+              <>
+                <Button size="sm" onClick={handleAccept}>✅ {t('firstMessage.accept')}</Button>
+                <Button size="sm" variant="ghost" onClick={handleReject}>{t('firstMessage.reject')}</Button>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowRequirements(!showRequirements)}
+
+        {/* Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          {greetings.map((_, index) => (
+            <div key={index} className="flex items-center">
+              <button
+                onClick={() => setActiveIndex(index)}
+                className={`px-3 py-1.5 text-xs rounded-l-lg border-y border-l transition-colors ${
+                  activeIndex === index
+                    ? 'bg-primary-tint-strong border-primary-tint text-primary-bright'
+                    : 'border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-300'
+                }`}
+              >
+                {index === 0 ? t('firstMessage.tabPrimary') : t('firstMessage.tabAlternate', { index: String(index + 1) })}
+              </button>
+              {index > 0 && (
+                <button
+                  onClick={() => handleDeleteAlternate(index)}
+                  title={t('firstMessage.deleteAlternate')}
+                  className={`px-2 py-1.5 text-xs rounded-r-lg border-y border-r transition-colors ${
+                    activeIndex === index
+                      ? 'bg-primary-tint-strong border-primary-tint text-primary-bright hover:text-red-300'
+                      : 'border-slate-700 text-slate-500 hover:text-red-300 hover:border-slate-600'
+                  }`}
+                >
+                  ×
+                </button>
+              )}
+              {index === 0 && (
+                <span className={`px-2 py-1.5 text-xs rounded-r-lg border-y border-r ${
+                  activeIndex === index
+                    ? 'bg-primary-tint-strong border-primary-tint text-primary-bright'
+                    : 'border-slate-700 text-slate-500'
+                }`}>
+                  主
+                </span>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={handleAddAlternate}
+            className="px-3 py-1.5 text-xs rounded-lg border border-dashed border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300 transition-colors"
           >
-            {showRequirements ? t('firstMessage.collapseRequirements') : (writingRequirements.trim() ? t('firstMessage.writingRequirementsActive') : t('firstMessage.writingRequirementsButton'))}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleStreamGenerate(false)}
-            disabled={aiStatus === 'generating'}
-          >
-            {aiStatus === 'generating'
-              ? (retryCount > 0 ? `⏳ ${t('firstMessage.retrying', { current: String(retryCount), max: String(MAX_AUTO_RETRIES) })}` : `⏳ ${t('common.generating')}`)
-              : `✨ ${t('firstMessage.aiGenerate')}`
-            }
-          </Button>
-          {pendingResult && (
-            <>
-              <Button size="sm" onClick={handleAccept}>✅ {t('firstMessage.accept')}</Button>
-              <Button size="sm" variant="ghost" onClick={handleReject}>{t('firstMessage.reject')}</Button>
-            </>
-          )}
+            + {t('firstMessage.addAlternate')}
+          </button>
         </div>
       </div>
 
@@ -261,22 +354,27 @@ export function StepFirstMessage({ firstMessage, cardName, characterDescriptions
       )}
 
       <TextArea
-        value={firstMessage}
-        onChange={(e) => onChange(e.target.value)}
+        value={currentText}
+        onChange={(e) => setCurrentText(e.target.value)}
         placeholder={t('firstMessage.placeholder')}
         rows={10}
         className="font-mono"
       />
-      <div className="flex items-center justify-between mt-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 gap-2">
         <p className="text-xs text-slate-500">
           {t('firstMessage.tip')}
         </p>
-        {firstMessage && (
-          <span className="text-xs text-slate-500 shrink-0 ml-4">
-            {t('firstMessage.currentLength', { count: String(firstMessage.length) })}
+        {currentText && (
+          <span className="text-xs text-slate-500 shrink-0">
+            {t('firstMessage.currentLength', { count: String(currentText.length) })}
           </span>
         )}
       </div>
+      {alternateGreetings.length > 0 && (
+        <p className="text-xs text-slate-500 mt-2">
+          💡 {t('firstMessage.alternateTip')}
+        </p>
+      )}
     </div>
   );
 }

@@ -650,6 +650,13 @@ export const translations = {
       placeholder: '角色名缓缓睁开眼睛，冰冷的石板地面贴在背上...',
       tip: '提示：好的开场白通常设置场景、包含感官细节，并给用户一个回应的钩子。',
       currentLength: '当前 {{count}} 字',
+      alternateTitle: '备用开场白 {{index}}',
+      addAlternate: '添加备用开场白',
+      deleteAlternate: '删除',
+      deleteAlternateConfirm: '确定要删除这个开场白吗？',
+      tabPrimary: '开场白 1',
+      tabAlternate: '开场白 {{index}}',
+      alternateTip: 'SillyTavern 会随机使用其中一个开场白，让每次新建对话都有新鲜感。',
     },
     // Library page
     library: {
