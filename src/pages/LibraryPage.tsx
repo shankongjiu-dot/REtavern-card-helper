@@ -12,6 +12,7 @@ import { TextInput } from '../components/shared/TextInput';
 import { Modal } from '../components/shared/Modal';
 import { useTranslation } from '../i18n/I18nContext';
 import { exportAsJson, exportAsPng, importFromPng } from '../services/card-exporter';
+import { resizeImageToPngBuffer } from '../services/image-processing';
 
 export function LibraryPage() {
   const { t } = useTranslation();
@@ -98,11 +99,11 @@ export function LibraryPage() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       try {
-        const buffer = await file.arrayBuffer();
+        const buffer = await resizeImageToPngBuffer(file);
         await exportAsPng(card as Parameters<typeof exportAsPng>[0], buffer);
         addToast('success', t('library.exportPngCustomSuccess'));
-      } catch {
-        addToast('error', t('library.exportPngError'));
+      } catch (err) {
+        addToast('error', err instanceof Error ? err.message : t('library.exportPngError'));
       }
     };
     input.click();

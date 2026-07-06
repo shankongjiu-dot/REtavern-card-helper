@@ -25,6 +25,7 @@ import { generateId, createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '
 import type { WizardDraft, LorebookEntry } from '../../constants/defaults';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import type { MvuConsistencyIssue } from '../../services/mvu-builder';
+import { resizeImageToPngBuffer } from '../../services/image-processing';
 import { QualityCheckPanel } from './QualityCheckPanel';
 import { OptimizeCompareModal } from './OptimizeCompareModal';
 import type { OptimizeFieldKey } from '../../services/card-optimizer';
@@ -332,17 +333,16 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
   }, [draft, stats]);
 
   // ── PNG upload ────────────────────────────────────────────────────────────
-  const handlePngUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePngUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result instanceof ArrayBuffer) {
-        onPngFileSelect?.(reader.result);
-        addToast('success', '头像图片已加载');
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    try {
+      const processed = await resizeImageToPngBuffer(file);
+      onPngFileSelect?.(processed);
+      addToast('success', '头像图片已加载');
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : '图片处理失败');
+    }
   }, [onPngFileSelect, addToast]);
 
   const errorCount = issues.filter(i => i.type === 'error').length;
