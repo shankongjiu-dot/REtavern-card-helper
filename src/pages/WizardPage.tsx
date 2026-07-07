@@ -24,6 +24,7 @@ import type { LorebookEntry, WizardCharacter, WizardDraft, StagedModeConfig } fr
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
 import { findStagedLorebookEntryIndices } from '../services/card-exporter';
 import { useTranslation } from '../i18n/I18nContext';
+import { logger } from '../services/logger';
 
 /** A single version in the character generation history */
 export interface CharacterVersion {
@@ -172,7 +173,6 @@ export function WizardPage() {
     addCharacter,
     removeCharacter,
     updateCharacter,
-    validateStep,
     goNext,
     goPrev,
     setCurrentStep,
@@ -199,11 +199,6 @@ export function WizardPage() {
   // Keep a ref in sync so async callbacks always read the latest history
   const characterHistoryRef = useRef<Record<string, CharacterVersion[]>>({});
   useEffect(() => { characterHistoryRef.current = characterHistory; }, [characterHistory]);
-
-  /** Get history for a specific character */
-  const getCharacterHistory = useCallback((charId: string): CharacterVersion[] => {
-    return characterHistory[charId] || [];
-  }, [characterHistory]);
 
   /** Add a version to a character's history and make it the active description */
   const addToCharacterHistory = useCallback((charId: string, content: string, isOriginal: boolean) => {
@@ -416,7 +411,7 @@ ${e.content || ''}`)
           updateCharacter(index, { description: newDesc });
           addToast('success', t('wizard.generateComplete', { name: char.name }));
         } else {
-          console.warn(`[生成] ${char.name} AI 返回内容为空或过短:`, parsed.description);
+          logger.warn(`[生成] ${char.name} AI 返回内容为空或过短:`, parsed.description);
           addToast('error', t('wizard.generateEmpty', { name: char.name }));
         }
       } else {
@@ -488,7 +483,7 @@ ${e.content || ''}`)
             .filter((s): s is string => s !== null)
             .join('\n\n');
 
-          console.log(`[批量生成] 开始生成角色 ${i + 1}/${toGenerate.length}: ${char.name}`);
+          logger.log(`[批量生成] 开始生成角色 ${i + 1}/${toGenerate.length}: ${char.name}`);
 
           const result = await generateCharacterParsedStreaming(
             char.name,
@@ -501,7 +496,7 @@ ${e.content || ''}`)
             char.nsfw ?? false,
           );
 
-          console.log(`[批量生成] 角色 ${char.name} 生成完成, result type:`, typeof result, result ? 'truthy' : 'falsy');
+          logger.log(`[批量生成] 角色 ${char.name} 生成完成, result type:`, typeof result, result ? 'truthy' : 'falsy');
 
           if (result && typeof result === 'object') {
             const parsed = result as Record<string, unknown>;
@@ -511,15 +506,15 @@ ${e.content || ''}`)
               updateCharacter(index, { description: newDesc });
               // Store in local tracker for subsequent characters in this batch
               generatedDescriptions.set(char.id, newDesc);
-              console.log(`[批量生成] 角色 ${char.name} 描述已更新 (${newDesc.length} chars)`);
+              logger.log(`[批量生成] 角色 ${char.name} 描述已更新 (${newDesc.length} chars)`);
               successCount++;
             } else {
-              console.warn(`[批量生成] 角色 ${char.name} AI 返回内容为空或过短:`, parsed.description);
+              logger.warn(`[批量生成] 角色 ${char.name} AI 返回内容为空或过短:`, parsed.description);
               addToast('error', t('wizard.batchGenerateSkippedEmpty', { name: char.name }));
               errorCount++;
             }
           } else {
-            console.warn(`[批量生成] 角色 ${char.name} 返回格式异常:`, result);
+            logger.warn(`[批量生成] 角色 ${char.name} 返回格式异常:`, result);
             addToast('error', t('wizard.batchGenerateSkippedFormat', { name: char.name }));
             errorCount++;
           }
@@ -591,9 +586,9 @@ ${e.content || ''}`)
   };
 
   // ── Polish selected text within character description ──────────────
-  const handlePolishSelection = async (index: number, selectedText: string, fullText: string) => {
+  const handlePolishSelection = async (index: number, selectedText: string, fullText: string, selectionStart: number, selectionEnd: number) => {
     const char = draft.characters[index];
-    if (!char?.name?.trim() || !selectedText) return;
+    if (!char?.name?.trim() || !selectedText || selectionStart < 0 || selectionEnd <= selectionStart) return;
 
     setModifyingIndex(index);
     try {
@@ -604,8 +599,11 @@ ${e.content || ''}`)
       );
 
       if (polished && polished.trim()) {
-        // Replace the selected portion in the full text
-        const newDesc = fullText.replace(selectedText, polished.trim());
+        const selectedSlice = fullText.slice(selectionStart, selectionEnd);
+        if (selectedSlice !== selectedText) {
+          throw new Error('选区内容已变化，请重新选择后再润色');
+        }
+        const newDesc = `${fullText.slice(0, selectionStart)}${polished.trim()}${fullText.slice(selectionEnd)}`;
         // Save current to history
         addToCharacterHistory(char.id, fullText, false);
         // Save polished result to history

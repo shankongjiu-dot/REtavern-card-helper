@@ -245,7 +245,12 @@ function normalizeLoadedPreset(value: unknown): LoadedPreset | null {
  */
 export async function importPresetFile(file: File): Promise<LoadedPreset> {
   const text = await file.text();
-  const json = JSON.parse(text);
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error('预设文件 JSON 格式无效，请检查文件内容。');
+  }
   const prompts = parsePresetJson(json);
 
   if (prompts.length === 0) {

@@ -21,6 +21,7 @@ import { Button } from '../shared/Button';
 import { FieldDiffCard } from './FieldDiffCard';
 import {
   buildOptimizePrompt,
+  buildLorebookBatches,
   parseOptimizeResult,
   computeFieldDiffs,
   buildApplyPatch,
@@ -63,7 +64,7 @@ export function OptimizeCompareModal({
 }: OptimizeCompareModalProps) {
   const { t } = useTranslation();
   const { addToast } = useToast();
-  const { generateText } = useAIGenerate();
+  const { generateTextWithoutPresetStreaming } = useAIGenerate();
 
   const [selectedFields, setSelectedFields] = useState<Set<OptimizeFieldKey>>(new Set());
   const [direction, setDirection] = useState('');
@@ -72,6 +73,10 @@ export function OptimizeCompareModal({
   const [fieldDiffs, setFieldDiffs] = useState<FieldDiff[]>([]);
   const [appliedFields, setAppliedFields] = useState<Set<OptimizeFieldKey>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [streamPreview, setStreamPreview] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [batchInfo, setBatchInfo] = useState<{ current: number; total: number } | null>(null);
+  const [loadingMode, setLoadingMode] = useState<'normal' | 'lorebookBatch'>('normal');
 
   const mvuEnabled = !!draft.mvu?.enabled;
   const visibleFields = useMemo(
@@ -92,8 +97,21 @@ export function OptimizeCompareModal({
       setFieldDiffs([]);
       setAppliedFields(new Set());
       setError(null);
+      setStreamPreview('');
+      setElapsedSeconds(0);
+      setBatchInfo(null);
+      setLoadingMode('normal');
     }
   }, [isOpen, initialSelected, visibleFields]);
+
+  useEffect(() => {
+    if (phase !== 'loading') return;
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [phase]);
 
   const toggleField = useCallback((field: OptimizeFieldKey) => {
     setSelectedFields((prev) => {
@@ -111,6 +129,9 @@ export function OptimizeCompareModal({
     setOptimizeResult(null);
     setFieldDiffs([]);
     setAppliedFields(new Set());
+    setStreamPreview('');
+    setBatchInfo(null);
+    setLoadingMode('normal');
     try {
       const visibleSet = new Set(visibleFields);
       const fieldsArr = [...selectedFields].filter((field) => visibleSet.has(field));
@@ -118,27 +139,86 @@ export function OptimizeCompareModal({
         setPhase('config');
         return;
       }
-      const prompts = buildOptimizePrompt(
-        draft,
-        fieldsArr,
-        direction.trim() || t('optimizeCompare.directionDefault'),
-      );
-      const text = await generateText(prompts.system, prompts.user);
-      const result = parseOptimizeResult(text);
-      if (!result) {
-        setError(t('optimizeCompare.optimizeFailed'));
-        setPhase('config');
-        return;
+      const optimized: OptimizeResult = {};
+
+      const optimizeField = async (
+        fields: OptimizeFieldKey[],
+        onChunk: (chunk: string) => void,
+      ): Promise<void> => {
+        const prompts = buildOptimizePrompt(
+          draft,
+          fields,
+          direction.trim() || t('optimizeCompare.directionDefault'),
+        );
+        const text = await generateTextWithoutPresetStreaming(prompts.system, prompts.user, onChunk);
+        const result = parseOptimizeResult(text);
+        if (!result) {
+          throw new Error('AI 返回了空结果，可能是模型未按 JSON 格式输出');
+        }
+        if (result.cardName !== undefined) optimized.cardName = result.cardName;
+        if (result.tags !== undefined) optimized.tags = result.tags;
+        if (result.firstMessage !== undefined) optimized.firstMessage = result.firstMessage;
+        if (result.mvuStatusBarHtml !== undefined) optimized.mvuStatusBarHtml = result.mvuStatusBarHtml;
+        if (result.mvuSchemaSections !== undefined) optimized.mvuSchemaSections = result.mvuSchemaSections;
+        if (result.lorebookEntries && result.lorebookEntries.length > 0) {
+          optimized.lorebookEntries = [...(optimized.lorebookEntries || []), ...result.lorebookEntries];
+        }
+      };
+
+      const optimizeLorebookBatches = async (
+        onChunk: (chunk: string) => void,
+      ): Promise<void> => {
+        const batches = buildLorebookBatches(draft, direction.trim() || t('optimizeCompare.directionDefault'));
+        if (batches.length === 0) return;
+        setLoadingMode('lorebookBatch');
+        setBatchInfo({ current: 1, total: batches.length });
+        let preview = '';
+        for (let i = 0; i < batches.length; i++) {
+          setBatchInfo({ current: i + 1, total: batches.length });
+          const batch = batches[i];
+          const text = await generateTextWithoutPresetStreaming(
+            batch.system,
+            batch.user,
+            (chunk) => {
+              preview = `${preview}${chunk}`;
+              onChunk(`[批次 ${i + 1}/${batches.length}]\n${preview.slice(-600)}`);
+            },
+          );
+          const result = parseOptimizeResult(text);
+          if (result?.lorebookEntries?.length) {
+            optimized.lorebookEntries = [...(optimized.lorebookEntries || []), ...result.lorebookEntries];
+          }
+        }
+        setBatchInfo(null);
+      };
+
+      const nonLorebookFields = fieldsArr.filter((f) => f !== 'lorebookEntries');
+      const hasLorebook = fieldsArr.includes('lorebookEntries');
+      let preview = '';
+
+      if (nonLorebookFields.length > 0) {
+        await optimizeField(nonLorebookFields, (chunk) => {
+          preview = `${preview}${chunk}`;
+          setStreamPreview(preview.slice(-1200));
+        });
       }
-      const diffs = computeFieldDiffs(draft, result, fieldsArr);
-      setOptimizeResult(result);
+
+      if (hasLorebook) {
+        await optimizeLorebookBatches((chunk) => {
+          setStreamPreview(chunk);
+        });
+      }
+
+      const diffs = computeFieldDiffs(draft, optimized, fieldsArr);
+      setOptimizeResult(optimized);
       setFieldDiffs(diffs);
       setPhase('diff');
     } catch (e) {
       setError(e instanceof Error ? e.message : t('optimizeCompare.optimizeFailed'));
+      setBatchInfo(null);
       setPhase('config');
     }
-  }, [selectedFields, visibleFields, draft, direction, generateText, t]);
+  }, [selectedFields, visibleFields, draft, direction, generateTextWithoutPresetStreaming, t]);
 
   const handleApplySingle = useCallback(
     (field: OptimizeFieldKey) => {
@@ -283,11 +363,32 @@ export function OptimizeCompareModal({
 
       {/* ── Phase: loading ──────────────────────────────────────────── */}
       {phase === 'loading' && (
-        <div className="flex flex-col items-center justify-center py-12 gap-3">
-          <RefreshCw className="w-8 h-8 animate-spin" style={{ color: '#a78bfa' }} />
-          <p className="text-sm" style={{ color: MUTED }}>
-            {t('optimizeCompare.optimizing')}
-          </p>
+        <div className="flex flex-col items-center justify-center py-10 gap-4">
+          <style>{`
+            @keyframes optimize-spin { to { transform: rotate(360deg); } }
+            @keyframes optimize-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+          `}</style>
+          <RefreshCw
+            className="w-9 h-9"
+            style={{ color: '#a78bfa', animation: 'optimize-spin 0.8s linear infinite' }}
+          />
+          <div className="text-center space-y-2">
+            <p className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>
+              {loadingMode === 'lorebookBatch' ? '世界书分批优化中' : t('optimizeCompare.optimizing')}
+            </p>
+            {batchInfo && (
+              <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs" style={{ borderColor: BORDER, background: 'rgba(99,102,241,.12)', color: '#c4b5fd', animation: 'optimize-pulse 1.4s ease-in-out infinite' }}>
+                <span>当前第 {batchInfo.current} 批 / 共 {batchInfo.total} 批</span>
+                <span>每批最多 10 条</span>
+              </div>
+            )}
+            <p className="text-xs" style={{ color: FAINT }}>
+              已运行 {elapsedSeconds}s，正在等待模型返回内容，请不要关闭窗口
+            </p>
+          </div>
+          <div className="w-full max-w-3xl rounded-lg border p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-y-auto" style={{ borderColor: BORDER, background: 'rgba(15,23,42,.45)', color: MUTED }}>
+            {streamPreview || (loadingMode === 'lorebookBatch' ? '正在准备世界书分批任务...' : '等待首个输出片段...')}
+          </div>
         </div>
       )}
 
@@ -297,9 +398,14 @@ export function OptimizeCompareModal({
           {fieldDiffs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
               <Check className="w-8 h-8" style={{ color: '#4ade80' }} />
-              <p className="text-sm" style={{ color: MUTED }}>
-                {error ? `${t('optimizeCompare.optimizeFailed')}: ${error}` : t('optimizeCompare.noChanges')}
-              </p>
+              <div className="text-center space-y-1 max-w-md">
+                <p className="text-sm" style={{ color: MUTED }}>
+                  AI 已完成检修，未发现需要修改的问题
+                </p>
+                <p className="text-xs" style={{ color: FAINT }}>
+                  当前选中的世界书条目结构正常，无需调整。如果仍有 V2 警告，请检查是否选择了正确的检修字段。
+                </p>
+              </div>
               <Button
                 variant="secondary"
                 size="sm"

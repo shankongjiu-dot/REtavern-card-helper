@@ -1,7 +1,7 @@
 /**
  * BackgroundChanger - allows users to upload/customize/reset the app background.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { setBackground, clearBackground, getStoredBackground } from '../../services/background-service';
 import { resizeImageFileToDataUrl } from '../../services/image-processing';
 import { useToast } from './Toast';
@@ -12,9 +12,16 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
   const { addToast } = useToast();
   const [hasCustomBg, setHasCustomBg] = useState(() => !!getStoredBackground());
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
 
-  // 移动端关闭侧栏时，自动收起背景面板
-  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
   const effectiveExpanded = isMobile && sidebarOpen === false ? false : isExpanded;
 
   const handleUpload = async () => {
@@ -54,7 +61,7 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
         <span className="flex items-center gap-1.5">
           🎨 {t('theme.backgroundLabel')}
         </span>
-        <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+        <span className={`transition-transform ${effectiveExpanded ? 'rotate-180' : ''}`}>
           ▾
         </span>
       </button>

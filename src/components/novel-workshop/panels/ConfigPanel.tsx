@@ -29,8 +29,6 @@ export function ConfigPanel({
   entryBudget,
   chunkCharLimit,
   focus,
-  stageOrder,
-  currentStage,
   onGateModeChange,
   onNarrativeModeChange,
   onEntryBudgetChange,

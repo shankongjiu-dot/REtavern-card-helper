@@ -41,6 +41,9 @@ export interface OptimizeResult {
     name?: string;
     content?: string;
     keys?: string[];
+    secondary_keys?: string[];
+    selective?: boolean;
+    constant?: boolean;
   }>;
   mvuStatusBarHtml?: string;
   mvuSchemaSections?: Array<{
@@ -51,8 +54,8 @@ export interface OptimizeResult {
 
 export interface EntryDiff {
   comment: string;
-  before: { content: string; keys: string[] } | null;
-  after: { content: string; keys: string[] } | null;
+  before: Partial<Pick<LorebookEntry, 'content' | 'keys' | 'secondary_keys' | 'selective' | 'constant'>> | null;
+  after: Partial<Pick<LorebookEntry, 'content' | 'keys' | 'secondary_keys' | 'selective' | 'constant'>> | null;
   isNew: boolean;
   hasChange: boolean;
 }
@@ -94,7 +97,14 @@ function snapshotFields(draft: WizardDraft, fields: OptimizeFieldKey[]): string 
     else if (f === 'lorebookEntries') {
       const entries = editableLorebookEntries(draft)
         .filter((e) => e.enabled)
-        .map((e) => ({ comment: e.comment, content: (e.content || '').slice(0, 1500), keys: e.keys }));
+        .map((e) => ({
+          comment: e.comment,
+          content: (e.content || '').slice(0, 1500),
+          keys: e.keys,
+          secondary_keys: e.secondary_keys,
+          selective: e.selective,
+          constant: e.constant,
+        }));
       parts.push(`lorebookEntries: ${JSON.stringify(entries)}`);
     } else if (f === 'mvu.statusBarHtml') {
       parts.push(`mvuStatusBarHtml: ${JSON.stringify((draft.mvu?.statusBarHtml || '').slice(0, 4000))}`);
@@ -107,6 +117,34 @@ function snapshotFields(draft: WizardDraft, fields: OptimizeFieldKey[]): string 
     }
   }
   return parts.join('\n\n');
+}
+
+export const LOREBOOK_OPTIMIZE_BATCH_SIZE = 10;
+
+export function buildLorebookBatches(
+  draft: WizardDraft,
+  direction: string,
+): { system: string; user: string }[] {
+  const entries = editableLorebookEntries(draft).filter((e) => e.enabled);
+  const batches: { system: string; user: string }[] = [];
+  for (let i = 0; i < entries.length; i += LOREBOOK_OPTIMIZE_BATCH_SIZE) {
+    const batch = entries.slice(i, i + LOREBOOK_OPTIMIZE_BATCH_SIZE);
+    batches.push({
+      system: `你是 SillyTavern 角色卡世界书检修专家。用户会提供一批已有世界书条目，请只输出需要修改的字段补丁，不要重写整条内容。`,
+      user: `请检修以下世界书条目，返回 JSON 补丁。\n\n${direction ? `用户额外要求：${direction}\n\n` : ''}## 检修规则\n1. 只处理明显错误字段，不要润色 content，不要重新输出完整世界书。\n2. 如果 selective=true 且 secondary_keys=[]：优先判断是否真的需要二级过滤。\n   - 普通关键词触发条目：输出 {"selective":false}\n   - 确实需要二级过滤：只输出 {"secondary_keys":["补充词"]}\n3. 如果非 constant 条目 keys 为空：只输出 keys。\n4. 如果没有问题，不要返回该条目。\n5. 必须按 comment 精准匹配。严禁新增条目。\n\n## 输出格式\n{"lorebookEntries":[{"comment":"原comment","secondary_keys":["词"],"selective":false,"keys":["词"]}]}\n\n## 当前条目\n${JSON.stringify(
+        batch.map((e) => ({
+          comment: e.comment,
+          name: e.name,
+          keys: e.keys,
+          secondary_keys: e.secondary_keys,
+          selective: e.selective,
+          constant: e.constant,
+          content: (e.content || '').slice(0, 1200),
+        })),
+      )}\n\n请只输出 JSON 补丁：`,
+    });
+  }
+  return batches;
 }
 
 export function buildOptimizePrompt(
@@ -176,8 +214,11 @@ export function parseOptimizeResult(text: string): OptimizeResult | null {
       .map((e) => ({
         comment: typeof e.comment === 'string' ? e.comment : '',
         name: typeof e.name === 'string' ? e.name : undefined,
-        content: typeof e.content === 'string' ? e.content : '',
-        keys: Array.isArray(e.keys) ? (e.keys as unknown[]).filter((k): k is string => typeof k === 'string') : [],
+        content: typeof e.content === 'string' ? e.content : undefined,
+        keys: Array.isArray(e.keys) ? (e.keys as unknown[]).filter((k): k is string => typeof k === 'string') : undefined,
+        secondary_keys: Array.isArray(e.secondary_keys) ? (e.secondary_keys as unknown[]).filter((k): k is string => typeof k === 'string') : undefined,
+        selective: typeof e.selective === 'boolean' ? e.selective : undefined,
+        constant: typeof e.constant === 'boolean' ? e.constant : undefined,
       }))
       .filter((e) => e.comment);
   }
@@ -202,6 +243,10 @@ export function parseOptimizeResult(text: string): OptimizeResult | null {
   return hasAny ? result : null;
 }
 
+function sameStringArray(a: string[] | undefined, b: string[] | undefined): boolean {
+  return JSON.stringify((a || []).slice().sort()) === JSON.stringify((b || []).slice().sort());
+}
+
 function diffLorebook(
   current: LorebookEntry[],
   optimized: NonNullable<OptimizeResult['lorebookEntries']>,
@@ -209,28 +254,37 @@ function diffLorebook(
   const diffs: EntryDiff[] = [];
   for (const opt of optimized) {
     const match = current.find((e) => e.comment === opt.comment);
-    if (!match) {
-      // New entry from AI
-      diffs.push({
-        comment: opt.comment,
-        before: null,
-        after: { content: opt.content || '', keys: opt.keys || [] },
-        isNew: true,
-        hasChange: true,
-      });
-      continue;
+    if (!match) continue;
+
+    const before: EntryDiff['before'] = {};
+    const after: EntryDiff['after'] = {};
+
+    if (opt.content !== undefined && opt.content !== match.content) {
+      before.content = match.content || '';
+      after.content = opt.content;
     }
-    const beforeContent = match.content || '';
-    const afterContent = opt.content || '';
-    const beforeKeys = match.keys || [];
-    const afterKeys = opt.keys || [];
-    const contentChanged = beforeContent !== afterContent;
-    const keysChanged = JSON.stringify(beforeKeys.slice().sort()) !== JSON.stringify(afterKeys.slice().sort());
-    if (contentChanged || keysChanged) {
+    if (opt.keys !== undefined && !sameStringArray(opt.keys, match.keys)) {
+      before.keys = match.keys || [];
+      after.keys = opt.keys;
+    }
+    if (opt.secondary_keys !== undefined && !sameStringArray(opt.secondary_keys, match.secondary_keys)) {
+      before.secondary_keys = match.secondary_keys || [];
+      after.secondary_keys = opt.secondary_keys;
+    }
+    if (opt.selective !== undefined && opt.selective !== match.selective) {
+      before.selective = match.selective;
+      after.selective = opt.selective;
+    }
+    if (opt.constant !== undefined && opt.constant !== match.constant) {
+      before.constant = match.constant;
+      after.constant = opt.constant;
+    }
+
+    if (Object.keys(after).length > 0) {
       diffs.push({
         comment: opt.comment,
-        before: { content: beforeContent, keys: beforeKeys },
-        after: { content: afterContent, keys: afterKeys },
+        before,
+        after,
         isNew: false,
         hasChange: true,
       });
@@ -335,8 +389,11 @@ export function buildApplyPatch(
         const existing = current[idx];
         current[idx] = {
           ...existing,
-          content: opt.content ?? existing.content,
-          keys: opt.keys && opt.keys.length > 0 ? opt.keys : existing.keys,
+          ...(opt.content !== undefined ? { content: opt.content } : {}),
+          ...(opt.keys !== undefined ? { keys: opt.keys } : {}),
+          ...(opt.secondary_keys !== undefined ? { secondary_keys: opt.secondary_keys } : {}),
+          ...(opt.selective !== undefined ? { selective: opt.selective } : {}),
+          ...(opt.constant !== undefined ? { constant: opt.constant } : {}),
           ...(opt.name ? { name: opt.name } : {}),
         };
       }

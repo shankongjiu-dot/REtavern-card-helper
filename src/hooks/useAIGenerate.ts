@@ -98,7 +98,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /**
    * Generate a character profile with streaming.
@@ -115,7 +115,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /**
    * Generate character and parse as JSON.
@@ -183,7 +183,7 @@ export function useAIGenerate() {
       keys: Array.isArray(sk.keys) ? sk.keys : [],
       strategy: sk.strategy || 'normal',
     }));
-  }, []);
+  }, [lang]);
 
   /**
    * Generate lorebook skeleton entries in batch with streaming.
@@ -207,7 +207,7 @@ export function useAIGenerate() {
       keys: Array.isArray(sk.keys) ? sk.keys : [],
       strategy: sk.strategy || 'normal',
     }));
-  }, []);
+  }, [lang]);
 
   /**
    * Generate lorebook entries in batch.
@@ -216,7 +216,7 @@ export function useAIGenerate() {
   const generateLorebook = useCallback(async (cardName: string, characterSummaries: string, topic: string, batchCount: number, rules?: string, nsfw?: boolean): Promise<string> => {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, rules, nsfw, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /**
    * Generate lorebook entries with streaming.
@@ -232,7 +232,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, rules, nsfw, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /**
    * Generate lorebook entries and parse as JSON array.
@@ -274,7 +274,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /** Generate first message with streaming */
   const generateFirstMessageStreaming = useCallback(async (
@@ -288,7 +288,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /** Generate worldview constraints / operation rules */
   const generateWorldRules = useCallback(async (
@@ -301,7 +301,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = WORLD_RULES_GENERATE_PROMPT(cardName, characterSummaries, topic, existingRules, existingWorldbookContext, nsfw, lang);
     return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.7, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /** Generate worldview constraints / operation rules with streaming */
   const generateWorldRulesStreaming = useCallback(async (
@@ -315,7 +315,7 @@ export function useAIGenerate() {
   ): Promise<string> => {
     const prompts = WORLD_RULES_GENERATE_PROMPT(cardName, characterSummaries, topic, existingRules, existingWorldbookContext, nsfw, lang);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.7, presetMode: 'force' });
-  }, []);
+  }, [lang]);
 
   /**
    * AI Smart Organize: Analyze entries and suggest optimized parameters.
@@ -336,7 +336,7 @@ export function useAIGenerate() {
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.3, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIOrganizeSuggestion[] | null;
     return parsed || [];
-  }, []);
+  }, [lang]);
 
   /**
    * AI Key Generation: Generate trigger keywords for entries.
@@ -352,7 +352,7 @@ export function useAIGenerate() {
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.5, presetMode: 'none' });
     const parsed = parseAIJson(text) as AIGeneratedKeys[] | null;
     return parsed || [];
-  }, []);
+  }, [lang]);
 
   /**
    * Expand a skeleton world book entry into a full detailed entry.
@@ -381,7 +381,7 @@ export function useAIGenerate() {
       keys: parsed?.keys ?? entry.keys,
       strategy: parsed?.strategy ?? entry.strategy,
     };
-  }, []);
+  }, [lang]);
 
   /**
    * Diagnose a character card using AI.
@@ -431,7 +431,7 @@ export function useAIGenerate() {
 
     const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.4, presetMode: 'none' });
     return parseAIJson(text) as ReturnType<typeof diagnoseCard> extends Promise<infer T> ? T : never;
-  }, []);
+  }, [lang]);
 
   /**
    * Partially modify a character description based on user instructions.
@@ -447,8 +447,9 @@ export function useAIGenerate() {
     const userPrompt = prompts.user
       .replace('{currentDescription}', currentDescription)
       .replace('{instructions}', instructions);
-    return callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.8, presetMode: 'force' });
-  }, []);
+    const text = await callAIWithPrompt(prompts.system, userPrompt, { temperature: 0.5, presetMode: 'none' });
+    return stripMarkdownFences(text).trim();
+  }, [lang]);
 
   /**
    * Polish/rewrite a selected portion of text within a character description.
@@ -460,8 +461,9 @@ export function useAIGenerate() {
     selectedText: string,
   ): Promise<string> => {
     const prompts = POLISH_SELECTION_PROMPT(characterName, fullText, selectedText, lang);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, presetMode: 'force' });
-  }, []);
+    const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.5, presetMode: 'none' });
+    return stripMarkdownFences(text).trim();
+  }, [lang]);
 
   return {
     generateCharacter,
@@ -509,7 +511,7 @@ export function useAIGenerate() {
       // 按 stageName 对齐回输入顺序（AI 可能乱序）
       const byName = new Map(parsed.map((p) => [p.stageName, p.content || '']));
       return stages.map((s) => ({ stageName: s.name, content: byName.get(s.name) || '' }));
-    }, []),
+    }, [lang]),
     /**
      * AI reads existing worldbook and auto-generates full staged lorebook config
      * (axisPath / axisType / numericDirection / stages with content).
@@ -548,7 +550,7 @@ export function useAIGenerate() {
           content: s.content || '',
         })),
       };
-    }, []),
+    }, [lang]),
     /**
      * Re-roll a single stage's content with optional guidance.
      * Returns the new content string (plain text, not JSON).
@@ -570,14 +572,27 @@ export function useAIGenerate() {
         ? await callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, presetMode: 'force' })
         : await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, presetMode: 'force' });
       return stripMarkdownFences(text).trim();
-    }, []),
+    }, [lang]),
     /** Simple text generation for non-structured prompts (e.g. MVU beginner mode) */
     generateText: useCallback(async (
       systemPrompt: string,
       userPrompt: string,
     ): Promise<string> => {
       return callAIWithPrompt(systemPrompt, userPrompt, { temperature: 0.7, presetMode: 'force' });
-    }, []),
+    }, [lang]),
+    generateTextWithoutPreset: useCallback(async (
+      systemPrompt: string,
+      userPrompt: string,
+    ): Promise<string> => {
+      return callAIWithPrompt(systemPrompt, userPrompt, { temperature: 0.7, presetMode: 'none' });
+    }, [lang]),
+    generateTextWithoutPresetStreaming: useCallback(async (
+      systemPrompt: string,
+      userPrompt: string,
+      onChunk: StreamCallback,
+    ): Promise<string> => {
+      return callAIWithPromptStreaming(systemPrompt, userPrompt, onChunk, { temperature: 0.7, presetMode: 'none', max_tokens: 12000 });
+    }, [lang]),
     /**
      * Step 1 of multi-char template: AI reads worldbook and detects characters.
      * Returns list of { name, comment, summary, suitable }.

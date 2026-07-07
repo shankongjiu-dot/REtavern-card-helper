@@ -45,11 +45,12 @@ async function fetchWithTimeout(url, options, timeoutMs) {
 }
 
 /** Build upstream request headers. Trims the key and adds OpenRouter-specific headers. */
-function buildUpstreamHeaders(apiKey, upstreamUrl) {
+function buildUpstreamHeaders(apiKey, upstreamUrl, { includeContentType = true } = {}) {
   const key = (apiKey || '').trim();
-  const headers = {
-    'Content-Type': 'application/json',
-  };
+  const headers = {};
+  if (includeContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (key) {
     headers.Authorization = `Bearer ${key}`;
   }
@@ -75,6 +76,27 @@ function jsonError(c, message, details, status) {
   return c.json({ error: message, details }, status);
 }
 
+/**
+ * Wrap an upstream fetch Response so Hono can safely mutate its headers
+ * (e.g. for CORS). Directly returning upstream responses causes
+ * "TypeError: immutable" on Node because undici Response headers are frozen.
+ *
+ * Also strips hop-by-hop headers (Connection, Keep-Alive, Transfer-Encoding)
+ * to avoid confusing downstream proxies such as Vite's dev server.
+ */
+function passThrough(response) {
+  const headers = new Headers(response.headers);
+  // Hop-by-hop headers must not be forwarded by proxies.
+  const hopByHop = ['connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'proxy-authorization', 'proxy-authenticate', 'upgrade'];
+  hopByHop.forEach((name) => headers.delete(name));
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 // ─── POST /models ─────────────────────────────────────────────────────────────
 // Fetch available models from the user's OpenAI-compatible endpoint.
 // Body: { apiUrl, apiKey } — apiUrl is already the /models endpoint
@@ -95,18 +117,26 @@ router.post('/models', async (c) => {
       return c.json({ error: validation.error }, 400);
     }
 
+    const hasKey = Boolean(validation.key);
+    console.log(`[Models Proxy] ${apiUrl} (key=${hasKey ? 'present' : 'missing'}, contentType=false)`);
+
     const response = await fetchWithTimeout(apiUrl, {
       method: 'GET',
-      headers: buildUpstreamHeaders(validation.key, apiUrl),
+      headers: buildUpstreamHeaders(validation.key, apiUrl, { includeContentType: false }),
     }, MODEL_LIST_TIMEOUT_MS);
 
+    console.log(`[Models Proxy] ${apiUrl} -> status ${response.status}`);
+
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const errorText = await response.text();
-      return jsonError(c, `API 返回错误 ${response.status}`, errorText, response.status);
+      console.error(`[Models Proxy] ${apiUrl} -> error body:`, responseText.slice(0, 1000));
+      return jsonError(c, `API 返回错误 ${response.status}`, responseText, response.status);
     }
 
-    // Pass upstream response straight through (zero JSON parsing in Worker).
-    return response;
+    return c.body(responseText, response.status, {
+      'Content-Type': response.headers.get('content-type') || 'application/json',
+    });
   } catch (err) {
     if (err.name === 'AbortError') {
       return c.json({ error: '请求超时，请检查 API 地址是否正确' }, 504);
@@ -149,13 +179,15 @@ router.post('/chat', async (c) => {
       body: JSON.stringify(requestBody),
     }, timeoutForTokens(max_tokens, CHAT_TIMEOUT_BASE_MS, CHAT_TIMEOUT_MAX_MS));
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const errorText = await response.text();
-      return jsonError(c, `AI API 返回错误 ${response.status}`, errorText, response.status);
+      return jsonError(c, `AI API 返回错误 ${response.status}`, responseText, response.status);
     }
 
-    // Pass upstream response straight through (zero JSON parsing/serialization).
-    return response;
+    return c.body(responseText, response.status, {
+      'Content-Type': response.headers.get('content-type') || 'application/json',
+    });
   } catch (err) {
     if (err.name === 'AbortError') {
       return c.json({ error: 'AI API 请求超时' }, 504);
@@ -195,20 +227,25 @@ router.post('/chat/stream', async (c) => {
       stream: true,
     };
 
+    console.log(`[Stream Proxy] url=${apiUrl} model=${model} key=${validation.key ? 'present' : 'missing'} msgs=${messages.length}`);
+
     const response = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: buildUpstreamHeaders(validation.key, apiUrl),
       body: JSON.stringify(requestBody),
     }, timeoutForTokens(max_tokens, STREAM_TIMEOUT_BASE_MS, STREAM_TIMEOUT_MAX_MS));
 
+    console.log(`[Stream Proxy] url=${apiUrl} -> status ${response.status}`);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[Stream Proxy] url=${apiUrl} -> error body:`, errorText.slice(0, 1000));
       return jsonError(c, `AI API 返回错误 ${response.status}`, errorText, response.status);
     }
 
     // Pass upstream SSE stream straight through.
     // The Worker only sets up the pipe; no per-chunk parsing or heartbeats.
-    return response;
+    return passThrough(response);
   } catch (err) {
     if (err.name === 'AbortError') {
       return c.json({ error: 'AI API 请求超时' }, 504);

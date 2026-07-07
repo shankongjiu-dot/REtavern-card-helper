@@ -325,7 +325,7 @@ export function StepFirstMessage({
       {/* MVU initvar context — ensures first message aligns with variable initial state */}
       {mvu?.enabled && mvu.schemaSections.length > 0 && (
         <div className="mb-4 rounded-xl border border-purple-700/40 bg-purple-950/20 p-4">
-          <details open>
+          <details>
             <summary className="text-sm font-medium text-purple-300 cursor-pointer">
               📐 MVU 变量初始状态参考
             </summary>

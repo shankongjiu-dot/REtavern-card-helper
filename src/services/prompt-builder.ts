@@ -48,7 +48,6 @@ interface CardData {
  */
 export function buildSystemPrompt(card: CardData): string {
   const data = card.data;
-  const charName = data.name || 'Character';
 
   // If the card has a system_prompt override, use it
   // (with {{original}} placeholder support)

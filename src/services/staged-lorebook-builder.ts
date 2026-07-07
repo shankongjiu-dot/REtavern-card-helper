@@ -76,8 +76,31 @@ export function buildChildComment(dispatcherName: string, stageName: string): st
 /** Sanitize a dispatcher name into a valid JS identifier suffix for EJS variables.
  *  Keeps letters, digits, underscore, and CJK characters; replaces others with '_'.
  */
-function makeVarSuffix(name: string): string {
+export function makeVarSuffix(name: string): string {
   return name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_');
+}
+
+/**
+ * 兼容旧版分阶段调度条目：把无后缀的 __stagedRaw / __stagedVal
+ * 重写成带 dispatcherName 后缀的唯一变量名，避免多角色卡中重复声明。
+ */
+export function migrateStagedDispatcherContent(content: string): string {
+  if (!content) return content;
+  // 仅处理旧版写法：__stagedVal 直接引用无后缀的 __stagedRaw
+  if (!/const\s+__stagedVal\s*=\s*Array\.isArray\s*\(\s*__stagedRaw\s*\)/.test(content)) {
+    return content;
+  }
+  // 从第一个 getWorldInfo 子条目 comment 提取 dispatcherName
+  const match = content.match(/getWorldInfo\(\s*"[^"]+"\s*,\s*"([^"]+)"\s*\)/);
+  if (!match) return content;
+  const childComment = match[1];
+  const sepIndex = childComment.indexOf('：');
+  if (sepIndex === -1) return content;
+  const dispatcherName = childComment.slice(0, sepIndex);
+  const suffix = makeVarSuffix(dispatcherName);
+  return content
+    .replace(/\b__stagedRaw\b/g, `__stagedRaw_${suffix}`)
+    .replace(/\b__stagedVal\b/g, `__stagedVal_${suffix}`);
 }
 
 /**

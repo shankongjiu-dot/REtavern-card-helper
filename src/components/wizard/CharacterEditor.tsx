@@ -19,7 +19,7 @@ interface CharacterEditorProps {
   onRemove: () => void;
   onGenerate: (index: number) => void;
   onModify: (index: number, instructions: string, currentDescription: string) => void;
-  onPolishSelection: (index: number, selectedText: string, fullText: string) => void;
+  onPolishSelection: (index: number, selectedText: string, fullText: string, selectionStart: number, selectionEnd: number) => void;
   canRemove: boolean;
   isGenerating: boolean;
   isModifying: boolean;
@@ -59,7 +59,7 @@ export function CharacterEditor({
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showModifyPanel, setShowModifyPanel] = useState(false);
   const [modifyInstruction, setModifyInstruction] = useState('');
-  const [selectedText, setSelectedText] = useState('');
+  const [selection, setSelection] = useState<{ text: string; start: number; end: number } | null>(null);
   const [streamingText, setStreamingText] = useState('');
   const descTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const streamPreviewRef = useRef<HTMLDivElement | null>(null);
@@ -117,8 +117,10 @@ export function CharacterEditor({
   const handleDescSelect = useCallback(() => {
     const textarea = descTextareaRef.current;
     if (textarea) {
-      const sel = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
-      setSelectedText(sel.trim());
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value.substring(start, end);
+      setSelection(text.trim() ? { text, start, end } : null);
     }
   }, []);
 
@@ -142,10 +144,10 @@ export function CharacterEditor({
   };
 
   const handlePolishSelection = () => {
-    if (!selectedText || isModifying) return;
+    if (!selection || isModifying) return;
     onUpdate({ description: localDesc });
-    onPolishSelection(index, selectedText, localDesc);
-    setSelectedText('');
+    onPolishSelection(index, selection.text, localDesc, selection.start, selection.end);
+    setSelection(null);
   };
 
   const borderColor = 'var(--color-border-default)';
@@ -160,7 +162,19 @@ export function CharacterEditor({
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-color)' }}>
           {t('characters.characterIndex', { index: String(index + 1) })}{localName ? `: ${localName}` : ''}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <label className="inline-flex items-center gap-2 rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-xs cursor-pointer" title={character.nsfw ? t('characterEditor.nsfwAllowed') : t('characterEditor.nsfwDisabled')}>
+            <span className="text-rose-200">{t('characterEditor.nsfwContent')}</span>
+            <span className="relative inline-flex items-center">
+              <input
+                type="checkbox"
+                checked={character.nsfw ?? false}
+                onChange={(e) => onUpdate({ nsfw: e.target.checked })}
+                className="sr-only peer"
+              />
+              <span className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-600" />
+            </span>
+          </label>
           {hasName && (
             <Button variant="secondary" size="sm" onClick={wrappedOnGenerate} disabled={isGenerating}>
               {isGenerating ? t('characterEditor.generating') : t('characterEditor.generate')}
@@ -223,27 +237,6 @@ export function CharacterEditor({
         </div>
       </details>
 
-      {/* NSFW toggle */}
-      <div className="flex items-center gap-3 py-1">
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={character.nsfw ?? false}
-            onChange={(e) => onUpdate({ nsfw: e.target.checked })}
-            className="sr-only peer"
-          />
-          <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
-        </label>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs" style={{ color: 'color-mix(in srgb, var(--text-color) 80%, transparent)' }}>
-            {t('characterEditor.nsfwContent')}
-          </span>
-          <span className="text-[10px]" style={{ color: faintText }}>
-            {character.nsfw ? t('characterEditor.nsfwAllowed') : t('characterEditor.nsfwDisabled')}
-          </span>
-        </div>
-      </div>
-
       <div>
         <TextArea
           label={t('characterEditor.descLabel')}
@@ -257,10 +250,10 @@ export function CharacterEditor({
         />
 
         {/* Selected text indicator */}
-        {selectedText && hasDescription && (
+        {selection && hasDescription && (
           <div className="mt-1.5 flex items-center gap-2">
             <span className="text-[10px] text-amber-400 bg-amber-900/20 px-2 py-0.5 rounded border border-amber-700/30">
-              {t('characterEditor.selectedChars', { count: String(selectedText.length) })}
+              {t('characterEditor.selectedChars', { count: String(selection.text.length) })}
             </span>
             <button
               onClick={handlePolishSelection}
@@ -270,7 +263,7 @@ export function CharacterEditor({
               {isModifying ? t('characterEditor.polishing') : t('characterEditor.polishSelected')}
             </button>
             <button
-              onClick={() => setSelectedText('')}
+              onClick={() => setSelection(null)}
               className="text-[10px] hover:text-slate-300 transition-colors"
               style={{ color: faintText }}
             >

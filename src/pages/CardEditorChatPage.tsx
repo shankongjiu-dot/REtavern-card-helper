@@ -12,7 +12,6 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../components/shared/Button';
 import { Modal } from '../components/shared/Modal';
 import { useToast } from '../components/shared/Toast';
-import { useTranslation } from '../i18n/I18nContext';
 import { useCardLibrary } from '../hooks/useCardLibrary';
 import { callAIStreaming } from '../services/ai-service';
 import { importFromPng, exportAsPng, exportAsJson, cardToDraft, assembleCard } from '../services/card-exporter';
@@ -26,9 +25,9 @@ import {
   type CardChatProposals,
   type ChangeDiff,
 } from '../services/card-chat-optimizer';
-import type { WizardDraft, LorebookEntry } from '../constants/defaults';
+import type { WizardDraft } from '../constants/defaults';
 import type { AIMessage } from '../services/ai-service';
-import { Upload, Save, Download, FileJson, Image as ImageIcon, Trash2, Check, X, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { Upload, Save, FileJson, Image as ImageIcon, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -40,7 +39,6 @@ const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
 const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
 
 export function CardEditorChatPage() {
-  const { t } = useTranslation();
   const { addToast } = useToast();
   const { saveCard } = useCardLibrary();
 

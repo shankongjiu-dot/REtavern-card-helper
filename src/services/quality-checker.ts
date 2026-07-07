@@ -372,7 +372,8 @@ const CHECK_ITEMS: CheckItem[] = [
     check: (d) => {
       try {
         const card = assembleCard(d) as unknown as Record<string, unknown>;
-        const result = validateCard(card);
+        const stagedIndices = d.stagedMode?.enabled ? findStagedLorebookEntryIndices(d.lorebookEntries) : undefined;
+        const result = validateCard(card, { stagedLorebookEntryIndices: stagedIndices });
         return {
           passed: result.errors.length === 0,
           actual: `${result.errors.length} 个错误`,
@@ -402,7 +403,8 @@ const CHECK_ITEMS: CheckItem[] = [
     check: (d) => {
       try {
         const card = assembleCard(d) as unknown as Record<string, unknown>;
-        const result = validateCard(card);
+        const stagedIndices = d.stagedMode?.enabled ? findStagedLorebookEntryIndices(d.lorebookEntries) : undefined;
+        const result = validateCard(card, { stagedLorebookEntryIndices: stagedIndices });
         return {
           passed: result.warnings.length === 0,
           actual: `${result.warnings.length} 个警告`,

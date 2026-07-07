@@ -154,42 +154,45 @@ function FieldDiffContent({
   }
 
   if (diff.field === 'lorebookEntries' && diff.entryDiffs) {
+    const formatPatch = (value: unknown) => {
+      if (Array.isArray(value)) return value.length ? value.join(', ') : '[]';
+      if (typeof value === 'boolean') return value ? 'true' : 'false';
+      return String(value ?? '');
+    };
+
     return (
       <div className="space-y-2 mt-2">
-        {diff.entryDiffs.map((ed, i) => (
-          <div key={i} className="rounded border p-2" style={{ borderColor }}>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-medium" style={{ color: 'var(--text-color)' }}>
-                {ed.comment || `(条目 ${i + 1})`}
-              </span>
-              {ed.isNew && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(74,222,128,.15)', color: '#4ade80' }}>
-                  {t('optimizeCompare.newEntry')}
+        <div className="text-[10px]" style={{ color: faintText }}>
+          世界书采用补丁式检修：只显示并应用有问题的字段，不会重写整条内容。
+        </div>
+        {diff.entryDiffs.map((ed, i) => {
+          const fields = Array.from(new Set([
+            ...Object.keys(ed.before || {}),
+            ...Object.keys(ed.after || {}),
+          ]));
+          return (
+            <div key={i} className="rounded border p-2" style={{ borderColor }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xs font-medium" style={{ color: 'var(--text-color)' }}>
+                  {ed.comment || `(条目 ${i + 1})`}
                 </span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.before')}</div>
-                <pre className="text-[10px] p-1.5 rounded whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto" style={{ background: 'var(--color-surface-base)', color: ed.before ? mutedText : faintText }}>
-                  {ed.before ? ed.before.content || t('optimizeCompare.emptyBefore') : t('optimizeCompare.emptyBefore')}
-                </pre>
-                {ed.before && ed.before.keys.length > 0 && (
-                  <div className="text-[10px] mt-1" style={{ color: faintText }}>keys: {ed.before.keys.join(', ')}</div>
-                )}
               </div>
-              <div>
-                <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.after')}</div>
-                <pre className="text-[10px] p-1.5 rounded whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto" style={{ background: 'var(--color-surface-base)', color: '#4ade80' }}>
-                  {ed.after?.content || t('optimizeCompare.emptyBefore')}
-                </pre>
-                {ed.after && ed.after.keys.length > 0 && (
-                  <div className="text-[10px] mt-1" style={{ color: faintText }}>keys: {ed.after.keys.join(', ')}</div>
-                )}
+              <div className="space-y-1">
+                {fields.map((field) => (
+                  <div key={field} className="grid grid-cols-[120px_1fr_1fr] gap-2 items-start text-[10px]">
+                    <div className="font-medium" style={{ color: faintText }}>{field}</div>
+                    <div className="rounded px-2 py-1 break-words" style={{ background: 'var(--color-surface-base)', color: mutedText }}>
+                      {formatPatch((ed.before as Record<string, unknown> | null)?.[field])}
+                    </div>
+                    <div className="rounded px-2 py-1 break-words" style={{ background: 'rgba(74,222,128,.12)', color: '#4ade80' }}>
+                      {formatPatch((ed.after as Record<string, unknown> | null)?.[field])}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }

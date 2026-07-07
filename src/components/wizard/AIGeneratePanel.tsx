@@ -135,7 +135,6 @@ export function AIGeneratePanel({
   }, []);
 
   const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
-  const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
 
   return (
     <div className="mb-6 rounded-xl border border-primary-tint-light bg-primary-tint-light p-4 space-y-3">

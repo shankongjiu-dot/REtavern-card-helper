@@ -686,7 +686,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
 
-        const sections: MvuSchemaSection[] = (parsed.sections || [] as Record<string, unknown>[]).map((s: Record<string, unknown>) => ({
+        const sectionsRaw = Array.isArray(parsed.sections) ? parsed.sections : [];
+        const sections: MvuSchemaSection[] = (sectionsRaw as Record<string, unknown>[]).map((s: Record<string, unknown>) => ({
           name: String(s.name || ''),
           variables: ((s.variables || []) as Record<string, unknown>[]).map((v: Record<string, unknown>) => {
             const type = String(v.type || 'string');
@@ -724,7 +725,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
           }),
         }));
 
-        const updateRules: MvuUpdateRule[] = (parsed.updateRules || []).map((r: Record<string, unknown>) => ({
+        const updateRulesRaw = Array.isArray(parsed.updateRules) ? parsed.updateRules : [];
+        const updateRules: MvuUpdateRule[] = (updateRulesRaw as Record<string, unknown>[]).map((r: Record<string, unknown>) => ({
           path: String(r.path || ''),
           type: String(r.type || ''),
           range: String(r.range || ''),
@@ -768,8 +770,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         });
         setSelectedTemplate('custom');
       }
-    } catch {
-      // AI generation failed, keep existing state
+    } catch (err) {
+      addToast('error', `MVU 生成失败: ${err instanceof Error ? err.message : '请重试'}`);
     } finally {
       setAiGenerating(false);
     }

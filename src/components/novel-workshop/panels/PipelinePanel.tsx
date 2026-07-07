@@ -3,7 +3,7 @@
  * Migrated from .temp_statusbar.astro
  */
 
-import type { WorkflowRunState, GateMode, NarrativeMode, CallEstimate } from '../types';
+import type { WorkflowRunState, GateMode, NarrativeMode } from '../types';
 import { buildCallEstimate, renderCallRisk, formatNumber } from '../utils';
 
 interface PipelinePanelProps {
@@ -18,9 +18,6 @@ interface PipelinePanelProps {
 export function PipelinePanel({
   source,
   chunkCharLimit,
-  gateMode,
-  narrativeMode,
-  entryBudget,
   workflowRunState,
 }: PipelinePanelProps) {
   const estimate = buildCallEstimate(source, chunkCharLimit);

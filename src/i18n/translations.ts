@@ -155,7 +155,7 @@ export const translations = {
       helpTitle: '使用说明',
       helpApiUrl: 'API 地址：填写兼容 OpenAI 格式的基础 URL',
       helpApiKey: 'API 密钥：官方 Key 或中转站密钥，验证后自动隐藏',
-      helpFetchModels: '拉取模型：从 API 获取可用模型列表',
+      helpFetchModels: '拉取模型：从 API 获取可用模型列表；火山方舟等平台可直接手动填写推理接入点 ID',
       helpTemperature: '温度：0 = 更精确，2 = 更创意',
       helpSupports: '支持：OpenAI、OpenRouter、DeepSeek、本地 Oobabooga、KoboldCPP 等',
       localOobabooga: '本地 Oobabooga',
@@ -192,6 +192,10 @@ export const translations = {
       backgroundLabel: '背景',
       uploadImage: '上传图片',
       resetDefault: '恢复默认',
+    },
+    themeSkin: {
+      title: '主题皮肤',
+      toggleTitle: '主题皮肤',
     },
     // Wizard
     wizard: {
@@ -698,6 +702,9 @@ export const translations = {
       permanentDeleteTitle: '彻底删除',
       permanentDeleteConfirm: '确定要彻底删除这张卡片吗？此操作无法撤销！',
       importHint: '支持导入 JSON 文件和 SillyTavern 格式的 PNG 角色卡图片',
+      editAsDraftConfirm: '这会清空当前“创建卡片”里的缓存内容，并把这张卡片导入到创建卡片流程中。之后保存会作为新卡片保存，不会修改卡片库中的原卡片。确定继续吗？',
+      editAsDraftSuccess: '已导入到创建卡片',
+      editAsDraftError: '导入到创建卡片失败: {{message}}',
       importSuccess: '卡片「{{name}}」导入成功',
       importError: '导入失败: {{message}}',
       importPngError: 'PNG 中没有找到角色卡数据（需要 SillyTavern 格式）',

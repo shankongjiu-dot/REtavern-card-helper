@@ -12,14 +12,14 @@
  *   - EJS收尾检查: 变量定义完整性, 预处理覆盖, 条件语法正确
  *   - 导出: 嵌入 Zod.txt, MVU脚本, 正则脚本
  */
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Button } from '../shared/Button';
 import { TextArea } from '../shared/TextArea';
 import { useToast } from '../shared/Toast';
 import { useTranslation } from '../../i18n/I18nContext';
 import { exportAsJson, exportAsPng, assembleCard, findStagedLorebookEntryIndices } from '../../services/card-exporter';
 import { validateCard } from '../../services/card-validator';
-import { validateMvuConsistency, buildMvuScriptBundle } from '../../services/mvu-builder';
+import { validateMvuConsistency } from '../../services/mvu-builder';
 import { autoFixEntries } from '../../services/card-fixers';
 import { generateId, createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../constants/defaults';
 import type { WizardDraft, LorebookEntry } from '../../constants/defaults';
@@ -70,32 +70,33 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
   const [appliedFixes, setAppliedFixes] = useState<string[]>([]);
   const [issues, setIssues] = useState<ConsistencyIssue[]>([]);
   const [showExportPreview, setShowExportPreview] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'json' | 'png'>('json');
   const [cardPreview, setCardPreview] = useState<string>('');
-  const [exporting, setExporting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'json' | 'png' | null>(null);
   const [optimizeOpen, setOptimizeOpen] = useState(false);
   const [optimizePreselect, setOptimizePreselect] = useState<OptimizeFieldKey[]>([]);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const coverUrlRef = useRef<string | null>(null);
 
   // Sync preview URL whenever pngBuffer changes (from parent or upload).
+  // Uses a ref to reliably revoke the old URL in cleanup (setState in cleanup
+  // is unreliable on unmount in React 18 — the updater may not run).
   useEffect(() => {
+    if (coverUrlRef.current) {
+      URL.revokeObjectURL(coverUrlRef.current);
+      coverUrlRef.current = null;
+    }
     if (pngBuffer) {
       const url = URL.createObjectURL(new Blob([pngBuffer], { type: 'image/png' }));
-      setCoverPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
+      coverUrlRef.current = url;
+      setCoverPreviewUrl(url);
     } else {
-      setCoverPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      setCoverPreviewUrl(null);
     }
     return () => {
-      setCoverPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      if (coverUrlRef.current) {
+        URL.revokeObjectURL(coverUrlRef.current);
+        coverUrlRef.current = null;
+      }
     };
   }, [pngBuffer]);
 
@@ -132,10 +133,19 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
     setValidating(true);
     const allIssues: ConsistencyIssue[] = [];
 
+    let stagedIndices = new Set<number>();
+    if (draft.stagedMode?.enabled) {
+      try {
+        stagedIndices = findStagedLorebookEntryIndices(draft.lorebookEntries);
+      } catch {
+        stagedIndices = new Set();
+      }
+    }
+
     // 1. Card V2 spec validation
     try {
       const card = assembleCard(draft);
-      const cardValidation = validateCard(card as unknown as Record<string, unknown>);
+      const cardValidation = validateCard(card as unknown as Record<string, unknown>, { stagedLorebookEntryIndices: stagedIndices });
       for (const err of cardValidation.errors) {
         allIssues.push({ type: 'error', source: 'V2规范', message: err });
       }
@@ -189,14 +199,6 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
     }
 
     // 5. World book entry checks
-    let stagedIndices = new Set<number>();
-    if (draft.stagedMode?.enabled) {
-      try {
-        stagedIndices = findStagedLorebookEntryIndices(draft.lorebookEntries);
-      } catch {
-        stagedIndices = new Set();
-      }
-    }
     const userEntries = draft.lorebookEntries.filter((entry, idx) => !isSpecialLorebookEntry(entry, idx, stagedIndices));
 
     const emptyContentEntries = userEntries.filter(e => e.enabled && !e.content?.trim());
@@ -269,7 +271,8 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
         const user = `变量路径：${fix.varPath}\n枚举值：${fix.enumValues.join(', ')}\n\n角色描述：\n${characterDescriptions}\n\n世界书背景：\n${worldbookContext}\n\n请为每个枚举值生成一个世界书条目，key 作为触发关键词。`;
         const result = await generateText(system, user);
         const jsonMatch = result.match(/\[[\s\S]*\]/);
-        const parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Array<{ key?: string; name?: string; content?: string }>) : [];
+        const parsedRaw = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+        const parsed = Array.isArray(parsedRaw) ? parsedRaw as Array<{ key?: string; name?: string; content?: string }> : [];
         const newEntries = parsed
           .filter(item => item.key && item.content)
           .map(item => {
@@ -312,12 +315,12 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
   }, [draft, characterDescriptions, worldbookContext, generateText, onFixEntries, onUpdateDraft, addToast, runValidation]);
 
   // ── Export ────────────────────────────────────────────────────────────────
-  const handleExport = useCallback(async () => {
-    setExporting(true);
+  const handleExport = useCallback(async (format: 'json' | 'png') => {
+    setExportingFormat(format);
     try {
       const card = assembleCard(draft);
 
-      if (exportFormat === 'json') {
+      if (format === 'json') {
         exportAsJson(card);
         addToast('success', 'JSON 卡片已导出！');
       } else {
@@ -327,9 +330,9 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
     } catch (err: unknown) {
       addToast('error', `导出失败: ${err instanceof Error ? err.message : '未知错误'}`);
     } finally {
-      setExporting(false);
+      setExportingFormat(null);
     }
-  }, [draft, exportFormat, pngBuffer, addToast]);
+  }, [draft, pngBuffer, addToast]);
 
   // ── Preview ───────────────────────────────────────────────────────────────
   const generatePreview = useCallback(() => {
@@ -371,16 +374,171 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
 
   const errorCount = issues.filter(i => i.type === 'error').length;
   const warningCount = issues.filter(i => i.type === 'warning').length;
+  const cardTagLabel = draft.tags.filter(tag => tag.trim()).join('、') || '未设置标签';
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-white">美化 & 导出</h2>
-          <p className="text-sm text-slate-400 mt-1">
-            一致性校验 · 预览 · 导出 PNG/JSON
-          </p>
         </div>
+      </div>
+
+      {/* ── Export Section ────────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-emerald-300">📦 导出卡片</h3>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[220px_minmax(0,1fr)] items-stretch">
+          <div
+            className="relative group min-h-[320px] aspect-[2/3] w-full max-w-[240px] mx-auto sm:mx-0 overflow-hidden rounded-2xl border border-emerald-500/30 bg-slate-950/50 cursor-pointer"
+            onClick={() => document.getElementById('step-polish-cover-input')?.click()}
+            title="点击上传或更换封面"
+          >
+            {coverPreviewUrl ? (
+              <>
+                <img
+                  src={coverPreviewUrl}
+                  alt="封面预览"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-sm text-white">
+                  <Upload size={16} />
+                  更换封面
+                </div>
+                <span className="absolute right-3 top-3 w-6 h-6 rounded-full bg-emerald-500 border border-white/30 flex items-center justify-center shadow-lg">
+                  <Check size={13} className="text-white" />
+                </span>
+              </>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[radial-gradient(circle_at_top,rgba(16,185,129,.18),transparent_45%),linear-gradient(135deg,rgba(15,23,42,.95),rgba(30,41,59,.82))]">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 flex items-center justify-center">
+                  <ImageIcon size={24} className="text-emerald-300" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-slate-200">卡片封面</p>
+                  <p className="text-xs text-slate-500 mt-1">点击上传长图封面</p>
+                </div>
+              </div>
+            )}
+            <div className="absolute inset-x-0 bottom-8 flex justify-center px-4 pointer-events-none">
+              <div className="rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[11px] text-slate-300 shadow-lg backdrop-blur">
+                导入封面
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-950/35 p-4 flex flex-col justify-between gap-4">
+            <div className="rounded-xl border border-emerald-500/20 bg-slate-900/60 p-3">
+              <p className="text-[10px] text-slate-500 mb-1">作品名</p>
+              <p className="text-sm font-semibold text-slate-100 truncate" title={cardName || '未命名卡片'}>{cardName || '未命名卡片'}</p>
+              <div className="mt-2 flex items-center gap-2 min-w-0">
+                <span className="shrink-0 text-[10px] text-slate-500">卡片标签</span>
+                <span className="min-w-0 truncate rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300" title={cardTagLabel}>
+                  {cardTagLabel}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
+                <p className="text-lg font-bold text-emerald-300 leading-none">{stats.entryCount}</p>
+                <p className="text-[10px] text-slate-500 mt-1">世界书</p>
+              </div>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
+                <p className="text-lg font-bold text-sky-300 leading-none">{stats.constantCount}</p>
+                <p className="text-[10px] text-slate-500 mt-1">蓝灯</p>
+              </div>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
+                <p className="text-lg font-bold text-amber-300 leading-none">{stats.mvuVarCount}</p>
+                <p className="text-[10px] text-slate-500 mt-1">变量</p>
+              </div>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
+                <p className="text-lg font-bold text-purple-300 leading-none">{stats.estimatedTokens}</p>
+                <p className="text-[10px] text-slate-500 mt-1">Token</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-200">封面状态</p>
+                <p className="text-[11px] text-slate-500 truncate">{coverPreviewUrl ? '已选择 PNG 封面图片' : '未上传封面，PNG 会使用默认图'}</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${coverPreviewUrl ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/60 text-slate-400'}`}>
+                {coverPreviewUrl ? '已就绪' : '可选'}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => document.getElementById('step-polish-cover-input')?.click()}
+                  className="gap-1.5"
+                >
+                  <Upload size={13} />
+                  {coverPreviewUrl ? '更换封面' : '上传封面'}
+                </Button>
+                {coverPreviewUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onPngFileSelect?.(null)}
+                    className="text-slate-400"
+                  >
+                    <Trash2 size={13} />
+                    移除
+                  </Button>
+                )}
+                <Button variant="secondary" size="sm" onClick={generatePreview}>
+                  📋 预览摘要
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  onClick={() => handleExport('json')}
+                  disabled={exportingFormat !== null || errorCount > 0}
+                  className="justify-center"
+                >
+                  {exportingFormat === 'json' ? '⏳ 导出中...' : '📥 导出 JSON'}
+                </Button>
+                <Button
+                  onClick={() => handleExport('png')}
+                  disabled={exportingFormat !== null || errorCount > 0}
+                  className="justify-center"
+                >
+                  {exportingFormat === 'png' ? '⏳ 导出中...' : '🖼️ 导出 PNG'}
+                </Button>
+              </div>
+            </div>
+
+            <input
+              id="step-polish-cover-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/*"
+              onChange={handlePngUpload}
+              className="hidden"
+            />
+          </div>
+        </div>
+
+        {showExportPreview && cardPreview && (
+          <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">导出预览</span>
+              <Button variant="ghost" size="sm" onClick={() => setShowExportPreview(false)}>
+                关闭
+              </Button>
+            </div>
+            <pre className="text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">
+              {cardPreview}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* ── Stats Grid ────────────────────────────────────────────────────── */}
@@ -488,204 +646,6 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
         )}
       </div>
 
-      {/* ── Export Section ────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-bold text-emerald-300">📦 导出卡片</h3>
-            <p className="text-[11px] text-emerald-400/60">
-              {draft.mvu?.enabled
-                ? '导出时将嵌入 MVU 脚本 (Zod.txt, 变量列表, 正则)'
-                : '导出标准 SillyTavern V2 格式'}
-            </p>
-          </div>
-        </div>
-
-        {/* Format selector */}
-        <div className="flex items-center gap-3 mb-3">
-          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-            <input
-              type="radio"
-              checked={exportFormat === 'json'}
-              onChange={() => setExportFormat('json')}
-              className="text-primary"
-            />
-            JSON 格式
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-            <input
-              type="radio"
-              checked={exportFormat === 'png'}
-              onChange={() => setExportFormat('png')}
-              className="text-primary"
-            />
-            PNG 格式
-          </label>
-        </div>
-
-        {/* PNG upload */}
-        {exportFormat === 'png' && (
-          <div className="mb-4 p-4 rounded-xl bg-slate-900/40 border border-slate-700/50">
-            <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
-              {/* Preview thumbnail */}
-              <div className="relative group shrink-0">
-                <div
-                  className="w-28 h-28 rounded-xl overflow-hidden border-2 transition-all duration-300 cursor-pointer"
-                  style={{
-                    borderColor: coverPreviewUrl ? 'rgba(16,185,129,.5)' : 'rgba(71,85,105,.5)',
-                    boxShadow: coverPreviewUrl
-                      ? '0 4px 24px -4px rgba(16,185,129,.25)'
-                      : '0 4px 12px -4px rgba(0,0,0,.4)',
-                  }}
-                  onClick={() => document.getElementById('step-polish-cover-input')?.click()}
-                  title="点击更换图片"
-                >
-                  {coverPreviewUrl ? (
-                    <>
-                      <img
-                        src={coverPreviewUrl}
-                        alt="封面预览"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                        <Upload size={18} className="text-white" />
-                        <span className="text-[10px] text-white">更换图片</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-800 to-slate-900">
-                      <ImageIcon size={24} className="text-slate-500" />
-                      <span className="text-[10px] text-slate-500 text-center px-2">点击上传封面</span>
-                    </div>
-                  )}
-                </div>
-                {/* Status badge */}
-                {coverPreviewUrl && (
-                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center">
-                    <Check size={11} className="text-white" />
-                  </span>
-                )}
-              </div>
-
-              {/* Info & actions */}
-              <div className="flex-1 min-w-0 w-full">
-                <p className="text-xs text-slate-300 font-medium mb-1">封面图片</p>
-                <p className="text-[11px] text-slate-500 mb-3">
-                  {coverPreviewUrl
-                    ? '已加载封面图片，导出 PNG 时将嵌入这张图片作为卡片封面。'
-                    : '尚未上传封面，导出 PNG 时将使用默认占位图。支持 PNG/JPG/WebP，自动压缩。'}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => document.getElementById('step-polish-cover-input')?.click()}
-                    className="gap-1.5"
-                  >
-                    <Upload size={13} />
-                    {coverPreviewUrl ? '更换图片' : '上传图片'}
-                  </Button>
-                  {coverPreviewUrl && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onPngFileSelect?.(null)}
-                      className="text-slate-400"
-                    >
-                      <Trash2 size={13} />
-                      移除
-                    </Button>
-                  )}
-                </div>
-                <input
-                  id="step-polish-cover-input"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/*"
-                  onChange={handlePngUpload}
-                  className="hidden"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MVU info */}
-        {draft.mvu?.enabled && (
-          <div className="mb-3 p-3 rounded-lg bg-purple-900/20 border border-purple-700/30">
-            <p className="text-xs text-purple-300">
-              📐 MVU 导出将包含：Zod.txt 校验脚本、变量列表、变量输出格式、EJS 预处理
-            </p>
-            <p className="text-[10px] text-purple-400/60 mt-1">
-              {stats.mvuVarCount} 个变量 · {stats.ejsEntryCount} 个 EJS 条目 · schema.ts + initvar.yaml + 更新规则
-            </p>
-          </div>
-        )}
-
-        {/* Preview button */}
-        <div className="flex items-center gap-2 mb-3">
-          <Button variant="secondary" size="sm" onClick={generatePreview}>
-            📋 预览摘要
-          </Button>
-          <Button onClick={handleExport} disabled={exporting || errorCount > 0}>
-            {exporting ? '⏳ 导出中...' : `📥 导出 ${exportFormat.toUpperCase()}`}
-          </Button>
-        </div>
-
-        {/* Preview display */}
-        {showExportPreview && cardPreview && (
-          <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">导出预览</span>
-              <Button variant="ghost" size="sm" onClick={() => setShowExportPreview(false)}>
-                关闭
-              </Button>
-            </div>
-            <pre className="text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">
-              {cardPreview}
-            </pre>
-          </div>
-        )}
-      </div>
-
-      {/* ── MVU Script Bundle Preview ─────────────────────────────────────── */}
-      {draft.mvu?.enabled && draft.mvu.schemaTsContent && (
-        <div className="mt-4 rounded-xl border border-purple-700/40 bg-purple-950/20 p-4">
-          <details>
-            <summary className="text-sm font-medium text-purple-300 cursor-pointer">
-              🔧 MVU 脚本包预览 (导出时将嵌入)
-            </summary>
-            <div className="mt-3 space-y-2">
-              {(() => {
-                const bundle = buildMvuScriptBundle(draft.mvu);
-                return (
-                  <>
-                    <div>
-                      <p className="text-[10px] text-purple-400/60 mb-1">Zod.txt</p>
-                      <pre className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded max-h-[150px] overflow-y-auto font-mono">
-                        {bundle.zodTxt.slice(0, 500)}{bundle.zodTxt.length > 500 ? '...' : ''}
-                      </pre>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-purple-400/60 mb-1">变量列表.txt</p>
-                      <pre className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded max-h-[150px] overflow-y-auto font-mono">
-                        {bundle.variableList || '(空)'}
-                      </pre>
-                    </div>
-                    {bundle.ejsPreprocess && (
-                      <div>
-                        <p className="text-[10px] text-purple-400/60 mb-1">EJS 预处理</p>
-                        <pre className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded max-h-[150px] overflow-y-auto font-mono">
-                          {bundle.ejsPreprocess}
-                        </pre>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </details>
-        </div>
-      )}
 
       {/* ── AI Optimize Compare Modal ──────────────────────────────────── */}
       <OptimizeCompareModal

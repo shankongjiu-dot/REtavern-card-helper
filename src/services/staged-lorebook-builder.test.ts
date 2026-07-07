@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildDispatcherContent,
   buildStagedLorebookEntries,
+  migrateStagedDispatcherContent,
   parseDispatcherContent,
   sortStagesByDirection,
   type StagedLorebookConfig,
@@ -247,5 +248,30 @@ describe('Staged Lorebook Builder - 调度条目兼容性', () => {
     expect(render(0)).toContain('林雅宁分阶段人设：中立·缓冲带');
     expect(render(90)).toContain('林雅宁分阶段人设：纯爱·深爱');
     expect(render(-40)).toContain('林雅宁分阶段人设：NTR·动摇');
+  });
+
+  it('migrateStagedDispatcherContent 应把旧版无后缀变量改为角色唯一变量名', () => {
+    const oldContent = `<%_ const __stagedRaw = getvar('stat_data.温玉婵.情感天平'); _%>
+<%_ const __stagedVal = Array.isArray(__stagedRaw) ? __stagedRaw[0] : __stagedRaw; _%>
+<%_ if (__stagedVal === undefined) { _%>
+<!-- 错误：阶段轴变量"温玉婵.情感天平"未定义，无法加载分阶段内容。 -->
+<%_ } if (__stagedVal >= 90) { _%>
+<%= await getWorldInfo("寒雨将临", "温玉婵分阶段人设：甘愿臣服") _%>`;
+    const migrated = migrateStagedDispatcherContent(oldContent);
+    expect(migrated).toContain('const __stagedRaw_温玉婵分阶段人设 = getvar');
+    expect(migrated).toContain('const __stagedVal_温玉婵分阶段人设 = Array.isArray(__stagedRaw_温玉婵分阶段人设)');
+    expect(migrated).toContain('if (__stagedVal_温玉婵分阶段人设 >= 90)');
+    expect(migrated).not.toMatch(/\b__stagedRaw\b(?!_)/);
+    expect(migrated).not.toMatch(/\b__stagedVal\b(?!_)/);
+  });
+
+  it('migrateStagedDispatcherContent 对已是新版的调度条目不做改动', () => {
+    const newContent = buildDispatcherContent(makeConfig());
+    expect(migrateStagedDispatcherContent(newContent)).toBe(newContent);
+  });
+
+  it('migrateStagedDispatcherContent 对普通世界书条目不做改动', () => {
+    const plain = '# 普通条目\n这是普通内容';
+    expect(migrateStagedDispatcherContent(plain)).toBe(plain);
   });
 });

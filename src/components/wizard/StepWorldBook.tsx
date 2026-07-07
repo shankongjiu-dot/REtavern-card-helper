@@ -20,6 +20,26 @@ function estimateTokens(text: string): number {
   return Math.round((text || '').length * 1.3);
 }
 
+const POSITION_ORDER: Record<LorebookPosition, number> = {
+  before_char: 0,
+  after_char: 1,
+  before_example: 2,
+  after_example: 3,
+  before_author: 4,
+  after_author: 5,
+  at_depth: 6,
+};
+
+/** Sort lorebook entries by position group first, then insertion_order. */
+function sortLorebookEntries(entries: LorebookEntry[]): LorebookEntry[] {
+  return [...entries].sort((a, b) => {
+    const posA = POSITION_ORDER[a.position ?? 'after_char'];
+    const posB = POSITION_ORDER[b.position ?? 'after_char'];
+    if (posA !== posB) return posA - posB;
+    return (a.insertion_order ?? 100) - (b.insertion_order ?? 100);
+  });
+}
+
 function getProtectedEntryLabel(entry: LorebookEntry, idx: number, stagedIndices: Set<number>): string | null {
   const name = (entry.name || '').trim();
   const comment = (entry.comment || '').trim();
@@ -41,7 +61,7 @@ interface StepWorldBookProps {
   mvu?: MvuConfig;
 }
 
-export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange, mvu }: StepWorldBookProps) {
+export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange }: StepWorldBookProps) {
   const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
   const [topic, setTopic] = useState('');
@@ -57,6 +77,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   // AI key generation state
   const [generatingKeys, setGeneratingKeys] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [stagedGroupOpen, setStagedGroupOpen] = useState(false);
   // Streaming progress
   const [aiStatus, setAiStatus] = useState<AIProgressStatus>('idle');
   const [streamText, setStreamText] = useState('');
@@ -159,7 +180,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           depth: 4,
         })) as LorebookEntry[];
 
-        onUpdate([...entries, ...newEntries]);
+        onUpdate(sortLorebookEntries([...entries, ...newEntries]));
         // Auto-collapse newly generated entries (show as collapsed)
         setExpandLevels(prev => {
           const next = new Map(prev);
@@ -177,15 +198,16 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         if (Array.isArray(result) && result.length > 0) {
           const newEntries = result.map((item) => {
             const base = createEmptyLorebookEntry();
+            const secondaryKeys = item.secondary_keys || [];
             return {
               ...base,
               name: item.name || '',
               keys: item.keys || [],
-              secondary_keys: item.secondary_keys || [],
+              secondary_keys: secondaryKeys,
               content: item.content || '',
               comment: item.comment || item.name || '',
               constant: item.constant ?? false,
-              selective: item.selective ?? false,
+              selective: secondaryKeys.length > 0 ? item.selective ?? false : false,
               insertion_order: item.insertion_order ?? 100,
               position: item.position ?? 'after_char',
               priority: item.priority ?? 50,
@@ -205,7 +227,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
               ignore_budget: item.ignore_budget ?? false,
             } as LorebookEntry;
           });
-          onUpdate([...entries, ...newEntries]);
+          onUpdate(sortLorebookEntries([...entries, ...newEntries]));
           // Auto-collapse newly generated entries (show as collapsed)
           setExpandLevels(prev => {
             const next = new Map(prev);
@@ -303,7 +325,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         updated[r.index] = entry;
       }
     }
-    onUpdate(updated);
+    onUpdate(sortLorebookEntries(updated));
     setOrganizeResults(null);
   };
 
@@ -348,7 +370,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   };
 
   const sortEntries = () => {
-    onUpdate([...entries].sort((a, b) => a.insertion_order - b.insertion_order));
+    onUpdate(sortLorebookEntries(entries));
     addToast('success', t('worldBook.sortDone'));
   };
 
@@ -371,44 +393,35 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       return text.includes(q);
     })
     : entries.map((entry, index) => ({ entry, index }));
+  const regularVisibleEntries = visibleEntries.filter(({ index }) => !stagedIndices.has(index));
+  const stagedVisibleEntries = visibleEntries.filter(({ index }) => stagedIndices.has(index));
 
-  // Stats
-  const totalEntries = entries.length;
-  const enabledEntries = entries.filter(e => e.enabled).length;
-  const constantEntries = entries.filter(e => e.constant && e.enabled).length;
-  const totalTokens = entries.reduce((sum, e) => sum + estimateTokens(e.content), 0);
+  const renderEntry = ({ entry, index }: { entry: LorebookEntry; index: number }) => {
+    const protectedLabel = getProtectedEntryLabel(entry, index, stagedIndices);
+    return (
+      <div key={entry.id} className="relative">
+        {protectedLabel && (
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-violet-300">{protectedLabel}</span>
+            <span>{t('worldBook.protectedEntryHint')}</span>
+          </div>
+        )}
+        <LorebookEntryEditor
+          entry={entry}
+          index={index}
+          onUpdate={updateEntry}
+          onRemove={removeEntry}
+          expandLevel={expandLevels.get(entry.id) ?? 'collapsed'}
+          onSetLevel={(level) => setEntryLevel(entry.id, level)}
+          expanding={expandingIndex === index}
+          onAiExpand={() => handleExpandEntry(index)}
+        />
+      </div>
+    );
+  };
 
   return (
     <div>
-      {/* Guidance banner */}
-      <div className="rounded-lg bg-primary-tint-light border border-primary-tint-light px-4 py-3 mb-4">
-        <p className="text-xs text-primary-bright leading-relaxed">
-          <span className="font-semibold">{t('worldBook.guidanceTitle')}</span>
-          {t('worldBook.guidanceDesc')}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-primary-muted">
-          <p>✦ <strong>{t('worldBook.guidanceRule1')}</strong></p>
-          <p>✦ <strong>{t('worldBook.guidanceRule2')}</strong></p>
-          <p>✦ <strong>{t('worldBook.guidanceRule3')}</strong></p>
-          <p>✦ <strong>{t('worldBook.guidanceRule4')}</strong></p>
-          <p>✦ <strong>{t('worldBook.guidanceRule5')}</strong></p>
-          <p>✦ <strong>{t('worldBook.guidanceRule6')}</strong></p>
-        </div>
-      </div>
-
-      {/* Stats bar */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 text-[11px]">
-        <span className="bg-primary-tint text-primary-bright px-2 py-0.5 rounded">{t('worldBook.totalEntries', { count: String(totalEntries) })}</span>
-        <span className="bg-green-900/30 text-green-300 px-2 py-0.5 rounded">{t('worldBook.enabledEntries', { count: String(enabledEntries) })}</span>
-        <span className="bg-amber-900/30 text-amber-300 px-2 py-0.5 rounded">{t('worldBook.constantEntries', { count: String(constantEntries) })}</span>
-        <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded">{t('worldBook.tokenEstimate', { count: String(totalTokens) })}</span>
-        {mvu?.enabled && mvu.ejsConfigs.length > 0 && (
-          <span className="bg-teal-900/30 text-teal-300 px-2 py-0.5 rounded" title="EJS 动态渲染条目数">
-            ⚡ EJS ×{mvu.ejsConfigs.length}
-          </span>
-        )}
-      </div>
-
       {/* Batch tools bar */}
       {entries.length > 0 && (
         <div className="space-y-3 mb-4">
@@ -525,29 +538,36 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       )}
 
       <div className="space-y-2 sm:space-y-3">
-        {visibleEntries.map(({ entry, index }) => {
-          const protectedLabel = getProtectedEntryLabel(entry, index, stagedIndices);
-          return (
-            <div key={entry.id} className="relative">
-              {protectedLabel && (
-                <div className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-400">
-                  <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-violet-300">{protectedLabel}</span>
-                  <span>{t('worldBook.protectedEntryHint')}</span>
+        {regularVisibleEntries.map(renderEntry)}
+
+        {stagedVisibleEntries.length > 0 && (
+          <section className="rounded-xl border border-violet-500/25 bg-violet-500/5">
+            <button
+              type="button"
+              onClick={() => setStagedGroupOpen(open => !open)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] text-violet-300 transition-transform ${stagedGroupOpen ? 'rotate-90' : ''}`}>&#x25B6;</span>
+                  <h3 className="text-sm font-semibold text-violet-200">阶段性世界书</h3>
+                  <span className="rounded-full border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-300">
+                    {stagedVisibleEntries.length} 条
+                  </span>
                 </div>
-              )}
-              <LorebookEntryEditor
-                entry={entry}
-                index={index}
-                onUpdate={updateEntry}
-                onRemove={removeEntry}
-                expandLevel={expandLevels.get(entry.id) ?? 'collapsed'}
-                onSetLevel={(level) => setEntryLevel(entry.id, level)}
-                expanding={expandingIndex === index}
-                onAiExpand={() => handleExpandEntry(index)}
-              />
-            </div>
-          );
-        })}
+                <p className="mt-1 text-[11px] text-slate-500">分阶段模式生成的世界书条目，默认折叠以减少页面长度</p>
+              </div>
+              <span className="shrink-0 rounded-lg border border-violet-400/20 px-2 py-1 text-[11px] text-violet-300">
+                {stagedGroupOpen ? '收起' : '展开'}
+              </span>
+            </button>
+            {stagedGroupOpen && (
+              <div className="space-y-2 border-t border-violet-500/20 p-3 sm:space-y-3">
+                {stagedVisibleEntries.map(renderEntry)}
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

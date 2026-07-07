@@ -11,7 +11,8 @@ import { Button } from '../components/shared/Button';
 import { TextInput } from '../components/shared/TextInput';
 import { Modal } from '../components/shared/Modal';
 import { useTranslation } from '../i18n/I18nContext';
-import { exportAsJson, exportAsPng, importFromPng } from '../services/card-exporter';
+import { WIZARD_DRAFT_VERSION } from '../constants/defaults';
+import { cardToDraft, exportAsJson, exportAsPng, importFromPng } from '../services/card-exporter';
 import { resizeImageToPngBuffer } from '../services/image-processing';
 
 export function LibraryPage() {
@@ -68,6 +69,25 @@ export function LibraryPage() {
     if (confirm(t('library.deleteConfirmPrompt'))) {
       await emptyTrash();
       addToast('success', t('library.trashCleared'));
+    }
+  };
+
+  const handleEditAsNewDraft = async (card: Record<string, unknown>) => {
+    if (!confirm(t('library.editAsDraftConfirm'))) return;
+
+    try {
+      await db.wizard_drafts.put({
+        id: 'new',
+        data: cardToDraft(card),
+        currentStep: 1,
+        version: WIZARD_DRAFT_VERSION,
+        updatedAt: new Date(),
+      });
+      addToast('success', t('library.editAsDraftSuccess'));
+      navigate('/wizard');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('common.unknownError');
+      addToast('error', t('library.editAsDraftError', { message: msg }));
     }
   };
 
@@ -344,7 +364,7 @@ export function LibraryPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 ml-4 shrink-0">
-                  <Button variant="secondary" size="sm" onClick={() => navigate(`/wizard/${card.id}`)}>
+                  <Button variant="secondary" size="sm" onClick={() => handleEditAsNewDraft(card as unknown as Record<string, unknown>)}>
                     ✏️ {t('common.edit')}
                   </Button>
                   <div className="relative">

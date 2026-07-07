@@ -64,27 +64,6 @@ export function extractEnumValues(zodType: string): string[] | undefined {
     .filter(Boolean);
 }
 
-// ── Zod 4 rules from tavern-cards references/mvu/zod-rule.yaml ──────────────
-
-const ZOD_RULES_HEADER = `// ── MVU 变量结构定义 (Zod 4.x) ──────────────────────────────
-// 遵循 tavern-cards MVU Zod 4 规则:
-//   1. 幂等性: Schema.parse(Schema.parse(x)) === Schema.parse(x)
-//   2. 数字: z.coerce.number() 而非 z.number()
-//   3. 软限制: _.clamp() 而非 min/max
-//   4. 优先 z.object() 而非 z.array()
-//   5. z.enum 节制: 仅在精确匹配需要时使用
-//   6. 复杂对象: .or(z.literal('待初始化')).prefault('待初始化')
-//   7. 根字段不使用 .optional()
-//   8. 不使用 .strict() / .passthrough() (Zod 4 不存在)
-//   9. z.record 用于动态键
-//   10. transform 不使用 context 参数
-//
-// 可见性前缀:
-//   无前缀 = AI 可见 + 可更新
-//   _ 前缀 = AI 可见 + 只读（脚本可更新）
-//   $ 前缀 = AI 不可见 + 只读（脚本可更新）
-`;
-
 interface SchemaNode {
   children: Map<string, SchemaNode>;
   variable?: MvuVariable;
@@ -185,7 +164,6 @@ function buildLeafZod(v: MvuVariable): { expr: string; defLit: string } {
 
   // z.object({...}) — complex object type (gets .or(z.literal('待初始化')) fallback)
   if (type.startsWith('z.object(')) {
-    const defVal = initialValue !== null && initialValue !== undefined ? String(initialValue) : "'待初始化'";
     return { expr: `${type}.or(z.literal('待初始化')).prefault('待初始化')`, defLit: "'待初始化'" };
   }
 

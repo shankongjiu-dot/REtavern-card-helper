@@ -24,7 +24,7 @@
 import { generateId, createEmptyMvuConfig, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import type { WizardDraft, LorebookEntry, LorebookPosition, MvuConfig, EjsEntryConfig } from '../constants/defaults';
 import { buildMvuScriptBundle } from './mvu-builder';
-import { parseDispatcherContent } from './staged-lorebook-builder';
+import { migrateStagedDispatcherContent, parseDispatcherContent } from './staged-lorebook-builder';
 
 /**
  * Position string → numeric index mapping.
@@ -65,6 +65,9 @@ const SELECTIVE_LOGIC_REVERSE: Record<number, number> = {
 
 /** Placeholder appended to first_mes and every AI reply for status bar rendering */
 const STATUS_BAR_PLACEHOLDER = '<StatusPlaceHolderImpl/>';
+
+/** Default creator notes used when draft.creator_notes is empty */
+const DEFAULT_CREATOR_NOTES = '本卡由「吟游手册」制作。\nhttps://tavern-card-helper.tavern-helper.workers.dev/';
 
 function buildFirstMessage(draft: WizardDraft): string {
   const base = draft.firstMessage || '';
@@ -427,14 +430,20 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
   // ── Build character_book entries (V2 CharacterBook format) ─────────────
   // V2 spec fields go directly on the entry.
   // SillyTavern runtime fields go in `extensions` (preserved by ST on import).
-  const stagedIndices = findStagedLorebookEntryIndices(draft.lorebookEntries);
-  const entries = draft.lorebookEntries
+  // 兼容旧版分阶段调度条目：无后缀变量名在多角色卡中会重复声明，导出前统一迁移。
+  const migratedLorebookEntries = draft.lorebookEntries.map((entry) => ({
+    ...entry,
+    content: migrateStagedDispatcherContent(entry.content || ''),
+  }));
+  const stagedIndices = findStagedLorebookEntryIndices(migratedLorebookEntries);
+  const entries = migratedLorebookEntries
     .filter((entry, idx) => {
       if (mvuEnabled) return true;
       if (MVU_LOREBOOK_ENTRY_NAMES.includes(entry.name)) return false;
       // MVU 未启用时，分阶段世界书的调度条目和子阶段条目也不导出
       return !stagedIndices.has(idx);
     })
+    .sort((a, b) => (a.insertion_order ?? 0) - (b.insertion_order ?? 0))
     .map((entry, i) => ({
     id: i + 1,
     keys: entry.keys,
@@ -645,7 +654,7 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
       first_mes: buildFirstMessage(draft),
 
       // V2 new fields
-      creator_notes: draft.creator_notes || '',
+      creator_notes: draft.creator_notes?.trim() || DEFAULT_CREATOR_NOTES,
       system_prompt: draft.system_prompt || '',
       post_history_instructions: draft.post_history_instructions || '',
       alternate_greetings: draft.alternate_greetings || [],
@@ -886,7 +895,13 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
   // Reconstruct lorebook entries from character_book.
   // 如果卡片没有启用 MVU，丢弃 MVU 相关世界书条目以及分阶段世界书条目，避免污染编辑器。
   const charBook = data.character_book as Record<string, unknown> | undefined;
-  const allRawEntries = ((charBook?.entries || []) as Array<Record<string, unknown>>);
+  const allRawEntries = ((charBook?.entries || []) as Array<Record<string, unknown>>).map((e) => {
+    const migrated: Record<string, unknown> = {
+      ...e,
+      content: migrateStagedDispatcherContent((e.content as string) || ''),
+    };
+    return migrated;
+  });
   const stagedImportIndices = findStagedLorebookEntryIndices(
     allRawEntries.map((e) => ({
       name: (e.name as string) || '',
@@ -919,39 +934,41 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
   return {
     cardName: (data.name as string) || (card.name as string) || '',
     characters,
-    lorebookEntries: rawEntries.map((e, i) => {
-      const ext = (e.extensions || {}) as Record<string, unknown>;
-      return {
-        id: (e.id as string) || generateId(),
-        keys: (e.keys as string[]) || [],
-        secondary_keys: (e.secondary_keys as string[]) || [],
-        content: (e.content as string) || '',
-        name: (e.name as string) || `Entry ${i + 1}`,
-        enabled: (e.enabled as boolean) ?? true,
-        constant: (e.constant as boolean) ?? false,
-        selective: (e.selective as boolean) ?? false,
-        insertion_order: (e.insertion_order as number) ?? i,
-        position: ((e.position as string) || 'after_char') as LorebookPosition,
-        priority: (e.priority as number) ?? 0,
-        case_sensitive: (e.case_sensitive as boolean) ?? false,
-        comment: (e.comment as string) || (e.name as string) || '',
-        use_regex: (e.use_regex as boolean) ?? false,
-        // ST runtime fields (from extensions, aligned with CardForge format)
-        probability: (ext.probability as number) ?? 100,
-        group: (ext.group as string) || '',
-        group_weight: (ext.group_weight as number) ?? 100,
-        selectiveLogic: SELECTIVE_LOGIC_REVERSE[(ext.selectiveLogic as number) ?? 0] ?? 0,
-        role: (ext.role as number) ?? 0,
-        depth: (ext.depth as number) ?? (ext.scan_depth as number) ?? 4,
-        exclude_recursion: (ext.exclude_recursion as boolean) ?? false,
-        prevent_recursion: (ext.prevent_recursion as boolean) ?? false,
-        match_whole_words: (ext.match_whole_words as boolean) ?? true,
-        sticky: (ext.sticky as number) ?? 0,
-        cooldown: (ext.cooldown as number) ?? 0,
-        delay: (ext.delay as number) ?? 0,
-        ignore_budget: (ext.ignore_budget as boolean) ?? false,
-      };
-    }),
+    lorebookEntries: rawEntries
+      .map((e, i) => {
+        const ext = (e.extensions || {}) as Record<string, unknown>;
+        return {
+          id: (e.id as string) || generateId(),
+          keys: (e.keys as string[]) || [],
+          secondary_keys: (e.secondary_keys as string[]) || [],
+          content: (e.content as string) || '',
+          name: (e.name as string) || `Entry ${i + 1}`,
+          enabled: (e.enabled as boolean) ?? true,
+          constant: (e.constant as boolean) ?? false,
+          selective: (e.selective as boolean) ?? false,
+          insertion_order: (e.insertion_order as number) ?? i,
+          position: ((e.position as string) || 'after_char') as LorebookPosition,
+          priority: (e.priority as number) ?? 0,
+          case_sensitive: (e.case_sensitive as boolean) ?? false,
+          comment: (e.comment as string) || (e.name as string) || '',
+          use_regex: (e.use_regex as boolean) ?? false,
+          // ST runtime fields (from extensions, aligned with CardForge format)
+          probability: (ext.probability as number) ?? 100,
+          group: (ext.group as string) || '',
+          group_weight: (ext.group_weight as number) ?? 100,
+          selectiveLogic: SELECTIVE_LOGIC_REVERSE[(ext.selectiveLogic as number) ?? 0] ?? 0,
+          role: (ext.role as number) ?? 0,
+          depth: (ext.depth as number) ?? (ext.scan_depth as number) ?? 4,
+          exclude_recursion: (ext.exclude_recursion as boolean) ?? false,
+          prevent_recursion: (ext.prevent_recursion as boolean) ?? false,
+          match_whole_words: (ext.match_whole_words as boolean) ?? true,
+          sticky: (ext.sticky as number) ?? 0,
+          cooldown: (ext.cooldown as number) ?? 0,
+          delay: (ext.delay as number) ?? 0,
+          ignore_budget: (ext.ignore_budget as boolean) ?? false,
+        };
+      })
+      .sort((a, b) => (a.insertion_order ?? 0) - (b.insertion_order ?? 0)),
     firstMessage: (data.first_mes as string) || '',
 
     // V2 advanced fields

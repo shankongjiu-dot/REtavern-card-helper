@@ -141,10 +141,14 @@ export function NovelAnalysisPage() {
   const handleFile = async (file: File) => {
     setError('');
     setAnalysis(null);
-    const content = await file.text();
-    setText(content);
-    setTitle(file.name.replace(/\.[^.]+$/, ''));
-    setChunks(splitNovelText(content));
+    try {
+      const content = await file.text();
+      setText(content);
+      setTitle(file.name.replace(/\.[^.]+$/, ''));
+      setChunks(splitNovelText(content));
+    } catch (err) {
+      setError(err instanceof Error ? `文件读取失败：${err.message}` : t('novel.analysisFailed'));
+    }
   };
 
   const handleExport = () => {

@@ -4,9 +4,6 @@
  */
 
 import type {
-  NovelWorkshopState,
-  EntityCategory,
-  CategoryId,
   GateMode,
   NarrativeMode,
   CallEstimate,

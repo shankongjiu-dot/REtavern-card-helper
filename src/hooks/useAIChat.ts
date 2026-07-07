@@ -53,10 +53,15 @@ export function useAIChat(card: CardForChat | null) {
 
     (async () => {
       try {
+        if (!card.id) {
+          setMessages(card.data.first_mes ? [{ role: 'assistant', content: card.data.first_mes, timestamp: Date.now() }] : []);
+          setSessionId(null);
+          return;
+        }
         // Try to find existing session for this card
         const existing = await db.chat_sessions
           .where('cardId')
-          .equals(card.id!)
+          .equals(card.id)
           .last();
 
         if (existing) {
@@ -87,15 +92,18 @@ export function useAIChat(card: CardForChat | null) {
     if (!card?.id) return;
 
     try {
-      const sessionData = {
-        ...(sessionId ? { id: sessionId } : {}),
-        cardId: card.id,
-        messages: msgs,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      const id = await db.chat_sessions.put(sessionData);
-      setSessionId(id ?? null);
+      const now = new Date();
+      if (sessionId) {
+        await db.chat_sessions.update(sessionId, { messages: msgs, updatedAt: now });
+      } else {
+        const id = await db.chat_sessions.add({
+          cardId: card.id,
+          messages: msgs,
+          createdAt: now,
+          updatedAt: now,
+        });
+        setSessionId(id ?? null);
+      }
     } catch {
       // Silently fail session save
     }

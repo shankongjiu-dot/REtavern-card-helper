@@ -2,7 +2,7 @@
  * ThemeSettings - UI customization panel for theme options.
  * Allows adjusting opacity, colors, blur, text color, shadows, etc.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   getThemeSettings,
   saveThemeSettings,
@@ -13,7 +13,6 @@ import {
   INPUT_BG_PRESETS,
   INPUT_BORDER_PRESETS,
   CARD_BG_PRESETS,
-  THEME_PRESETS,
   type ThemeSettings as ThemeSettingsType,
 } from '../../services/theme-service';
 import { getStoredBackground, applyBackground, setBackground } from '../../services/background-service';
@@ -24,9 +23,16 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [sectionAppearance, setSectionAppearance] = useState(true);
   const [sectionText, setSectionText] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
 
-  // 移动端关闭侧栏时，自动收起外观面板
-  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
   const effectiveExpanded = isMobile && sidebarOpen === false ? false : isExpanded;
   const [settings, setSettings] = useState<ThemeSettingsType>(() => getThemeSettings());
 
@@ -44,12 +50,6 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
     applyBackground(getStoredBackground());
   };
 
-  const handleApplyPreset = (preset: typeof THEME_PRESETS[number]) => {
-    const updated = saveThemeSettings(preset.settings);
-    setSettings(updated);
-    setBackground(preset.background);
-  };
-
   return (
     <div className="relative">
       {/* Toggle button */}
@@ -61,7 +61,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
         <span className="flex items-center gap-1.5">
           ⚙️ {t('theme.toggleTitle')}
         </span>
-        <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+        <span className={`transition-transform ${effectiveExpanded ? 'rotate-180' : ''}`}>
           ▾
         </span>
       </button>
@@ -83,40 +83,6 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
             </button>
           </div>
           <div className="space-y-3">
-            {/* Preset Themes */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-2">{t('theme.presets')}</label>
-              <div className="grid grid-cols-3 gap-2">
-                {THEME_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() => handleApplyPreset(preset)}
-                    className="group relative rounded-lg overflow-hidden border border-slate-600 hover:border-slate-400 transition-all hover:scale-[1.03] active:scale-[0.98]"
-                    title={preset.name}
-                  >
-                    <img
-                      src={preset.background}
-                      alt={preset.name}
-                      className="w-full h-16 object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div
-                      className="absolute bottom-1 left-1 right-1 text-[10px] font-medium text-white truncate text-center"
-                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
-                    >
-                      {preset.name}
-                    </div>
-                    {/* Color swatches */}
-                    <div className="absolute top-1 right-1 flex gap-0.5">
-                      <span className="w-2.5 h-2.5 rounded-full border border-white/30" style={{ backgroundColor: preset.settings.primaryColor }} />
-                      <span className="w-2.5 h-2.5 rounded-full border border-white/30" style={{ backgroundColor: preset.settings.cardBgColor }} />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Section 1: Appearance */}
             <div>
               <button

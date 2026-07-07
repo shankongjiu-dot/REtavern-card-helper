@@ -19,7 +19,7 @@ interface StepCharactersProps {
   onUpdate: (index: number, updates: Partial<WizardCharacter>) => void;
   onGenerateCharacter: (index: number) => void;
   onModifyCharacter: (index: number, instructions: string, currentDescription: string) => void;
-  onPolishSelection: (index: number, selectedText: string, fullText: string) => void;
+  onPolishSelection: (index: number, selectedText: string, fullText: string, selectionStart: number, selectionEnd: number) => void;
   onEntriesUpdate: (entries: LorebookEntry[]) => void;
   generatingIndex: number | null;
   modifyingIndex: number | null;
@@ -83,19 +83,6 @@ export function StepCharacters({
         <p className="text-sm mt-1" style={{ color: mutedText }}>{t('characters.subtitle')}</p>
       </div>
 
-      {/* Writing methodology guidance */}
-      <div className="rounded-lg bg-primary-tint-light border border-primary-tint-light px-4 py-3 mb-4">
-        <p className="text-xs text-primary-bright leading-relaxed">
-          <span className="font-semibold">{t('characters.writingRulesTitle')}</span>
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1.5 text-[11px] text-primary-muted">
-          <p>&diams; <strong>{t('characters.writingRule1')}</strong></p>
-          <p>&diams; <strong>{t('characters.writingRule2')}</strong></p>
-          <p>&diams; <strong>{t('characters.writingRule3')}</strong></p>
-          <p>&diams; <strong>{t('characters.writingRule4')}</strong></p>
-        </div>
-      </div>
-
       {/* Character list */}
       <div className="space-y-4">
         {characters.map((char, i) => (
@@ -140,28 +127,31 @@ export function StepCharacters({
           <p className="text-xs mb-4" style={{ color: faintText }}>{t('characters.generatedResultsHint')}</p>
           <div className="space-y-3">
             {linkedEntries.map((entry) => (
-              <div
+              <details
                 key={entry.id}
-                className="rounded-xl border border-primary-tint-light p-4 space-y-2"
+                className="group rounded-xl border border-primary-tint-light p-4"
                 style={{ backgroundColor: 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.5)' }}
               >
-                <div className="flex items-center gap-2">
+                <summary className="flex items-center gap-2 cursor-pointer select-none list-none">
+                  <span className="text-[10px] transition-transform group-open:rotate-90" style={{ color: faintText }}>&#x25B6;</span>
                   <span className="text-sm">{entry.constant ? '\uD83D\uDD35' : '\uD83D\uDFE2'}</span>
-                  <h4 className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>{entry.name}</h4>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
+                  <h4 className="text-sm font-medium min-w-0 truncate" style={{ color: 'var(--text-color)' }}>{entry.name}</h4>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 shrink-0">
                     {t('characters.priorityLabel', { value: String(entry.priority) })}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 min-w-0 truncate">
                     {t('characters.keysLabel', { value: entry.keys.join(', ') || t('characters.constantLabel') })}
                   </span>
+                </summary>
+                <div className="mt-3">
+                  <TextArea
+                    value={entry.content}
+                    onChange={(e) => updateLinkedEntry(entry.id, e.target.value)}
+                    placeholder={t('lorebook.contentPlaceholder')}
+                    rows={3}
+                  />
                 </div>
-                <TextArea
-                  value={entry.content}
-                  onChange={(e) => updateLinkedEntry(entry.id, e.target.value)}
-                  placeholder={t('lorebook.contentPlaceholder')}
-                  rows={3}
-                />
-              </div>
+              </details>
             ))}
           </div>
         </div>

@@ -13,7 +13,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../components/shared/Button';
 import { useToast } from '../components/shared/Toast';
 import { callAIStreaming } from '../services/ai-service';
-import { db, type CreatorChat } from '../db/database';
+import { db } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { History, X, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../i18n/I18nContext';

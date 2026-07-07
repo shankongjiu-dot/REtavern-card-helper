@@ -194,6 +194,24 @@ export const THEME_PRESETS: ThemePreset[] = [
       cardBgColor: '#1e293b',
     },
   },
+  {
+    id: 'melancholy-profile',
+    name: '忧郁侧脸',
+    background: '/themes/melancholy-profile.png',
+    settings: {
+      bgOverlayOpacity: 34,
+      primaryColor: '#38bdf8',
+      surfaceOpacity: 32,
+      blurIntensity: 5,
+      textColor: '#f8fafc',
+      textShadow: 2,
+      textShadowColor: '#020617',
+      cardShadow: 7,
+      inputBgColor: '#0f172a',
+      inputBorderColor: '#334155',
+      cardBgColor: '#111827',
+    },
+  },
 ];
 
 /**

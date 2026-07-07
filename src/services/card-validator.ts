@@ -14,6 +14,10 @@ interface ValidationResult {
   warnings: string[];
 }
 
+interface ValidationOptions {
+  stagedLorebookEntryIndices?: Set<number>;
+}
+
 const VALID_POSITIONS = [
   'before_char',
   'after_char',
@@ -24,7 +28,7 @@ const VALID_POSITIONS = [
   'at_depth',
 ];
 
-export function validateCard(card: Record<string, unknown>): ValidationResult {
+export function validateCard(card: Record<string, unknown>, options: ValidationOptions = {}): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -92,8 +96,8 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
 
     if (charBook.entries && Array.isArray(charBook.entries)) {
       let enabledCount = 0;
-      let disabledWithContentCount = 0;
       let emptyContentCount = 0;
+      let missingKeysCount = 0;
 
       charBook.entries.forEach((entry: Record<string, unknown>, i: number) => {
         const entryName = (entry.name as string) || `条目 ${i + 1}`;
@@ -108,21 +112,22 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
           : undefined;
 
         if (enabled) enabledCount++;
-        if (!enabled && content.trim()) disabledWithContentCount++;
         if (!content.trim()) emptyContentCount++;
 
         // keys: required for non-constant entries
         if (!entry.keys || !Array.isArray(entry.keys)) {
-          warnings.push(`世界书条目 "${entryName}" 缺少 keys 数组`);
-        } else if (keys.length === 0 && !constant) {
-          warnings.push(`世界书条目 "${entryName}" 没有触发关键词（非常量条目将无法被激活）`);
+          if (enabled) {
+            missingKeysCount++;
+          }
+        } else if (enabled && keys.length === 0 && !constant) {
+          missingKeysCount++;
         }
 
         if (!constant && keys.some((key) => key.trim().length === 1)) {
           warnings.push(`世界书条目 "${entryName}" 存在单字符触发词，容易误触发`);
         }
 
-        if (selective && secondaryKeys.length === 0) {
+        if (selective && secondaryKeys.length === 0 && !options.stagedLorebookEntryIndices?.has(i)) {
           warnings.push(`世界书条目 "${entryName}" 启用了 selective 但没有 secondary_keys`);
         }
 
@@ -155,8 +160,8 @@ export function validateCard(card: Record<string, unknown>): ValidationResult {
         warnings.push('所有世界书条目都处于禁用状态');
       }
 
-      if (disabledWithContentCount > 0) {
-        warnings.push(`${disabledWithContentCount} 个有内容的世界书条目处于禁用状态`);
+      if (missingKeysCount > 0) {
+        warnings.push(`${missingKeysCount} 个启用的非常量世界书条目没有触发关键词`);
       }
 
       if (emptyContentCount > 3) {

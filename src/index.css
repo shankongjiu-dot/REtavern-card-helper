@@ -317,6 +317,22 @@ h1, h2, h3, h4, h5, h6 {
   animation: spin 1s linear infinite;
 }
 
+.route-transition {
+  animation: routeFadeSlide 220ms ease-out both;
+  will-change: opacity, transform;
+}
+
+@keyframes routeFadeSlide {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 /* ─── Animation Delays ──────────────────────────────────────────────── */
 .animation-delay-100 { animation-delay: 100ms; }
 .animation-delay-200 { animation-delay: 200ms; }
@@ -341,7 +357,8 @@ h1, h2, h3, h4, h5, h6 {
 .animate-shake,
 .animate-checkmark,
 .animate-float,
-.animate-pulse-slow {
+.animate-pulse-slow,
+.route-transition {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }

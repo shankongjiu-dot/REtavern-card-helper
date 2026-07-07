@@ -57,6 +57,7 @@ stagedog-tavern-helper-template/
 # Debug / local workspace
 .dbg/
 .trae/
+.codebuddy/
 _test_card.json
 _weicheng_card.json
 debug-worldbook-empty-stream.md

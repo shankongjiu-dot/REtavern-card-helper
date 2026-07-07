@@ -67,6 +67,10 @@ export function useWizardState(editId?: number) {
   // Edit mode: load from cards table.
   // New mode: restore auto-saved draft from wizard_drafts table.
   useEffect(() => {
+    initialized.current = false;
+    setLoading(true);
+    clearTimeout(saveTimerRef.current);
+
     (async () => {
       try {
         if (editId) {
@@ -85,10 +89,17 @@ export function useWizardState(editId?: number) {
           } else if (saved) {
             // Stale draft from an older app version: discard it to avoid shape mismatches.
             await db.wizard_drafts.delete(DRAFT_KEY_NEW);
+            setDraft(createEmptyDraft());
+            setCurrentStep(1);
+          } else {
+            setDraft(createEmptyDraft());
+            setCurrentStep(1);
           }
         }
       } catch {
         addToast('error', '加载草稿失败');
+        setDraft(createEmptyDraft());
+        setCurrentStep(1);
       } finally {
         initialized.current = true;
         setLoading(false);

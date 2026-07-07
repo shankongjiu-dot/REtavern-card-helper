@@ -5,7 +5,7 @@
  * structured edit proposals that can be reviewed as diffs before applying.
  */
 
-import type { WizardDraft, WizardCharacter, LorebookEntry } from '../constants/defaults';
+import type { WizardDraft, LorebookEntry } from '../constants/defaults';
 import { generateId, createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import { parseAIJson } from '../constants/prompts';
 import { findStagedLorebookEntryIndices } from './card-exporter';

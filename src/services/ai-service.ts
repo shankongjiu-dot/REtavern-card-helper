@@ -8,6 +8,7 @@
  */
 import { getAISettings } from '../db/database';
 import { getActivePresetsText } from './preset-service';
+import { logger } from './logger';
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -44,7 +45,7 @@ const CONTINUE_TAIL_SIZE = 800;
 
 function buildContinuationMessages(
   originalSystemPrompt: string,
-  fullContent: string,
+  _fullContent: string,
   lastSegment: string,
   isJson: boolean,
 ): AIMessage[] {
@@ -113,10 +114,10 @@ function looksTruncated(text: string): boolean {
 
   // Check for sentence-incomplete endings (Chinese + English)
   const lastChar = content.slice(-1);
-  const endPunctuation = /[。！？….!?\n"」』”’）)\]】}]/;
+  const endPunctuation = /[。！？….!?\n"」』"'）)\]】}]/;
 
   // If ending with a connecting word/punctuation that suggests continuation
-  const incompleteEndings = /[，、：；,;:（(\[{【「『“`…—\-]$/;
+  const incompleteEndings = /[，、：；,;:（([{【「『"`…—-]$/;
   if (incompleteEndings.test(lastChar)) return true;
 
   // If not ending with terminal punctuation AND last segment is short (< 20 chars),
@@ -273,7 +274,8 @@ async function readProxyError(response: Response, fallback: string): Promise<str
 
   try {
     const parsed = JSON.parse(raw) as { error?: string; details?: string };
-    const detail = parsed.details ? `：${parsed.details.slice(0, 300)}` : '';
+    const details = typeof parsed.details === 'string' ? parsed.details : '';
+    const detail = details ? `：${details.slice(0, 300)}` : '';
     let errorMsg = `${parsed.error || fallback}${detail}`;
     // 401 鉴权失败：给出更具体的提示
     if (response.status === 401) {
@@ -411,19 +413,19 @@ export async function callAI(options: AIRequestOptions): Promise<string> {
     };
 
     try {
-      console.info(`[AI] 输出可能被截断（finish_reason=${lastFinishReason || 'unknown'}），自动续写第 ${continuationRounds} 轮...`);
+      logger.info(`[AI] 输出可能被截断（finish_reason=${lastFinishReason || 'unknown'}），自动续写第 ${continuationRounds} 轮...`);
       const result = await callAIOnce(continuePayload, maxRetries);
       fullContent += result.content;
       lastSegment = result.content;
       lastFinishReason = result.finishReason;
     } catch (err) {
-      console.warn(`[AI] 续写第 ${continuationRounds} 轮失败，返回已有内容：`, err);
+      logger.warn(`[AI] 续写第 ${continuationRounds} 轮失败，返回已有内容：`, err);
       break;
     }
   }
 
   if (shouldContinue(lastFinishReason, fullContent)) {
-    console.warn(`[AI] 已达到最大续写轮数（${MAX_CONTINUATION_ROUNDS}轮），输出可能仍然不完整。建议调大最大Token数或检查网络/超时设置。`);
+    logger.warn(`[AI] 已达到最大续写轮数（${MAX_CONTINUATION_ROUNDS}轮），输出可能仍然不完整。建议调大最大Token数或检查网络/超时设置。`);
   }
 
   return fullContent;
@@ -474,7 +476,6 @@ async function streamAIOnce(
       const decoder = new TextDecoder();
       let fullText = '';
       let buffer = '';
-      let receivedAnyData = false;
       let finishReason: string | null = null;
 
       while (true) {
@@ -523,7 +524,6 @@ async function streamAIOnce(
                 textFromContentParts(parsed.response);
 
               if (content) {
-                receivedAnyData = true;
                 fullText += content;
                 onChunk(content, existingFullText + fullText);
               }
@@ -590,19 +590,19 @@ export async function callAIStreaming(
     };
 
     try {
-      console.info(`[AI] 流式输出可能被截断（finish_reason=${lastFinishReason || 'unknown'}），自动续写第 ${continuationRounds} 轮...`);
+      logger.info(`[AI] 流式输出可能被截断（finish_reason=${lastFinishReason || 'unknown'}），自动续写第 ${continuationRounds} 轮...`);
       const result = await streamAIOnce(continuePayload, maxRetries, onChunk, fullContent);
       fullContent += result.fullText;
       lastSegment = result.fullText;
       lastFinishReason = result.finishReason;
     } catch (err) {
-      console.warn(`[AI] 流式续写第 ${continuationRounds} 轮失败，返回已有内容：`, err);
+      logger.warn(`[AI] 流式续写第 ${continuationRounds} 轮失败，返回已有内容：`, err);
       break;
     }
   }
 
   if (shouldContinue(lastFinishReason, fullContent)) {
-    console.warn(`[AI] 已达到最大续写轮数（${MAX_CONTINUATION_ROUNDS}轮），输出可能仍然不完整。建议调大最大Token数或检查网络/超时设置。`);
+    logger.warn(`[AI] 已达到最大续写轮数（${MAX_CONTINUATION_ROUNDS}轮），输出可能仍然不完整。建议调大最大Token数或检查网络/超时设置。`);
   }
 
   return fullContent;
@@ -626,7 +626,14 @@ export async function fetchModels(
   });
 
   if (!response.ok) {
-    throw new Error(await readProxyError(response, `获取模型列表失败 (${response.status})`));
+    const message = await readProxyError(response, `获取模型列表失败 (${response.status})`);
+    const isVolcengine = /volces\.com|volcengine|ark/i.test(apiUrl);
+    const hint = response.status >= 500
+      ? isVolcengine
+        ? '\n\n火山方舟的 /models 接口可能不可用，或需要标准地址 `https://ark.cn-beijing.volces.com/api/v3`。可以直接在"模型"输入框手动填写模型 ID 或推理接入点 ID（Endpoint ID），生成接口仍可正常使用。'
+        : '\n\n可能原因：该中转站不支持 /models 模型列表接口，或上游服务临时异常。可以直接在"模型"输入框手动填写模型名并保存，聊天/生成接口仍可能正常可用。'
+      : '';
+    throw new Error(`${message}${hint}`);
   }
 
   const data = await response.json();
@@ -637,7 +644,12 @@ export async function fetchModels(
       owned_by: m.owned_by || '',
     }));
   }
-  return data.models || [];
+  if (Array.isArray(data.models)) {
+    return data.models.map((m: string | { id?: string; owned_by?: string }) => (
+      typeof m === 'string' ? { id: m, owned_by: '' } : { id: m.id || '', owned_by: m.owned_by || '' }
+    ));
+  }
+  return [];
 }
 
 /**

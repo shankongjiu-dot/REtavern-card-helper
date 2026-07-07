@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { I18nProvider } from './i18n/I18nContext';
+import { logger } from './services/logger';
 
 // ── One-shot Service Worker cache cleanup ────────────────────────────────
 // Fixes "Failed to fetch dynamically imported module" caused by stale SW
@@ -43,7 +44,7 @@ window.addEventListener('error', (event) => {
     msg.includes('insertBefore') ||
     msg.includes('not a child of this node')
   ) {
-    console.warn('[GlobalErrorHandler] DOM reconciliation error detected, auto-reloading in 500ms');
+    logger.warn('[GlobalErrorHandler] DOM reconciliation error detected, auto-reloading in 500ms');
     event.preventDefault(); // prevent default error handling
     setTimeout(() => window.location.reload(), 500);
   }

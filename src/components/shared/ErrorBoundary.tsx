@@ -1,5 +1,6 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { I18nContext, type I18nContextValue } from '../../i18n/I18nContext';
+import { logger } from '../../services/logger';
 
 interface Props {
   children: ReactNode;
@@ -36,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
       error.message?.includes('not a child of this node');
 
     if (isDomError && this.state.retryCount < 3) {
-      console.warn(`[ErrorBoundary] DOM reconciliation error detected, auto-retrying (attempt ${this.state.retryCount + 1}/3)`);
+      logger.warn(`[ErrorBoundary] DOM reconciliation error detected, auto-retrying (attempt ${this.state.retryCount + 1}/3)`);
       setTimeout(() => {
         this.setState({ hasError: false, error: null, errorInfo: null, retryCount: this.state.retryCount + 1 });
       }, 100);
@@ -66,7 +67,6 @@ export class ErrorBoundary extends Component<Props, State> {
         );
       }
 
-      const borderColor = 'var(--color-border-default)';
       const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
 
       return (

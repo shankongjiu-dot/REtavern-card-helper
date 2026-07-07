@@ -14,7 +14,6 @@ interface HeaderBannerProps {
 }
 
 export function HeaderBanner({
-  summary,
   generatedEntries,
   entityIndex,
   flags,

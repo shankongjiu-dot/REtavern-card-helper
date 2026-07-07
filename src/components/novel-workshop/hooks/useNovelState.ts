@@ -210,6 +210,9 @@ export function useNovelState() {
       });
       setStatus(`✅ 已载入文件：${file.name}，全文仅保留在内存中。`, '#38bdf8');
     };
+    reader.onerror = () => {
+      setStatus(`❌ 文件读取失败：${file.name}，请检查文件是否损坏或权限不足。`, '#f87171');
+    };
     reader.readAsText(file, 'utf-8');
   }, [setStatus]);
 

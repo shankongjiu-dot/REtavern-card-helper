@@ -26,7 +26,6 @@ export function ManagerPanel({
   currentStage,
   flags,
   entityIndex,
-  generatedEntries,
   onStageChange,
   onFlagToggle,
   onSyncVariables,

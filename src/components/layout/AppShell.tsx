@@ -3,15 +3,28 @@
  * Features glassmorphism design with subtle background blur.
  * Mobile: collapsible sidebar with hamburger menu and overlay.
  */
-import { Suspense, useState, useCallback } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Suspense, useState, useCallback, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useTranslation } from '../../i18n/I18nContext';
 import { Skeleton, SkeletonList } from '../shared/Skeleton';
 
 export function AppShell() {
   const { t } = useTranslation();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // 路由变化时，延迟一帧再更新侧栏收缩状态。
+  // 让重的 WizardPage 先完成卸载/挂载，侧栏宽度动画在下一帧才开始，
+  // 避免重页面卸载与侧栏宽度重排同时发生导致卡顿。
+  useEffect(() => {
+    const shouldCollapse = location.pathname.startsWith('/wizard');
+    const raf = requestAnimationFrame(() => {
+      setSidebarCollapsed(shouldCollapse);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [location.pathname]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);
@@ -19,6 +32,10 @@ export function AppShell() {
 
   const closeSidebar = useCallback(() => {
     setSidebarOpen(false);
+  }, []);
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((prev) => !prev);
   }, []);
 
   return (
@@ -32,7 +49,12 @@ export function AppShell() {
       )}
 
       {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        isCollapsed={sidebarCollapsed}
+        onClose={closeSidebar}
+        onToggleCollapsed={toggleSidebarCollapsed}
+      />
 
       {/* Main content */}
       <main className="flex-1 h-full min-h-0 overflow-y-auto" {...(sidebarOpen ? { inert: true } : {})}>
@@ -53,9 +75,11 @@ export function AppShell() {
         </div>
 
         <div className="w-full max-w-7xl mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-7">
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
+          <div key={location.key} className="route-transition">
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </div>
         </div>
       </main>
     </div>
@@ -64,7 +88,7 @@ export function AppShell() {
 
 function RouteFallback() {
   return (
-    <div className="animate-fade-in space-y-6 py-4">
+    <div className="space-y-6 py-4">
       <Skeleton variant="text" className="w-48 h-7" />
       <Skeleton variant="text" className="w-72 h-4" />
       <SkeletonList count={4} />

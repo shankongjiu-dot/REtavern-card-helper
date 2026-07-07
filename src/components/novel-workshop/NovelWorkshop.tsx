@@ -15,22 +15,16 @@ import './novel-workshop.css';
 export function NovelWorkshop() {
   const {
     state,
-    importedFileText,
     importedFileMeta,
     workflowRunState,
     statusText,
     statusColor,
     updateState,
     syncInputsIntoState,
-    setWorkflowRunState,
-    setStatus,
     handleFileImport,
     clearFile,
     getCombinedSourceText,
     persistState,
-    saveCheckpoint,
-    clearCheckpoint,
-    loadCheckpoint,
     resetWorkshop,
   } = useNovelState();
 

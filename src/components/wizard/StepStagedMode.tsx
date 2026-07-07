@@ -70,6 +70,7 @@ export function StepStagedMode({
   const [rerollingContentKey, setRerollingContentKey] = useState<string | null>(null);
   const [rerollGuidance, setRerollGuidance] = useState<Record<string, string>>({});
   const [charGuidance, setCharGuidance] = useState<Record<number, string>>({});
+  const [openCharacterGroups, setOpenCharacterGroups] = useState<Set<number>>(new Set());
 
   // ── 构造 MVU 变量上下文 ──────────────────────────────────
   const mvuVariablesContext = useMemo(() => {
@@ -103,6 +104,15 @@ export function StepStagedMode({
 
   // ── 启用/禁用 ─────────────────────────────────────────────
   const toggleEnabled = () => onChange({ ...stagedMode, enabled: !stagedMode.enabled });
+
+  const toggleCharacterGroup = (charIdx: number) => {
+    setOpenCharacterGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(charIdx)) next.delete(charIdx);
+      else next.add(charIdx);
+      return next;
+    });
+  };
 
   // ── Step 1: AI 剖析阶段框架 ────────────────────────────────
   const handleAnalyze = useCallback(async () => {
@@ -396,12 +406,20 @@ export function StepStagedMode({
               const charGenerating = generatingEntries && analyzingCharIdx === ci;
               const charHasStages = character.stages.length > 0;
               const charAllReady = charHasStages && character.stages.every((s) => s.content && s.content.trim());
+              const groupOpen = openCharacterGroups.has(ci);
               return (
               <div key={ci} className="rounded-lg border border-slate-700/50 p-3 bg-slate-900/30">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-sm font-bold text-violet-300">{character.name}</span>
-                  <code className="text-[11px] text-teal-200 bg-slate-800 px-1.5 py-0.5 rounded">{character.axisPath}</code>
-                  <span className="text-[10px] text-slate-500 flex-1 min-w-0 truncate">{character.summary}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleCharacterGroup(ci)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <span className={`text-[10px] text-violet-300 transition-transform ${groupOpen ? 'rotate-90' : ''}`}>&#x25B6;</span>
+                    <span className="text-sm font-bold text-violet-300 shrink-0">{character.name}</span>
+                    <code className="text-[11px] text-teal-200 bg-slate-800 px-1.5 py-0.5 rounded shrink-0">{character.axisPath}</code>
+                    <span className="text-[10px] text-slate-500 min-w-0 truncate">{character.summary}</span>
+                  </button>
                   {charHasStages && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
                       charAllReady
@@ -424,15 +442,17 @@ export function StepStagedMode({
                       : `✨ ${t('stagedMode.generateForChar')}`}
                   </Button>
                 </div>
-                <TextArea
-                  value={charGuidance[ci] || ''}
-                  onChange={(e) => setCharGuidance({ ...charGuidance, [ci]: e.target.value })}
-                  placeholder={t('stagedMode.charGuidancePlaceholder')}
-                  rows={2}
-                  className="mb-2 text-[11px]"
-                />
-                <div className="space-y-2">
-                  {character.stages.map((stage, si) => {
+                {groupOpen && (
+                  <div className="mt-2">
+                    <TextArea
+                      value={charGuidance[ci] || ''}
+                      onChange={(e) => setCharGuidance({ ...charGuidance, [ci]: e.target.value })}
+                      placeholder={t('stagedMode.charGuidancePlaceholder')}
+                      rows={2}
+                      className="mb-2 text-[11px]"
+                    />
+                    <div className="space-y-2">
+                      {character.stages.map((stage, si) => {
                     const key = `${ci}-${si}`;
                     return (
                       <div key={si} className="rounded border border-slate-700/40 p-2 bg-slate-900/50">
@@ -499,8 +519,10 @@ export function StepStagedMode({
                         </div>
                       </div>
                     );
-                  })}
-                </div>
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
               );
             })}

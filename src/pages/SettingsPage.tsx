@@ -17,6 +17,7 @@ export function SettingsPage() {
     { label: 'OpenAI', url: 'https://api.openai.com/v1' },
     { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
     { label: 'DeepSeek', url: 'https://api.deepseek.com' },
+    { label: '火山方舟', url: 'https://ark.cn-beijing.volces.com/api/v3' },
     { label: t('settings.localOobabooga'), url: 'http://127.0.0.1:5000/v1' },
     { label: t('settings.localKoboldCPP'), url: 'http://127.0.0.1:5001/v1' },
   ];
@@ -51,7 +52,7 @@ export function SettingsPage() {
   const handleFetchModels = useCallback(async () => {
     if (!settings) return;
     const url = settings.apiUrl.trim();
-    const key = tempKey.trim();
+    const key = (settings.keyVerified && !editingKey ? settings.apiKey : tempKey).trim();
     if (!url) {
       addToast('error', t('settings.urlRequired'));
       return;
@@ -82,7 +83,7 @@ export function SettingsPage() {
     } finally {
       setFetchingModels(false);
     }
-  }, [settings, tempKey, addToast, t]);
+  }, [settings, tempKey, editingKey, addToast, t]);
 
   const handleUnlockKey = () => {
     setTempKey(settings?.apiKey || '');

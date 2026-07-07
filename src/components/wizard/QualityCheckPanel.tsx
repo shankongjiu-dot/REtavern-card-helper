@@ -11,7 +11,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import { Check, X, AlertTriangle, ChevronDown, Sparkles, Wrench, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../../i18n/I18nContext';
-import { useToast } from '../shared/Toast';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import { Button } from '../shared/Button';
 import { assembleCard } from '../../services/card-exporter';
@@ -46,7 +45,6 @@ interface QualityCheckPanelProps {
 
 export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: QualityCheckPanelProps) {
   const { t } = useTranslation();
-  const { addToast } = useToast();
   const { diagnoseCard } = useAIGenerate();
 
   const report: QualityReport = useMemo(() => runQualityCheck(draft), [draft]);
