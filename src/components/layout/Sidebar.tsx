@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch } from 'lucide-react';
+import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch, Bot } from 'lucide-react';
 import { BackgroundChanger } from '../shared/BackgroundChanger';
 import { ThemeSettings } from '../shared/ThemeSettings';
 import { useTranslation } from '../../i18n/I18nContext';
@@ -21,6 +21,7 @@ const navItems = (t: (key: string) => string) => [
   { to: '/wizard', label: t('sidebar.wizard'), icon: Wand2 },
   { to: '/library', label: t('sidebar.library'), icon: BookOpen },
   { to: '/chat', label: t('sidebar.chat'), icon: MessageCircle },
+  { to: '/card-editor-chat', label: t('sidebar.cardEditorChat'), icon: Bot },
   { to: '/dialogue', label: t('sidebar.dialogueCreator'), icon: PenTool },
   { to: '/novel-analysis', label: t('sidebar.novelAnalysis'), icon: FileSearch },
   { to: '/settings', label: t('sidebar.settings'), icon: Settings },

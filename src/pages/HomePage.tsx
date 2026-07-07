@@ -2,7 +2,7 @@
  * HomePage - Landing page with quick-action cards.
  */
 import { useNavigate } from 'react-router-dom';
-import { Wand2, BookOpen, MessageCircle, PenTool } from 'lucide-react';
+import { Wand2, BookOpen, MessageCircle, PenTool, Bot } from 'lucide-react';
 import { useTranslation } from '../i18n/I18nContext';
 
 export function HomePage() {
@@ -35,6 +35,14 @@ export function HomePage() {
       glow: 'group-hover:shadow-amber-500/20',
     },
     {
+      icon: Bot,
+      title: t('home.actionCardEditorChatTitle'),
+      description: t('home.actionCardEditorChatDesc'),
+      action: () => navigate('/card-editor-chat'),
+      gradient: 'from-blue-500 to-indigo-500',
+      glow: 'group-hover:shadow-blue-500/20',
+    },
+    {
       icon: PenTool,
       title: t('home.actionDialogueTitle'),
       description: t('home.actionDialogueDesc'),
@@ -55,7 +63,7 @@ export function HomePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-5">
         {actions.map((item) => (
           <button
             key={item.title}

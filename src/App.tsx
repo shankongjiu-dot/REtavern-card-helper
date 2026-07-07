@@ -19,6 +19,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(({ SettingsP
 const PresetPage = lazy(() => import('./pages/PresetPage').then(({ PresetPage }) => ({ default: PresetPage })));
 const NovelAnalysisPage = lazy(() => import('./pages/NovelAnalysisPage').then(({ NovelAnalysisPage }) => ({ default: NovelAnalysisPage })));
 const NovelWorkshopPage = lazy(() => import('./components/novel-workshop').then(({ NovelWorkshop }) => ({ default: NovelWorkshop })));
+const CardEditorChatPage = lazy(() => import('./pages/CardEditorChatPage').then(({ CardEditorChatPage }) => ({ default: CardEditorChatPage })));
 
 export default function App() {
   // Initialize background and theme on app load
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/novel-workshop" element={<NovelWorkshopPage />} />
               <Route path="/preset" element={<PresetPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/card-editor-chat" element={<CardEditorChatPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
