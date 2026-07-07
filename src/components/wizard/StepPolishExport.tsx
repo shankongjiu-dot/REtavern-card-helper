@@ -12,7 +12,7 @@
  *   - EJS收尾检查: 变量定义完整性, 预处理覆盖, 条件语法正确
  *   - 导出: 嵌入 Zod.txt, MVU脚本, 正则脚本
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button } from '../shared/Button';
 import { TextArea } from '../shared/TextArea';
 import { useToast } from '../shared/Toast';
@@ -26,6 +26,7 @@ import type { WizardDraft, LorebookEntry } from '../../constants/defaults';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import type { MvuConsistencyIssue } from '../../services/mvu-builder';
 import { resizeImageToPngBuffer } from '../../services/image-processing';
+import { Upload, Image as ImageIcon, Check, Trash2 } from 'lucide-react';
 import { QualityCheckPanel } from './QualityCheckPanel';
 import { OptimizeCompareModal } from './OptimizeCompareModal';
 import type { OptimizeFieldKey } from '../../services/card-optimizer';
@@ -43,7 +44,7 @@ interface StepPolishExportProps {
   worldbookContext: string;
   /** PNG buffer for embedding in export */
   pngBuffer?: ArrayBuffer | null;
-  onPngFileSelect?: (buffer: ArrayBuffer) => void;
+  onPngFileSelect?: (buffer: ArrayBuffer | null) => void;
   /** Callback when auto-fix modifies entries */
   onFixEntries?: (entries: LorebookEntry[]) => void;
   /** Callback for AI-driven draft patch (e.g. first message rewrite) */
@@ -74,6 +75,29 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
   const [exporting, setExporting] = useState(false);
   const [optimizeOpen, setOptimizeOpen] = useState(false);
   const [optimizePreselect, setOptimizePreselect] = useState<OptimizeFieldKey[]>([]);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+
+  // Sync preview URL whenever pngBuffer changes (from parent or upload).
+  useEffect(() => {
+    if (pngBuffer) {
+      const url = URL.createObjectURL(new Blob([pngBuffer], { type: 'image/png' }));
+      setCoverPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } else {
+      setCoverPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+    return () => {
+      setCoverPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, [pngBuffer]);
 
   const VALID_OPTIMIZE_FIELDS: OptimizeFieldKey[] = [
     'cardName', 'tags', 'firstMessage', 'lorebookEntries', 'mvu.statusBarHtml', 'mvu.schemaSections',
@@ -501,16 +525,87 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
 
         {/* PNG upload */}
         {exportFormat === 'png' && (
-          <div className="mb-3 p-3 rounded-lg bg-slate-900/50 border border-slate-700/50">
-            <p className="text-xs text-slate-400 mb-2">
-              {pngBuffer ? '已加载头像图片' : '上传头像图片（可选，不传则使用占位图）'}
-            </p>
-            <input
-              type="file"
-              accept="image/png"
-              onChange={handlePngUpload}
-              className="text-xs text-slate-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-[var(--color-primary)] file:text-white hover:file:bg-[var(--color-primary-hover)]"
-            />
+          <div className="mb-4 p-4 rounded-xl bg-slate-900/40 border border-slate-700/50">
+            <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
+              {/* Preview thumbnail */}
+              <div className="relative group shrink-0">
+                <div
+                  className="w-28 h-28 rounded-xl overflow-hidden border-2 transition-all duration-300 cursor-pointer"
+                  style={{
+                    borderColor: coverPreviewUrl ? 'rgba(16,185,129,.5)' : 'rgba(71,85,105,.5)',
+                    boxShadow: coverPreviewUrl
+                      ? '0 4px 24px -4px rgba(16,185,129,.25)'
+                      : '0 4px 12px -4px rgba(0,0,0,.4)',
+                  }}
+                  onClick={() => document.getElementById('step-polish-cover-input')?.click()}
+                  title="点击更换图片"
+                >
+                  {coverPreviewUrl ? (
+                    <>
+                      <img
+                        src={coverPreviewUrl}
+                        alt="封面预览"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                        <Upload size={18} className="text-white" />
+                        <span className="text-[10px] text-white">更换图片</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-800 to-slate-900">
+                      <ImageIcon size={24} className="text-slate-500" />
+                      <span className="text-[10px] text-slate-500 text-center px-2">点击上传封面</span>
+                    </div>
+                  )}
+                </div>
+                {/* Status badge */}
+                {coverPreviewUrl && (
+                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center">
+                    <Check size={11} className="text-white" />
+                  </span>
+                )}
+              </div>
+
+              {/* Info & actions */}
+              <div className="flex-1 min-w-0 w-full">
+                <p className="text-xs text-slate-300 font-medium mb-1">封面图片</p>
+                <p className="text-[11px] text-slate-500 mb-3">
+                  {coverPreviewUrl
+                    ? '已加载封面图片，导出 PNG 时将嵌入这张图片作为卡片封面。'
+                    : '尚未上传封面，导出 PNG 时将使用默认占位图。支持 PNG/JPG/WebP，自动压缩。'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => document.getElementById('step-polish-cover-input')?.click()}
+                    className="gap-1.5"
+                  >
+                    <Upload size={13} />
+                    {coverPreviewUrl ? '更换图片' : '上传图片'}
+                  </Button>
+                  {coverPreviewUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onPngFileSelect?.(null)}
+                      className="text-slate-400"
+                    >
+                      <Trash2 size={13} />
+                      移除
+                    </Button>
+                  )}
+                </div>
+                <input
+                  id="step-polish-cover-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/*"
+                  onChange={handlePngUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
           </div>
         )}
 
