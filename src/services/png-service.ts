@@ -79,6 +79,7 @@ export function embedJsonInPng(
   }
 
   const srcBytes = new Uint8Array(pngBuffer);
+  const view = new DataView(pngBuffer);
 
   for (let i = 0; i < 8; i++) {
     if (srcBytes[i] !== PNG_SIGNATURE[i]) {
@@ -86,16 +87,52 @@ export function embedJsonInPng(
     }
   }
 
-  const iendOffset = findIendOffset(srcBytes);
+  const parts: Uint8Array[] = [srcBytes.subarray(0, 8)];
+  let offset = 8;
+  let inserted = false;
 
-  const before = srcBytes.subarray(0, iendOffset);
-  const iend = srcBytes.subarray(iendOffset);
+  while (offset + 12 <= srcBytes.length) {
+    const length = view.getUint32(offset);
+    const type = new TextDecoder().decode(srcBytes.subarray(offset + 4, offset + 8));
+    const chunkEnd = offset + 12 + length;
+    if (chunkEnd > srcBytes.length) break;
 
-  const totalLength = before.length + textChunk.length + iend.length;
+    const chunkData = srcBytes.subarray(offset + 8, offset + 8 + length);
+    const isOldCharaText = type === 'tEXt' && new TextDecoder().decode(chunkData).startsWith('chara\0');
+
+    if (type === 'IEND') {
+      parts.push(textChunk);
+      inserted = true;
+      parts.push(srcBytes.subarray(offset, chunkEnd));
+      break;
+    }
+
+    if (!isOldCharaText) {
+      parts.push(srcBytes.subarray(offset, chunkEnd));
+    }
+
+    offset = chunkEnd;
+  }
+
+  if (!inserted) {
+    const iendOffset = findIendOffset(srcBytes);
+    const before = srcBytes.subarray(0, iendOffset);
+    const iend = srcBytes.subarray(iendOffset);
+    const totalLength = before.length + textChunk.length + iend.length;
+    const output = new Uint8Array(totalLength);
+    output.set(before, 0);
+    output.set(textChunk, before.length);
+    output.set(iend, before.length + textChunk.length);
+    return output;
+  }
+
+  const totalLength = parts.reduce((sum, part) => sum + part.length, 0);
   const output = new Uint8Array(totalLength);
-  output.set(before, 0);
-  output.set(textChunk, before.length);
-  output.set(iend, before.length + textChunk.length);
+  let pos = 0;
+  for (const part of parts) {
+    output.set(part, pos);
+    pos += part.length;
+  }
 
   return output;
 }

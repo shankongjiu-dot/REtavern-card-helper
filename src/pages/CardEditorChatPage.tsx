@@ -16,6 +16,7 @@ import { useTranslation } from '../i18n/I18nContext';
 import { useCardLibrary } from '../hooks/useCardLibrary';
 import { callAIStreaming } from '../services/ai-service';
 import { importFromPng, exportAsPng, exportAsJson, cardToDraft, assembleCard } from '../services/card-exporter';
+import { resizeImageToPngBuffer } from '../services/image-processing';
 import {
   buildCardChatPrompt,
   parseCardChatEdits,
@@ -51,7 +52,11 @@ export function CardEditorChatPage() {
   const [pendingProposals, setPendingProposals] = useState<CardChatProposals | null>(null);
   const [changeDiffs, setChangeDiffs] = useState<ChangeDiff[]>([]);
   const [showDiffModal, setShowDiffModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
+  const [coverImageBuffer, setCoverImageBuffer] = useState<ArrayBuffer | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverSource, setCoverSource] = useState<'imported' | 'custom' | 'default'>('default');
   const [expandedDiffs, setExpandedDiffs] = useState<Set<number>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -66,6 +71,21 @@ export function CardEditorChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' });
   }, [messages, streamingText, isStreaming]);
+
+  useEffect(() => {
+    return () => {
+      if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    };
+  }, [coverPreviewUrl]);
+
+  const updateCoverImage = useCallback((buffer: ArrayBuffer | null, source: 'imported' | 'custom' | 'default') => {
+    setCoverPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return buffer ? URL.createObjectURL(new Blob([buffer], { type: 'image/png' })) : null;
+    });
+    setCoverImageBuffer(buffer);
+    setCoverSource(source);
+  }, []);
 
   const handleImport = useCallback(async () => {
     const input = document.createElement('input');
@@ -84,9 +104,11 @@ export function CardEditorChatPage() {
             return;
           }
           cardData = extracted;
+          updateCoverImage(buffer, 'imported');
         } else {
           const text = await file.text();
           cardData = JSON.parse(text);
+          updateCoverImage(null, 'default');
         }
         const parsedDraft = cardToDraft(cardData);
         setDraft(parsedDraft);
@@ -103,7 +125,7 @@ export function CardEditorChatPage() {
       }
     };
     input.click();
-  }, [addToast]);
+  }, [addToast, updateCoverImage]);
 
   const handleSend = useCallback(async () => {
     if (!draft || !inputValue.trim() || isStreaming) return;
@@ -195,23 +217,54 @@ export function CardEditorChatPage() {
     }
   }, [draft, saveCard, addToast]);
 
+  const openExportModal = useCallback(() => {
+    if (!draft) return;
+    setShowExportModal(true);
+  }, [draft]);
+
+  const handleChooseCoverImage = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const buffer = await resizeImageToPngBuffer(file, { maxDimension: 1536 });
+        updateCoverImage(buffer, 'custom');
+        addToast('success', '封面图片已更换');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '图片处理失败';
+        addToast('error', msg);
+      }
+    };
+    input.click();
+  }, [addToast, updateCoverImage]);
+
+  const handleUseDefaultCover = useCallback(() => {
+    updateCoverImage(null, 'default');
+    addToast('info', '已改为默认白图封装');
+  }, [addToast, updateCoverImage]);
+
   const handleExportPng = useCallback(async () => {
     if (!draft) return;
     try {
       const card = assembleCard(draft);
-      await exportAsPng(card);
+      await exportAsPng(card, coverImageBuffer || undefined);
+      setShowExportModal(false);
       addToast('success', 'PNG 导出成功');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '导出失败';
       addToast('error', msg);
     }
-  }, [draft, addToast]);
+  }, [draft, coverImageBuffer, addToast]);
 
   const handleExportJson = useCallback(async () => {
     if (!draft) return;
     try {
       const card = assembleCard(draft);
       exportAsJson(card);
+      setShowExportModal(false);
       addToast('success', 'JSON 导出成功');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '导出失败';
@@ -281,13 +334,9 @@ export function CardEditorChatPage() {
             <Save size={14} />
             保存到卡库
           </Button>
-          <Button variant="secondary" size="sm" onClick={handleExportJson} className="gap-1">
-            <FileJson size={14} />
-            JSON
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleExportPng} className="gap-1">
+          <Button variant="primary" size="sm" onClick={openExportModal} className="gap-1">
             <ImageIcon size={14} />
-            PNG
+            导出
           </Button>
         </div>
       </div>
@@ -363,6 +412,69 @@ export function CardEditorChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <Modal isOpen={showExportModal} onClose={() => setShowExportModal(false)} title="导出角色卡" maxWidth="max-w-3xl">
+          <div className="space-y-4">
+            <div className="text-xs" style={{ color: mutedText }}>
+              可更换封装封面图片。导入自 PNG 的角色卡默认保留原图；导入自 JSON 的角色卡可上传新图，或直接使用默认白图。
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="shrink-0 mx-auto sm:mx-0">
+                <div
+                  className="w-40 h-56 rounded-lg border flex items-center justify-center overflow-hidden bg-slate-900"
+                  style={{ borderColor }}
+                >
+                  {coverPreviewUrl ? (
+                    <img src={coverPreviewUrl} alt="cover preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center px-3">
+                      <ImageIcon size={32} style={{ color: faintText }} className="mx-auto mb-2" />
+                      <span className="text-xs" style={{ color: faintText }}>默认白图</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-3">
+                <div className="text-sm font-medium text-white">封面图片</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={handleChooseCoverImage} className="gap-1">
+                    <Upload size={14} />
+                    更换图片
+                  </Button>
+                  {coverSource !== 'default' && (
+                    <Button variant="ghost" size="sm" onClick={handleUseDefaultCover}>
+                      使用默认白图
+                    </Button>
+                  )}
+                </div>
+                <div className="text-xs" style={{ color: faintText }}>
+                  {coverSource === 'imported' && '当前使用原 PNG 的封面，可继续保留或更换。'}
+                  {coverSource === 'custom' && '当前使用你上传的封面图片。'}
+                  {coverSource === 'default' && '当前使用默认白图作为导出占位图。'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor }}>
+              <Button variant="ghost" size="sm" onClick={() => setShowExportModal(false)}>
+                取消
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleExportJson} className="gap-1">
+                <FileJson size={14} />
+                导出 JSON
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleExportPng} className="gap-1">
+                <ImageIcon size={14} />
+                导出 PNG
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Diff Modal */}
       {showDiffModal && (
