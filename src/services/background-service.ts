@@ -55,17 +55,5 @@ export function clearBackground(): void {
  */
 export function initBackground(): void {
   const stored = getStoredBackground();
-  applyBackground(stored);
-}
-
-/**
- * Convert a File to a data URL (base64).
- */
-export function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  applyBackground(stored)
 }

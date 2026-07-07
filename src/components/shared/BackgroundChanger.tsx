@@ -2,11 +2,14 @@
  * BackgroundChanger - allows users to upload/customize/reset the app background.
  */
 import { useState } from 'react';
-import { fileToDataUrl, setBackground, clearBackground, getStoredBackground } from '../../services/background-service';
+import { setBackground, clearBackground, getStoredBackground } from '../../services/background-service';
+import { resizeImageFileToDataUrl } from '../../services/image-processing';
+import { useToast } from './Toast';
 import { useTranslation } from '../../i18n/I18nContext';
 
 export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
   const { t } = useTranslation();
+  const { addToast } = useToast();
   const [hasCustomBg, setHasCustomBg] = useState(() => !!getStoredBackground());
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -21,13 +24,15 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      
+
       try {
-        const dataUrl = await fileToDataUrl(file);
+        const dataUrl = await resizeImageFileToDataUrl(file, { maxDimension: 1920 });
         setBackground(dataUrl);
         setHasCustomBg(true);
+        addToast('success', '背景图片已设置');
       } catch (err) {
-        console.error('Failed to upload background:', err);
+        const message = err instanceof Error ? err.message : '背景图片设置失败';
+        addToast('error', message);
       }
     };
     input.click();

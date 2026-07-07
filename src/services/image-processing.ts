@@ -9,6 +9,15 @@ export interface ResizeOptions {
   maxFileBytes?: number;
 }
 
+function arrayBufferToDataUrl(buffer: ArrayBuffer, mimeType: string): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
+}
+
 const DEFAULT_MAX_DIMENSION = 1536;
 const DEFAULT_MAX_FILE_BYTES = 50 * 1024 * 1024;
 
@@ -65,4 +74,18 @@ export async function resizeImageToPngBuffer(
   } finally {
     bitmap?.close();
   }
+}
+
+/**
+ * Resize an image file and return it as a base64 data URL.
+ *
+ * Useful for features that store the image directly in the browser (e.g.
+ * localStorage) where file size matters.
+ */
+export async function resizeImageFileToDataUrl(
+  file: File,
+  options: ResizeOptions = {},
+): Promise<string> {
+  const buffer = await resizeImageToPngBuffer(file, options);
+  return arrayBufferToDataUrl(buffer, 'image/png');
 }
