@@ -14,7 +14,6 @@ interface WizardShellProps {
   onNext: () => void;
   onSave: () => void;
   onSaveDraft?: () => void;
-  onOpenDraftBox?: () => void;
   onClear?: () => void;
   onClearStep?: () => void;
   stepError: string | null;
@@ -24,7 +23,7 @@ interface WizardShellProps {
   children: React.ReactNode;
 }
 
-export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, onOpenDraftBox, onClear, onClearStep, stepError, saving, extraActions, hideBottomNav, children }: WizardShellProps) {
+export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, onClear, onClearStep, stepError, saving, extraActions, hideBottomNav, children }: WizardShellProps) {
   const { t } = useTranslation();
   const isFirst = currentStep === 1;
   const isLast = currentStep === WIZARD_STEPS.length;
@@ -112,11 +111,6 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
             {onSaveDraft && (
               <Button variant="secondary" onClick={onSaveDraft} disabled={saving}>
                 {t('wizard.saveDraft')}
-              </Button>
-            )}
-            {onOpenDraftBox && (
-              <Button variant="ghost" onClick={onOpenDraftBox} disabled={saving}>
-                {t('wizard.draftBox')}
               </Button>
             )}
             {extraActions}

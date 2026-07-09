@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch, Bot, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch, Bot, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { BackgroundChanger } from '../shared/BackgroundChanger';
 import { ThemeSettings } from '../shared/ThemeSettings';
 import { ThemeSkinPicker } from '../shared/ThemeSkinPicker';
@@ -22,6 +22,7 @@ const navItems = (t: (key: string) => string) => [
   { to: '/', label: t('sidebar.home'), icon: Home, end: true },
   { to: '/preset', label: t('sidebar.presets'), icon: ScrollText },
   { to: '/wizard', label: t('sidebar.wizard'), icon: Wand2 },
+  { to: '/drafts', label: t('sidebar.drafts'), icon: FileText },
   { to: '/library', label: t('sidebar.library'), icon: BookOpen },
   { to: '/chat', label: t('sidebar.chat'), icon: MessageCircle },
   { to: '/card-editor-chat', label: t('sidebar.cardEditorChat'), icon: Bot },

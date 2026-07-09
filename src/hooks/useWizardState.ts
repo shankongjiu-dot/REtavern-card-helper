@@ -56,7 +56,7 @@ function normalizeDraft(raw: Partial<DraftState>): DraftState {
   return merged;
 }
 
-export function useWizardState(editId?: number) {
+export function useWizardState(editId?: number, initialDraftId?: string) {
   const [currentStep, setCurrentStep] = useState(1);
   const [draft, setDraft] = useState<DraftState>(createEmptyDraft());
   const [loading, setLoading] = useState(true);
@@ -86,6 +86,17 @@ export function useWizardState(editId?: number) {
             const restored = cardToDraft(card as unknown as Record<string, unknown>);
             setDraft(normalizeDraft(restored));
           }
+        } else if (initialDraftId) {
+          // New card mode — load a specific draft from the draft box
+          const saved = await loadDraftRecord(initialDraftId);
+          if (saved && saved.version === WIZARD_DRAFT_VERSION) {
+            setDraft(normalizeDraft(saved.data as Partial<DraftState>));
+            setCurrentStep(saved.currentStep || 1);
+          } else {
+            addToast('error', t('wizard.draftLoadFailed'));
+            setDraft(createEmptyDraft());
+            setCurrentStep(1);
+          }
         } else {
           // New card mode — try restoring auto-saved draft
           const saved = await loadAutoDraft();
@@ -111,7 +122,7 @@ export function useWizardState(editId?: number) {
         setLoading(false);
       }
     })();
-  }, [editId, addToast]);
+  }, [editId, initialDraftId, addToast, t]);
 
   // ── Debounced auto-save (new card mode only) ──────────────────────────────
   useEffect(() => {

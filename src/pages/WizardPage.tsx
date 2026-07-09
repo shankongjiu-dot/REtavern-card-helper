@@ -19,7 +19,6 @@ import { StepFirstMessage } from '../components/wizard/StepFirstMessage';
 import { StepMvuVariables } from '../components/wizard/StepMvuVariables';
 import { StepStagedMode } from '../components/wizard/StepStagedMode';
 import { StepPolishExport } from '../components/wizard/StepPolishExport';
-import { DraftBoxModal } from '../components/wizard/DraftBoxModal';
 import { generateId, createEmptyDraft, createEmptyLorebookEntry, createEmptyMvuConfig, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import type { LorebookEntry, WizardCharacter, WizardDraft, StagedModeConfig } from '../constants/defaults';
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
@@ -164,6 +163,8 @@ export function WizardPage() {
   const importedNovelRef = useRef(false);
   const parsedId = id ? parseInt(id) : undefined;
   const editId = parsedId !== undefined && !isNaN(parsedId) ? parsedId : undefined;
+  const searchParams = new URLSearchParams(location.search);
+  const draftIdFromUrl = searchParams.get('draftId') || undefined;
 
   const {
     currentStep,
@@ -179,13 +180,11 @@ export function WizardPage() {
     setCurrentStep,
     saveCard,
     saveDraftNow,
-    loadDraft,
     clearDraft,
     isEditMode,
-  } = useWizardState(editId);
+  } = useWizardState(editId, draftIdFromUrl);
 
   const [stepError, setStepError] = useState<string | null>(null);
-  const [draftBoxOpen, setDraftBoxOpen] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
   const [modifyingIndex, setModifyingIndex] = useState<number | null>(null);
@@ -263,6 +262,13 @@ export function WizardPage() {
     addToast('success', t('wizard.importedNovelSuccess', { count: String(payload.entries.length) }));
     navigate('/wizard', { replace: true });
   }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, updateDraft, setCurrentStep, addToast, navigate]);
+
+  // Clear draftId from URL once the draft has been loaded so that auto-save takes over on refresh.
+  useEffect(() => {
+    if (!loading && draftIdFromUrl) {
+      navigate('/wizard', { replace: true });
+    }
+  }, [loading, draftIdFromUrl, navigate]);
 
   // Character descriptions summary (for AI prompts in later steps)
   const characterDescriptions = draft.characters
@@ -795,7 +801,6 @@ ${e.content || ''}`)
         onNext={handleNext}
         onSave={handleSave}
         onSaveDraft={isEditMode ? undefined : saveDraftNow}
-        onOpenDraftBox={isEditMode ? undefined : () => setDraftBoxOpen(true)}
         onClear={isEditMode ? undefined : handleClear}
         onClearStep={handleClearCurrentStep}
         stepError={stepError}
@@ -804,16 +809,6 @@ ${e.content || ''}`)
       >
         {renderStep()}
       </WizardShell>
-
-      {!isEditMode && (
-        <DraftBoxModal
-          isOpen={draftBoxOpen}
-          onClose={() => setDraftBoxOpen(false)}
-          currentDraft={draft}
-          onLoadDraft={loadDraft}
-          onSaveDraft={saveDraftNow}
-        />
-      )}
     </div>
   );
 }
