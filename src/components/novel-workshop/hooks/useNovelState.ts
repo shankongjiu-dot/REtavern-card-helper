@@ -6,8 +6,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type {
   NovelWorkshopState,
-  GateMode,
-  NarrativeMode,
   CategoryId,
   EntityCategory,
   EntryStrategy,
@@ -18,7 +16,6 @@ import type {
   ImportedFileMeta,
   WorkflowRunState,
   Checkpoint,
-  NovelPackage,
 } from '../types';
 import {
   DEFAULT_STAGE_ORDER,
@@ -32,7 +29,6 @@ import {
   stageOptionsForMode,
   stableId,
   sanitizeSegment,
-  hashString,
   clampNumber,
 } from '../utils';
 

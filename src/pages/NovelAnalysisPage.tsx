@@ -6,7 +6,6 @@ import { TextArea } from '../components/shared/TextArea';
 import { useTranslation } from '../i18n/I18nContext';
 import {
   DEFAULT_NOVEL_OUTPUT_MAX_TOKENS,
-  analyzeNovelText,
   analyzeNovelTextStreaming,
   exportAnalysisAsJson,
   saveAnalysisLorebookImport,
@@ -120,7 +119,7 @@ export function NovelAnalysisPage() {
         title,
         nextChunks,
         outputMaxTokens,
-        (chunk, fullText) => {
+        (_chunk, fullText) => {
           setStreamingText(fullText);
           // Estimate progress: roughly based on character count versus expected output
           const estimatedChars = outputMaxTokens * 2; // rough: ~2 chars per token

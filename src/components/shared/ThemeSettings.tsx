@@ -15,7 +15,7 @@ import {
   CARD_BG_PRESETS,
   type ThemeSettings as ThemeSettingsType,
 } from '../../services/theme-service';
-import { getStoredBackground, applyBackground, setBackground } from '../../services/background-service';
+import { getStoredBackground, applyBackground } from '../../services/background-service';
 import { useTranslation } from '../../i18n/I18nContext';
 
 export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {

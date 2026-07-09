@@ -21,7 +21,7 @@
  *     2. 对AI隐藏状态栏：把占位符从 prompt 中删除（promptOnly）
  *   first_mes 末尾自动追加占位符，保证开场消息也会渲染状态栏。
  */
-import { generateId, createEmptyMvuConfig, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
+import { generateId, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import type { WizardDraft, LorebookEntry, LorebookPosition, MvuConfig, EjsEntryConfig } from '../constants/defaults';
 import { buildMvuScriptBundle } from './mvu-builder';
 import { migrateStagedDispatcherContent, parseDispatcherContent } from './staged-lorebook-builder';
@@ -384,33 +384,6 @@ function buildSTExtensions(overrides: {
     vectorized: false,
     outlet_name: '',
     display_index: overrides.displayIndex,
-  };
-}
-
-/**
- * Build a character-based lorebook entry for auto-injection into the world book.
- */
-function buildCharacterEntry(charName: string, content: string, order: number) {
-  return {
-    id: 1000 + order,
-    keys: [charName],
-    secondary_keys: [],
-    content,
-    name: `${charName} - 角色设定`,
-    enabled: true,
-    insertion_order: order,
-    case_sensitive: false,
-    selective: false,
-    constant: true,
-    position: 'after_char',
-    priority: 100,
-    comment: `${charName} 的角色设定`,
-    use_regex: false,
-    extensions: buildSTExtensions({
-      position: 'after_char',
-      displayIndex: order,
-      preventRecursion: true,
-    }),
   };
 }
 

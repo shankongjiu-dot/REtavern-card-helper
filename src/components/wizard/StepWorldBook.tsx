@@ -15,11 +15,6 @@ import { createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../consta
 import type { LorebookEntry, LorebookPosition, AIOrganizeSuggestion, MvuConfig } from '../../constants/defaults';
 import { findStagedLorebookEntryIndices } from '../../services/card-exporter';
 
-/** Rough token estimate (~1.3 tokens per char for CJK) */
-function estimateTokens(text: string): number {
-  return Math.round((text || '').length * 1.3);
-}
-
 const POSITION_ORDER: Record<LorebookPosition, number> = {
   before_char: 0,
   after_char: 1,

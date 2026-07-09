@@ -14,14 +14,12 @@
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Button } from '../shared/Button';
-import { TextArea } from '../shared/TextArea';
 import { useToast } from '../shared/Toast';
-import { useTranslation } from '../../i18n/I18nContext';
 import { exportAsJson, exportAsPng, assembleCard, findStagedLorebookEntryIndices } from '../../services/card-exporter';
 import { validateCard } from '../../services/card-validator';
 import { validateMvuConsistency } from '../../services/mvu-builder';
 import { autoFixEntries } from '../../services/card-fixers';
-import { generateId, createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../constants/defaults';
+import { createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../constants/defaults';
 import type { WizardDraft, LorebookEntry } from '../../constants/defaults';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import type { MvuConsistencyIssue } from '../../services/mvu-builder';
@@ -61,7 +59,6 @@ interface ConsistencyIssue {
 }
 
 export function StepPolishExport({ draft, cardName, characterDescriptions, worldbookContext, pngBuffer, onPngFileSelect, onFixEntries, onUpdateDraft, onJumpToStep }: StepPolishExportProps) {
-  const { t } = useTranslation();
   const { addToast } = useToast();
   const { generateText } = useAIGenerate();
   const [validating, setValidating] = useState(false);

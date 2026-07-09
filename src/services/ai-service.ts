@@ -293,6 +293,7 @@ async function readProxyError(response: Response, fallback: string): Promise<str
 
 function textFromContentParts(content: unknown): string {
   if (typeof content === 'string') return content;
+  if (content == null) return '';
   if (!Array.isArray(content)) return '';
 
   return content
@@ -521,7 +522,10 @@ async function streamAIOnce(
                 textFromContentParts(choice?.text) ||
                 textFromContentParts(parsed.text) ||
                 textFromContentParts(parsed.output_text) ||
-                textFromContentParts(parsed.response);
+                textFromContentParts(parsed.response) ||
+                textFromContentParts(parsed.choices?.[0]?.message?.content);
+
+
 
               if (content) {
                 fullText += content;
