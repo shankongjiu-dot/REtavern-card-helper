@@ -11,6 +11,19 @@ import { WIZARD_DRAFT_VERSION } from '../constants/defaults';
 
 const AUTO_DRAFT_KEY = 'new';
 
+function generateDraftId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    // Fallback for environments where randomUUID is unavailable (e.g. non-secure contexts)
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    return Array.from(array)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+}
+
 function defaultDraftName(draft: WizardDraft): string {
   const cardName = draft.cardName?.trim();
   const now = new Date();
@@ -29,7 +42,7 @@ export async function saveManualDraft(
   name?: string,
 ): Promise<WizardDraftRecord> {
   const record: WizardDraftRecord = {
-    id: crypto.randomUUID(),
+    id: generateDraftId(),
     data: draft,
     currentStep,
     version: WIZARD_DRAFT_VERSION,

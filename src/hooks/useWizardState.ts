@@ -284,8 +284,8 @@ export function useWizardState(editId?: number, initialDraftId?: string) {
       await saveManualDraft(draft, currentStep, name);
       addToast('success', t('wizard.draftSaved'));
       return true;
-    } catch {
-      addToast('error', t('wizard.draftSaveFailed'));
+    } catch (err: unknown) {
+      addToast('error', `${t('wizard.draftSaveFailed')}: ${err instanceof Error ? err.message : '未知错误'}`);
       return false;
     }
   }, [draft, currentStep, editId, addToast, t]);
