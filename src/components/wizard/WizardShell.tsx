@@ -109,7 +109,7 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
               </Button>
             )}
             {onSaveDraft && (
-              <Button variant="secondary" onClick={onSaveDraft} disabled={saving}>
+              <Button variant="secondary" onClick={() => onSaveDraft()} disabled={saving}>
                 {t('wizard.saveDraft')}
               </Button>
             )}

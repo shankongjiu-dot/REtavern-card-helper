@@ -281,7 +281,8 @@ export function useWizardState(editId?: number, initialDraftId?: string) {
   const saveDraftNow = useCallback(async (name?: string) => {
     if (editId) return false;
     try {
-      await saveManualDraft(draft, currentStep, name);
+      const safeName = typeof name === 'string' ? name : undefined;
+      await saveManualDraft(draft, currentStep, safeName);
       addToast('success', t('wizard.draftSaved'));
       return true;
     } catch (err: unknown) {
