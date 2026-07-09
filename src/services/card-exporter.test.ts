@@ -8,12 +8,18 @@ function makeDraft(overrides: Partial<WizardDraft> = {}): WizardDraft {
 }
 
 describe('assembleCard', () => {
-  it('生成符合 V2 spec 的卡片结构', () => {
+  it('生成符合 V3 spec 的卡片结构', () => {
     const draft = makeDraft({ cardName: '测试角色' });
     const card = assembleCard(draft);
-    expect(card.spec).toBe('chara_card_v2');
-    expect(card.spec_version).toBe('2.0');
+    expect(card.spec).toBe('chara_card_v3');
+    expect(card.spec_version).toBe('3.0');
     expect(card.data.name).toBe('测试角色');
+  });
+
+  it('extensions.world 与 character_book.name 一致', () => {
+    const draft = makeDraft({ cardName: '测试角色' });
+    const card = assembleCard(draft);
+    expect(card.data.extensions.world).toBe(card.data.character_book.name);
   });
 
   it('卡片名称作为顶层 name 和 data.name', () => {

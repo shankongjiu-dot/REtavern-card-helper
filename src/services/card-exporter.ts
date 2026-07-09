@@ -615,11 +615,11 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
     // Preserve existing id for edits
     ...(existingId ? { id: existingId } : {}),
 
-    // ── Tavern V2 spec envelope ──────────────────────────────────────────
-    spec: 'chara_card_v2',
-    spec_version: '2.0',
+    // ── Tavern V3 spec envelope ──────────────────────────────────────────
+    spec: 'chara_card_v3',
+    spec_version: '3.0',
     data: {
-      // V1 fields (nested inside data for V2)
+      // V1 fields (nested inside data for V2/V3)
       name: draft.cardName,
       description,
       personality,
@@ -643,7 +643,13 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
       tags: draft.tags || [],
       creator: draft.creator || '',
       character_version: draft.character_version || '1.0',
-      extensions: buildCardExtensions(draft, mvuBundle?.zodTxt),
+      extensions: {
+        ...buildCardExtensions(draft, mvuBundle?.zodTxt),
+        // SillyTavern uses extensions.world to link the character to its
+        // world info file. Without it, ST doesn't auto-load the world book
+        // on character selection, forcing a manual reload each time.
+        world: `${draft.cardName}的世界书`,
+      },
     },
 
     // ── App-level metadata (NOT part of Tavern spec, for re-editing) ─────
@@ -714,7 +720,25 @@ export async function exportAsPng(
   const { embedJsonInPng, downloadPng } = await import('./png-service');
 
   // Only embed the Tavern spec portion (no _meta, no timestamps)
-  const specData = { spec: card.spec, spec_version: card.spec_version, data: card.data };
+  // V3 spec requires V1 fields duplicated at root level for backward compatibility
+  const d = card.data;
+  const specData = {
+    // Root-level V1 fields (for V1/V3 compatibility)
+    name: d.name,
+    description: d.description,
+    personality: d.personality,
+    scenario: d.scenario,
+    first_mes: d.first_mes,
+    creatorcomment: d.creator_notes ?? '',
+    avatar: 'none',
+    talkativeness: '0.5',
+    fav: false,
+    tags: d.tags ?? [],
+    // V3 spec envelope
+    spec: card.spec,
+    spec_version: card.spec_version,
+    data: d,
+  };
   const pngData = embedJsonInPng(pngBuffer || null, specData);
   downloadPng(pngData, card.data.name || 'character-card');
 }

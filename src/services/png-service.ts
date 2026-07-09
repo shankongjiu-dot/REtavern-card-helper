@@ -70,12 +70,13 @@ export function embedJsonInPng(
   const jsonString = JSON.stringify(cardJson);
   const base64 = btoa(unescape(encodeURIComponent(jsonString)));
 
-  const keyword = 'chara';
-  const textData = new TextEncoder().encode(keyword + '\0' + base64);
-  const textChunk = makeChunk('tEXt', textData);
+  // SillyTavern writes both 'chara' (V2) and 'ccv3' (V3) tEXt chunks.
+  // V3 takes precedence during reading; V2 is for older software compatibility.
+  const charaChunk = makeChunk('tEXt', new TextEncoder().encode('chara\0' + base64));
+  const ccv3Chunk = makeChunk('tEXt', new TextEncoder().encode('ccv3\0' + base64));
 
   if (!pngBuffer) {
-    return createMinimalPngWithText(textChunk);
+    return createMinimalPngWithText(ccv3Chunk, charaChunk);
   }
 
   const srcBytes = new Uint8Array(pngBuffer);
@@ -98,10 +99,13 @@ export function embedJsonInPng(
     if (chunkEnd > srcBytes.length) break;
 
     const chunkData = srcBytes.subarray(offset + 8, offset + 8 + length);
-    const isOldCharaText = type === 'tEXt' && new TextDecoder().decode(chunkData).startsWith('chara\0');
+    const decoded = new TextDecoder().decode(chunkData);
+    const isOldCharaText = type === 'tEXt' && (decoded.startsWith('chara\0') || decoded.startsWith('ccv3\0'));
 
     if (type === 'IEND') {
-      parts.push(textChunk);
+      // Insert ccv3 (V3) first, then chara (V2), before IEND
+      parts.push(ccv3Chunk);
+      parts.push(charaChunk);
       inserted = true;
       parts.push(srcBytes.subarray(offset, chunkEnd));
       break;
@@ -118,11 +122,12 @@ export function embedJsonInPng(
     const iendOffset = findIendOffset(srcBytes);
     const before = srcBytes.subarray(0, iendOffset);
     const iend = srcBytes.subarray(iendOffset);
-    const totalLength = before.length + textChunk.length + iend.length;
+    const totalLength = before.length + ccv3Chunk.length + charaChunk.length + iend.length;
     const output = new Uint8Array(totalLength);
     output.set(before, 0);
-    output.set(textChunk, before.length);
-    output.set(iend, before.length + textChunk.length);
+    output.set(ccv3Chunk, before.length);
+    output.set(charaChunk, before.length + ccv3Chunk.length);
+    output.set(iend, before.length + ccv3Chunk.length + charaChunk.length);
     return output;
   }
 
@@ -137,7 +142,7 @@ export function embedJsonInPng(
   return output;
 }
 
-function createMinimalPngWithText(textChunk: Uint8Array): Uint8Array {
+function createMinimalPngWithText(...textChunks: Uint8Array[]): Uint8Array {
   const chunks: Uint8Array[] = [];
   chunks.push(PNG_SIGNATURE);
 
@@ -155,7 +160,9 @@ function createMinimalPngWithText(textChunk: Uint8Array): Uint8Array {
   const idatData = zlibDeflate(new Uint8Array([0, 255, 255, 255, 255]));
   chunks.push(makeChunk('IDAT', idatData));
 
-  chunks.push(textChunk);
+  for (const tc of textChunks) {
+    chunks.push(tc);
+  }
 
   chunks.push(makeChunk('IEND', new Uint8Array(0)));
 
@@ -263,21 +270,25 @@ export function extractJsonFromPng(
 ): Record<string, unknown> | null {
   const chunks = readPngChunks(pngBuffer);
 
-  for (const chunk of chunks) {
-    if (chunk.type === 'tEXt') {
-      const text = new TextDecoder().decode(chunk.data);
-      const nullIndex = text.indexOf('\0');
-      if (nullIndex === -1) continue;
+  // V3 (ccv3) takes precedence over V2 (chara) per SillyTavern spec.
+  // First pass: look for ccv3, second pass: fall back to chara.
+  for (const keyword of ['ccv3', 'chara']) {
+    for (const chunk of chunks) {
+      if (chunk.type === 'tEXt') {
+        const text = new TextDecoder().decode(chunk.data);
+        const nullIndex = text.indexOf('\0');
+        if (nullIndex === -1) continue;
 
-      const keyword = text.substring(0, nullIndex);
-      const value = text.substring(nullIndex + 1);
+        const kw = text.substring(0, nullIndex);
+        const value = text.substring(nullIndex + 1);
 
-      if (keyword === 'chara') {
-        try {
-          const jsonString = decodeURIComponent(escape(atob(value)));
-          return JSON.parse(jsonString);
-        } catch {
-          throw new Error('PNG 中的 chara 数据解析失败（base64/JSON 格式无效）');
+        if (kw === keyword) {
+          try {
+            const jsonString = decodeURIComponent(escape(atob(value)));
+            return JSON.parse(jsonString);
+          } catch {
+            throw new Error(`PNG 中的 ${keyword} 数据解析失败（base64/JSON 格式无效）`);
+          }
         }
       }
     }
