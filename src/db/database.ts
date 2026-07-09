@@ -46,13 +46,15 @@ export interface AISettings {
   retryCount: number;
 }
 
-/** Auto-saved wizard draft (survives page navigation) */
+/** Auto-saved or manually-saved wizard draft (survives page navigation) */
 export interface WizardDraftRecord {
   id: string;
   data: unknown;
   currentStep: number;
   version?: number;
   updatedAt: Date;
+  /** Display name for manually saved drafts */
+  name?: string;
 }
 
 export const db = new Dexie('TavernCardHelper') as Dexie & {

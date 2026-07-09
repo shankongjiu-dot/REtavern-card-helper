@@ -19,6 +19,7 @@ import { StepFirstMessage } from '../components/wizard/StepFirstMessage';
 import { StepMvuVariables } from '../components/wizard/StepMvuVariables';
 import { StepStagedMode } from '../components/wizard/StepStagedMode';
 import { StepPolishExport } from '../components/wizard/StepPolishExport';
+import { DraftBoxModal } from '../components/wizard/DraftBoxModal';
 import { generateId, createEmptyDraft, createEmptyLorebookEntry, createEmptyMvuConfig, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import type { LorebookEntry, WizardCharacter, WizardDraft, StagedModeConfig } from '../constants/defaults';
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
@@ -178,11 +179,13 @@ export function WizardPage() {
     setCurrentStep,
     saveCard,
     saveDraftNow,
+    loadDraft,
     clearDraft,
     isEditMode,
   } = useWizardState(editId);
 
   const [stepError, setStepError] = useState<string | null>(null);
+  const [draftBoxOpen, setDraftBoxOpen] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
   const [modifyingIndex, setModifyingIndex] = useState<number | null>(null);
@@ -792,6 +795,7 @@ ${e.content || ''}`)
         onNext={handleNext}
         onSave={handleSave}
         onSaveDraft={isEditMode ? undefined : saveDraftNow}
+        onOpenDraftBox={isEditMode ? undefined : () => setDraftBoxOpen(true)}
         onClear={isEditMode ? undefined : handleClear}
         onClearStep={handleClearCurrentStep}
         stepError={stepError}
@@ -800,6 +804,16 @@ ${e.content || ''}`)
       >
         {renderStep()}
       </WizardShell>
+
+      {!isEditMode && (
+        <DraftBoxModal
+          isOpen={draftBoxOpen}
+          onClose={() => setDraftBoxOpen(false)}
+          currentDraft={draft}
+          onLoadDraft={loadDraft}
+          onSaveDraft={saveDraftNow}
+        />
+      )}
     </div>
   );
 }

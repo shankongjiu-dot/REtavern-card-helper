@@ -9,12 +9,18 @@ import { createEmptyDraft, createEmptyCharacter, createEmptyLorebookEntry, WIZAR
 import type { WizardDraft } from '../constants/defaults';
 import { cardToDraft, assembleCard } from '../services/card-exporter';
 import { db } from '../db/database';
+import {
+  loadAutoDraft,
+  saveAutoDraft,
+  clearAutoDraft,
+  saveManualDraft,
+  loadDraft as loadDraftRecord,
+} from '../services/draft-service';
 import { useToast } from '../components/shared/Toast';
 import { useTranslation } from '../i18n/I18nContext';
 
 type DraftState = WizardDraft;
 
-const DRAFT_KEY_NEW = 'new';
 const DRAFT_SAVE_DELAY = 500; // ms
 
 /**
@@ -81,14 +87,14 @@ export function useWizardState(editId?: number) {
             setDraft(normalizeDraft(restored));
           }
         } else {
-          // New card mode — try restoring unsaved draft
-          const saved = await db.wizard_drafts.get(DRAFT_KEY_NEW);
+          // New card mode — try restoring auto-saved draft
+          const saved = await loadAutoDraft();
           if (saved && saved.version === WIZARD_DRAFT_VERSION) {
             setDraft(normalizeDraft(saved.data as Partial<DraftState>));
             setCurrentStep(saved.currentStep || 1);
           } else if (saved) {
             // Stale draft from an older app version: discard it to avoid shape mismatches.
-            await db.wizard_drafts.delete(DRAFT_KEY_NEW);
+            await clearAutoDraft();
             setDraft(createEmptyDraft());
             setCurrentStep(1);
           } else {
@@ -115,13 +121,7 @@ export function useWizardState(editId?: number) {
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await db.wizard_drafts.put({
-          id: DRAFT_KEY_NEW,
-          data: draft,
-          currentStep,
-          version: WIZARD_DRAFT_VERSION,
-          updatedAt: new Date(),
-        });
+        await saveAutoDraft(draft, currentStep);
         setIsDraftDirty(false);
       } catch {
         // Silently ignore save failures (non-critical)
@@ -252,7 +252,7 @@ export function useWizardState(editId?: number) {
 
       // Clear auto-saved draft after successful save
       if (!editId) {
-        await db.wizard_drafts.delete(DRAFT_KEY_NEW);
+        await clearAutoDraft();
       }
 
       setIsDraftDirty(false);
@@ -266,18 +266,11 @@ export function useWizardState(editId?: number) {
     }
   }, [draft, editId, addToast]);
 
-  /** Manually save the current draft to IndexedDB (new card mode only). */
-  const saveDraftNow = useCallback(async () => {
+  /** Save the current draft as a new manual draft box entry (new card mode only). */
+  const saveDraftNow = useCallback(async (name?: string) => {
     if (editId) return false;
     try {
-      await db.wizard_drafts.put({
-        id: DRAFT_KEY_NEW,
-        data: draft,
-        currentStep,
-        version: WIZARD_DRAFT_VERSION,
-        updatedAt: new Date(),
-      });
-      setIsDraftDirty(false);
+      await saveManualDraft(draft, currentStep, name);
       addToast('success', t('wizard.draftSaved'));
       return true;
     } catch {
@@ -286,14 +279,34 @@ export function useWizardState(editId?: number) {
     }
   }, [draft, currentStep, editId, addToast, t]);
 
-  /** Reset the wizard to a blank state and clear any saved draft. */
+  /** Load a draft from the draft box into the current editor (new card mode only). */
+  const loadDraft = useCallback(async (id: string) => {
+    if (editId) return false;
+    try {
+      const saved = await loadDraftRecord(id);
+      if (!saved || saved.version !== WIZARD_DRAFT_VERSION) {
+        addToast('error', t('wizard.draftLoadFailed'));
+        return false;
+      }
+      setDraft(normalizeDraft(saved.data as Partial<DraftState>));
+      setCurrentStep(saved.currentStep || 1);
+      setIsDraftDirty(false);
+      addToast('success', t('wizard.draftLoaded'));
+      return true;
+    } catch {
+      addToast('error', t('wizard.draftLoadFailed'));
+      return false;
+    }
+  }, [editId, addToast, t]);
+
+  /** Reset the wizard to a blank state and clear the auto-saved draft. */
   const clearDraft = useCallback(async () => {
     setDraft(createEmptyDraft());
     setCurrentStep(1);
     setIsDraftDirty(false);
     if (!editId) {
       try {
-        await db.wizard_drafts.delete(DRAFT_KEY_NEW);
+        await clearAutoDraft();
       } catch {
         // Non-critical cleanup failure
       }
@@ -330,6 +343,7 @@ export function useWizardState(editId?: number) {
     setCurrentStep,
     saveCard,
     saveDraftNow,
+    loadDraft,
     clearDraft,
     isEditMode: !!editId,
   };
