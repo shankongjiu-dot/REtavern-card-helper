@@ -12,6 +12,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { Check, X, AlertTriangle, ChevronDown, Sparkles, Wrench, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../../i18n/I18nContext';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
+import { themeAlpha } from '../../constants/theme';
 import { Button } from '../shared/Button';
 import { assembleCard } from '../../services/card-exporter';
 import {
@@ -59,7 +60,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
   const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
 
   const color = scoreColor(report.score);
-  const colorHex = color === 'success' ? '#4ade80' : color === 'warning' ? '#fbbf24' : '#f87171';
+  const colorHex = color === 'success' ? 'var(--color-status-success)' : color === 'warning' ? 'var(--color-status-warning)' : 'var(--color-status-danger)';
 
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
@@ -82,10 +83,13 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
   };
 
   const severityColors: Record<CheckSeverity, string> = {
-    critical: '#f87171',
-    suggestion: '#fbbf24',
-    optional: '#a78bfa',
+    critical: 'var(--color-status-danger)',
+    suggestion: 'var(--color-status-warning)',
+    optional: 'var(--color-purple)',
   };
+
+  const severityBg = (severity: CheckSeverity) =>
+    themeAlpha(severity === 'critical' ? 'danger' : severity === 'suggestion' ? 'warning' : 'purple', 10);
 
   const toggleCategory = useCallback((cat: string) => {
     setCollapsedCategories((prev) => {
@@ -136,10 +140,10 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
   const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
 
   return (
-    <div className="rounded-xl border" style={{ borderColor, backgroundColor: 'rgba(15, 23, 42, 0.6)' }}>
+    <div className="rounded-xl border" style={{ borderColor, backgroundColor: 'color-mix(in srgb, var(--color-surface-base) 60%, transparent)' }}>
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none transition-colors hover:bg-white/5"
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-3">
@@ -184,11 +188,11 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
           <div
             className="rounded-lg border px-3 py-2 mt-3 text-xs"
             style={{
-              borderColor: guidance.status === 'blocked' ? 'rgba(248,113,113,.35)' : guidance.status === 'improvable' ? 'rgba(251,191,36,.35)' : 'rgba(74,222,128,.35)',
-              background: guidance.status === 'blocked' ? 'rgba(248,113,113,.08)' : guidance.status === 'improvable' ? 'rgba(251,191,36,.08)' : 'rgba(74,222,128,.08)',
+              borderColor: guidance.status === 'blocked' ? 'var(--color-danger-border)' : guidance.status === 'improvable' ? 'var(--color-warning-border)' : 'var(--color-success-border)',
+              background: guidance.status === 'blocked' ? 'var(--color-danger-bg)' : guidance.status === 'improvable' ? 'var(--color-warning-bg)' : 'var(--color-success-bg)',
             }}
           >
-            <div className="font-medium mb-1" style={{ color: guidance.status === 'blocked' ? '#f87171' : guidance.status === 'improvable' ? '#fbbf24' : '#4ade80' }}>
+            <div className="font-medium mb-1" style={{ color: guidance.status === 'blocked' ? 'var(--color-status-danger)' : guidance.status === 'improvable' ? 'var(--color-status-warning)' : 'var(--color-status-success)' }}>
               {guidance.headline}
             </div>
             <div className="flex flex-wrap gap-1.5" style={{ color: mutedText }}>
@@ -208,7 +212,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                     key={action.id}
                     type="button"
                     onClick={() => action.jumpStep && handleFix(action.jumpStep)}
-                    className="block w-full text-left rounded px-2 py-1 hover:bg-white/5"
+                    className="block w-full text-left rounded px-2 py-1 hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
                     style={{ color: mutedText }}
                   >
                     {i + 1}. {action.label} · {action.fixHint || action.threshold}
@@ -219,7 +223,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
           </div>
 
           {report.failedCount === 0 ? (
-            <div className="flex items-center gap-2 py-3 text-sm" style={{ color: '#4ade80' }}>
+            <div className="flex items-center gap-2 py-3 text-sm" style={{ color: 'var(--color-status-success)' }}>
               <Check className="w-4 h-4" />
               {t('qualityCheck.noIssues')}
             </div>
@@ -235,7 +239,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                   >
                     <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--text-color)' }}>
                       <span>{categoryLabels[group.category]}</span>
-                      <span style={{ color: hasFailed ? '#f87171' : '#4ade80' }}>
+                      <span style={{ color: hasFailed ? 'var(--color-status-danger)' : 'var(--color-status-success)' }}>
                         {group.items.filter((r) => r.passed).length}/{group.items.length}
                       </span>
                     </div>
@@ -254,9 +258,9 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                         >
                           <span className="shrink-0 mt-0.5">
                             {item.passed ? (
-                              <Check className="w-3.5 h-3.5" style={{ color: '#4ade80' }} />
+                              <Check className="w-3.5 h-3.5" style={{ color: 'var(--color-status-success)' }} />
                             ) : (
-                              <X className="w-3.5 h-3.5" style={{ color: '#f87171' }} />
+                              <X className="w-3.5 h-3.5" style={{ color: 'var(--color-status-danger)' }} />
                             )}
                           </span>
                           <div className="flex-1 min-w-0">
@@ -267,7 +271,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                               {!item.passed && (
                                 <span
                                   className="rounded px-1.5 py-0.5 text-[10px]"
-                                  style={{ color: severityColors[item.severity], background: `${severityColors[item.severity]}1a` }}
+                                  style={{ color: severityColors[item.severity], background: severityBg(item.severity) }}
                                 >
                                   {severityLabels[item.severity]}
                                 </span>
@@ -278,7 +282,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                             </div>
                             {!item.passed && item.fixHint && (
                               <div className="mt-1 flex items-start gap-1.5">
-                                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: '#fbbf24' }} />
+                                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: 'var(--color-status-warning)' }} />
                                 <span style={{ color: mutedText }}>{item.fixHint}</span>
                               </div>
                             )}
@@ -319,13 +323,13 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
           )}
 
           {/* AI Deep Diagnosis */}
-          <div className="rounded-lg border" style={{ borderColor, backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
+          <div className="rounded-lg border" style={{ borderColor, backgroundColor: 'color-mix(in srgb, var(--color-surface-base) 40%, transparent)' }}>
             <div
               className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
               onClick={() => setDiagnosisOpen(!diagnosisOpen)}
             >
               <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--text-color)' }}>
-                <Sparkles className="w-3.5 h-3.5" style={{ color: '#a78bfa' }} />
+                <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-purple)' }} />
                 {t('qualityCheck.aiDiagnosis')}
               </div>
               <div className="flex items-center gap-2">
@@ -355,13 +359,13 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                   {t('qualityCheck.aiDiagnosisHint')}
                 </p>
                 {diagnosing && (
-                  <div className="flex items-center gap-2 py-3 text-xs" style={{ color: '#a78bfa' }}>
+                  <div className="flex items-center gap-2 py-3 text-xs" style={{ color: 'var(--color-purple)' }}>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     {t('qualityCheck.aiDiagnosing')}
                   </div>
                 )}
                 {diagnosisError && !diagnosing && (
-                  <div className="py-2 text-xs" style={{ color: '#f87171' }}>
+                  <div className="py-2 text-xs" style={{ color: 'var(--color-status-danger)' }}>
                     {t('qualityCheck.aiDiagnosisFailed')}: {diagnosisError}
                     <Button
                       size="sm"
@@ -397,14 +401,14 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                           <span
                             className="text-xs font-bold"
                             style={{
-                              color: cat.score >= 80 ? '#4ade80' : cat.score >= 50 ? '#fbbf24' : '#f87171',
+                              color: cat.score >= 80 ? 'var(--color-status-success)' : cat.score >= 50 ? 'var(--color-status-warning)' : 'var(--color-status-danger)',
                             }}
                           >
                             {cat.score}
                           </span>
                         </div>
                         {cat.issues.length > 0 && (
-                          <ul className="text-[11px] space-y-0.5 mb-1" style={{ color: '#f87171' }}>
+                          <ul className="text-[11px] space-y-0.5 mb-1" style={{ color: 'var(--color-status-danger)' }}>
                             {cat.issues.map((issue, j) => (
                               <li key={j} className="flex items-start gap-1">
                                 <span>·</span>
@@ -415,7 +419,7 @@ export function QualityCheckPanel({ draft, onJumpToStep, onOpenOptimize }: Quali
                         )}
                         {cat.suggestions.length > 0 && (
                           <div className="text-[11px] space-y-1" style={{ color: mutedText }}>
-                            <div className="font-medium" style={{ color: '#a78bfa' }}>
+                            <div className="font-medium" style={{ color: 'var(--color-purple)' }}>
                               {t('qualityCheck.suggestions')}:
                             </div>
                             {cat.suggestions.map((sug, j) => (

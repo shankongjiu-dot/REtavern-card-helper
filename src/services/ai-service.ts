@@ -149,7 +149,7 @@ function shouldContinue(finishReason: string | null, content: string): boolean {
  * - https://api.openai.com/v1/chat/completions → unchanged
  * - https://api.deepseek.com → https://api.deepseek.com/chat/completions
  */
-export function normalizeApiUrl(baseUrl: string): string {
+function normalizeApiUrl(baseUrl: string): string {
   const url = baseUrl.trim().replace(/\/+$/, ''); // remove trailing slashes
 
   // Already has the full path
@@ -171,7 +171,7 @@ export function normalizeApiUrl(baseUrl: string): string {
  * - https://api.openai.com/v1 → https://api.openai.com/v1/models
  * - https://api.openai.com/v1/chat/completions → https://api.openai.com/v1/models
  */
-export function deriveModelsUrl(baseUrl: string): string {
+function deriveModelsUrl(baseUrl: string): string {
   let url = baseUrl.trim().replace(/\/+$/, '');
 
   // Remove /chat/completions or /completions if present
@@ -449,6 +449,9 @@ async function streamAIOnce(
   existingFullText: string = '',
 ): Promise<StreamCallResult> {
   let lastError: Error | null = null;
+  // 已通过 onChunk 投递给消费者的字符数（跨重试累计）。
+  // 重试时模型从头重新生成，这里按长度跳过已投递部分，避免追加式消费者收到重复内容。
+  let deliveredLength = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -529,7 +532,10 @@ async function streamAIOnce(
 
               if (content) {
                 fullText += content;
-                onChunk(content, existingFullText + fullText);
+                if (fullText.length > deliveredLength) {
+                  onChunk(fullText.slice(deliveredLength), existingFullText + fullText);
+                  deliveredLength = fullText.length;
+                }
               }
             } catch (parseErr) {
               if (parseErr instanceof Error && parseErr.message.startsWith('AI API 返回错误')) {

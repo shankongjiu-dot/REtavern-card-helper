@@ -42,8 +42,8 @@ export function TagInput({ label, tags, onChange, placeholder = 'Type and press 
       <div
         className="flex flex-wrap gap-1.5 rounded-lg px-2 py-1.5 min-h-[38px]"
         style={{
-          backgroundColor: 'var(--input-bg, #0f172a)',
-          borderColor: 'var(--input-border, #475569)',
+          backgroundColor: 'var(--input-bg)',
+          borderColor: 'var(--input-border)',
           borderWidth: '1px',
           borderStyle: 'solid',
         }}
@@ -57,7 +57,7 @@ export function TagInput({ label, tags, onChange, placeholder = 'Type and press 
             <button
               type="button"
               onClick={() => removeTag(i)}
-              className="ml-0.5 text-primary-bright hover:text-white cursor-pointer"
+              className="ml-0.5 text-primary-bright hover:text-[var(--color-text-inverse)] cursor-pointer"
             >
               &times;
             </button>
@@ -65,7 +65,7 @@ export function TagInput({ label, tags, onChange, placeholder = 'Type and press 
         ))}
         <input
           className="flex-1 min-w-[100px] bg-transparent text-sm outline-none"
-          style={{ color: 'var(--text-color, #f1f5f9)' }}
+          style={{ color: 'var(--text-color)' }}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

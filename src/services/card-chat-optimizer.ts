@@ -5,10 +5,10 @@
  * structured edit proposals that can be reviewed as diffs before applying.
  */
 
-import type { WizardDraft, LorebookEntry } from '../constants/defaults';
-import { generateId, createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
+import type { WizardDraft } from '../constants/defaults';
+import { generateId, createEmptyLorebookEntry } from '../constants/defaults';
 import { parseAIJson } from '../constants/prompts';
-import { findStagedLorebookEntryIndices } from './card-exporter';
+import { editableLorebookEntries } from './card-exporter';
 
 export type CardChatEditableField =
   | 'cardName'
@@ -75,24 +75,6 @@ export function fieldLabel(field: CardChatEditableField): string {
 function truncate(str: string, max: number): string {
   if (str.length <= max) return str;
   return str.slice(0, max) + '\n...[truncated]';
-}
-
-function isProtectedLorebookEntry(entry: LorebookEntry, idx: number, stagedIndices: Set<number>): boolean {
-  const name = (entry.name || '').trim();
-  const comment = (entry.comment || '').trim();
-  return MVU_LOREBOOK_ENTRY_NAMES.includes(name) || MVU_LOREBOOK_ENTRY_NAMES.includes(comment) || stagedIndices.has(idx);
-}
-
-function editableLorebookEntries(draft: WizardDraft): LorebookEntry[] {
-  let stagedIndices = new Set<number>();
-  if (draft.stagedMode?.enabled) {
-    try {
-      stagedIndices = findStagedLorebookEntryIndices(draft.lorebookEntries || []);
-    } catch {
-      stagedIndices = new Set();
-    }
-  }
-  return (draft.lorebookEntries || []).filter((entry, idx) => !isProtectedLorebookEntry(entry, idx, stagedIndices));
 }
 
 /** Build a concise snapshot of the current draft for the AI prompt. */
@@ -291,17 +273,22 @@ export function computeCardChatDiffs(draft: WizardDraft, proposals: CardChatProp
       }
     } else if (change.field === 'lorebookEntries') {
       const entries = editableLorebookEntries(draft);
-      const match = entries.find((e) => e.comment === change.comment);
-      if (change.action === 'replace' && match) {
+      const matches = entries.filter((e) => e.comment === change.comment);
+      if (change.action === 'replace' && matches.length > 0) {
+        const match = matches[0];
         before = { comment: match.comment, content: match.content, keys: match.keys };
         after = { comment: change.newComment || match.comment, content: change.content ?? match.content, keys: change.keys ?? match.keys };
-        hasChange = match.content !== change.content || match.comment !== change.newComment ||
-          JSON.stringify(match.keys.slice().sort()) !== JSON.stringify((change.keys || match.keys).slice().sort());
+        hasChange = matches.some((m) =>
+          m.content !== change.content ||
+          m.comment !== change.newComment ||
+          JSON.stringify(m.keys.slice().sort()) !== JSON.stringify((change.keys || m.keys).slice().sort())
+        );
       } else if (change.action === 'add') {
         before = null;
         after = { comment: change.comment || '', content: change.content || '', keys: change.keys || [] };
         hasChange = true;
-      } else if (change.action === 'delete' && match) {
+      } else if (change.action === 'delete' && matches.length > 0) {
+        const match = matches[0];
         before = { comment: match.comment, content: match.content, keys: match.keys };
         after = null;
         hasChange = true;
@@ -335,10 +322,11 @@ export function applyCardChatPatch(draft: WizardDraft, proposals: CardChatPropos
     } else if (change.field === 'mvu.statusBarHtml' && typeof change.value === 'string') {
       next.mvu = next.mvu ? { ...next.mvu, statusBarHtml: change.value } : undefined;
     } else if (change.field === 'characters') {
-      if (change.action === 'replace' && change.id && typeof change.description === 'string') {
+      if (change.action === 'replace' && change.id &&
+          (typeof change.description === 'string' || typeof change.name === 'string')) {
         next.characters = next.characters.map((c) =>
           c.id === change.id
-            ? { ...c, description: change.description!, name: change.name ?? c.name }
+            ? { ...c, description: change.description ?? c.description, name: change.name ?? c.name }
             : c
         );
       } else if (change.action === 'add' && typeof change.description === 'string') {
@@ -350,26 +338,54 @@ export function applyCardChatPatch(draft: WizardDraft, proposals: CardChatPropos
     } else if (change.field === 'lorebookEntries') {
       const entries = next.lorebookEntries || [];
       if (change.action === 'replace' && change.comment) {
-        next.lorebookEntries = entries.map((e) =>
-          e.comment === change.comment
-            ? {
-                ...e,
-                comment: change.newComment ?? e.comment,
-                content: change.content ?? e.content,
-                keys: change.keys ?? e.keys,
-              }
-            : e
-        );
+        let replaced = false;
+        next.lorebookEntries = entries.map((e) => {
+          if (e.comment !== change.comment) return e;
+          replaced = true;
+          return {
+            ...e,
+            comment: change.newComment ?? e.comment,
+            name: change.name ?? e.name,
+            content: change.content ?? e.content,
+            keys: change.keys ?? e.keys,
+          };
+        });
+        // Fallback to add if the target entry no longer exists.
+        if (!replaced && change.content !== undefined) {
+          next.lorebookEntries = [
+            ...entries,
+            {
+              ...createEmptyLorebookEntry(),
+              id: generateId(),
+              comment: change.newComment ?? change.comment,
+              name: change.name || change.comment || '',
+              content: change.content,
+              keys: change.keys || [],
+            },
+          ];
+        }
       } else if (change.action === 'add') {
-        const newEntry: LorebookEntry = {
-          ...createEmptyLorebookEntry(),
-          id: generateId(),
-          comment: change.comment || '',
-          name: change.comment || '',
-          content: change.content || '',
-          keys: change.keys || [],
-        };
-        next.lorebookEntries = [...entries, newEntry];
+        const targetComment = change.comment || '';
+        const exists = entries.some((e) => e.comment === targetComment);
+        if (exists) {
+          next.lorebookEntries = entries.map((e) =>
+            e.comment === targetComment
+              ? { ...e, name: change.name ?? e.name, content: change.content ?? e.content, keys: change.keys ?? e.keys }
+              : e
+          );
+        } else {
+          next.lorebookEntries = [
+            ...entries,
+            {
+              ...createEmptyLorebookEntry(),
+              id: generateId(),
+              comment: targetComment,
+              name: change.name || targetComment || '',
+              content: change.content || '',
+              keys: change.keys || [],
+            },
+          ];
+        }
       } else if (change.action === 'delete' && change.comment) {
         next.lorebookEntries = entries.filter((e) => e.comment !== change.comment);
       }

@@ -19,8 +19,8 @@ export function StepCardName({ cardName, tags, onNameChange, onTagsChange }: Ste
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-white mb-2">{t('cardName.title')}</h2>
-        <p className="text-sm text-slate-400 mb-6">
+        <h2 className="text-xl font-bold text-[var(--text-color)] mb-2">{t('cardName.title')}</h2>
+        <p className="text-sm text-[var(--color-text-muted)] mb-6">
           {t('cardName.description')}
         </p>
         <TextInput
@@ -32,9 +32,9 @@ export function StepCardName({ cardName, tags, onNameChange, onTagsChange }: Ste
         />
       </div>
 
-      <div className="border-t border-white/5 pt-6">
-        <h3 className="text-lg font-semibold text-white mb-2">{t('cardName.tagsTitle')}</h3>
-        <p className="text-xs text-slate-400 mb-2">
+      <div className="border-t border-[color-mix(in_srgb,var(--text-color)_5%,transparent)] pt-6">
+        <h3 className="text-lg font-semibold text-[var(--text-color)] mb-2">{t('cardName.tagsTitle')}</h3>
+        <p className="text-xs text-[var(--color-text-muted)] mb-2">
           {t('cardName.tagsDesc')}
         </p>
         <TagInput

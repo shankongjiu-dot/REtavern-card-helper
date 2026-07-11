@@ -14,6 +14,54 @@
  */
 
 import type { MvuSchemaSection, MvuVariable } from '../constants/defaults';
+import { getThemeSettings } from './theme-service';
+
+// ── Theme-aware helpers ─────────────────────────────────────────────────────
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return null;
+  return {
+    r: parseInt(m[1], 16),
+    g: parseInt(m[2], 16),
+    b: parseInt(m[3], 16),
+  };
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function resolveCssColor(varName: string, fallback: string): string {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return value || fallback;
+}
+
+/** Build an inline style string that exposes theme variables for status bars. */
+function getStatusBarThemeStyle(): string {
+  const theme = getThemeSettings();
+  return `
+    --sb-bg: ${theme.cardBgColor};
+    --sb-bg-a: ${hexToRgba(theme.cardBgColor, 0.85)};
+    --sb-text: ${theme.textColor};
+    --sb-muted: ${hexToRgba(theme.textColor, 0.6)};
+    --sb-faint: ${hexToRgba(theme.textColor, 0.4)};
+    --sb-primary: ${theme.primaryColor};
+    --sb-primary-a: ${hexToRgba(theme.primaryColor, 0.25)};
+    --sb-success: ${resolveCssColor('--color-status-success', '#4ade80')};
+    --sb-warning: ${resolveCssColor('--color-status-warning', '#fbbf24')};
+    --sb-danger: ${resolveCssColor('--color-status-danger', '#f87171')};
+    --sb-info: ${resolveCssColor('--color-info', '#38bdf8')};
+  `.replace(/\s+/g, ' ').trim();
+}
+
+/** Wrap status bar HTML so SillyTavern still has theme vars after stripping <style>. */
+function wrapStatusBarHtml(html: string): string {
+  return `<div style="${getStatusBarThemeStyle()}">${html}</div>`;
+}
 
 // ── Template definitions ────────────────────────────────────────────────────
 
@@ -102,7 +150,7 @@ function buildVarRows(
     twoColumn?: boolean;
   },
 ): string {
-  const boxStyle = `display:block;width:100%;box-sizing:border-box;background:${opts.boxBg};border-radius:8px;padding:8px 10px;margin-bottom:7px;border:1px solid rgba(148,163,184,0.10)`;
+  const boxStyle = `display:block;width:100%;box-sizing:border-box;background:${opts.boxBg};border-radius:8px;padding:8px 10px;margin-bottom:7px;border:1px solid color-mix(in srgb, var(--sb-text) 10%, transparent)`;
   return vars
     .map(v => {
       const icon = getVarIcon(v.path);
@@ -116,7 +164,7 @@ function buildVarRows(
         const isBidirectional = min < 0;
         const rangeLabel = isBidirectional ? `${min}~${max}` : `${max}`;
         const bar = isBidirectional
-          ? drawBidirectionalBarHtml(expr, opts.barColor, '#ef4444', opts.barTrack, opts.boxBg, opts.labelColor, Math.max(Math.abs(min), Math.abs(max)), icon, name)
+          ? drawBidirectionalBarHtml(expr, opts.barColor, 'var(--sb-danger)', opts.barTrack, opts.boxBg, opts.labelColor, Math.max(Math.abs(min), Math.abs(max)), icon, name)
           : drawBarHtml(expr, opts.barColor, opts.barTrack, min, max);
         return `<div style="${boxStyle}">
           ${isBidirectional
@@ -149,18 +197,18 @@ const compactPanel: StatusBarTemplate = {
   generate(sections, title) {
     const vars = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$').slice(0, 10);
     const rows = buildVarRows(vars, {
-      labelColor: '#cbd5e1',
-      valueColor: '#93c5fd',
-      boxBg: 'rgba(15,23,42,0.55)',
-      barColor: '#38bdf8',
-      barTrack: 'rgba(148,163,184,0.18)',
+      labelColor: 'var(--sb-muted)',
+      valueColor: 'var(--sb-primary)',
+      boxBg: 'var(--sb-bg-a)',
+      barColor: 'var(--sb-primary)',
+      barTrack: 'color-mix(in srgb, var(--sb-text) 18%, transparent)',
       twoColumn: false,
     });
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:rgba(2,6,23,0.88);border:1px solid rgba(148,163,184,0.24);border-radius:8px;padding:10px 12px;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e2e8f0;margin:8px 0;box-shadow:0 6px 18px rgba(0,0,0,0.18)">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.16)">
-    <span style="font-size:12px;font-weight:700;color:#f8fafc;white-space:nowrap">${title}</span>
-    <span style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">MVU</span>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:color-mix(in srgb, var(--sb-bg) 88%, transparent);border:1px solid color-mix(in srgb, var(--sb-text) 24%, transparent);border-radius:8px;padding:10px 12px;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--sb-text);margin:8px 0;box-shadow:0 6px 18px color-mix(in srgb, black 18%, transparent)">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid color-mix(in srgb, var(--sb-text) 16%, transparent)">
+    <span style="font-size:12px;font-weight:700;color:var(--sb-text);white-space:nowrap">${title}</span>
+    <span style="font-size:10px;color:var(--sb-faint);text-transform:uppercase;letter-spacing:0.5px">MVU</span>
   </div>
   <div style="display:block;width:100%">
 ${rows}
@@ -179,16 +227,16 @@ const minimalDark: StatusBarTemplate = {
   generate(sections, title) {
     const vars = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$').slice(0, 8);
     const rows = buildVarRows(vars, {
-      labelColor: '#94a3b8',
-      valueColor: '#818cf8',
-      boxBg: 'rgba(255,255,255,0.04)',
-      barColor: '#818cf8',
-      barTrack: 'rgba(255,255,255,0.08)',
+      labelColor: 'var(--sb-muted)',
+      valueColor: 'var(--sb-primary)',
+      boxBg: 'color-mix(in srgb, var(--sb-text) 4%, transparent)',
+      barColor: 'var(--sb-primary)',
+      barTrack: 'color-mix(in srgb, var(--sb-text) 8%, transparent)',
       twoColumn: false,
     });
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:rgba(15,23,42,0.9);border:1px solid rgba(99,102,241,0.25);border-radius:10px;padding:12px 14px;font-family:system-ui,sans-serif;color:#e2e8f0;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,0.2);margin:8px 0">
-  <div style="font-size:11px;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid rgba(99,102,241,0.15);padding-bottom:6px;font-weight:600">${title}</div>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:color-mix(in srgb, var(--sb-bg) 90%, transparent);border:1px solid var(--sb-primary-a);border-radius:10px;padding:12px 14px;font-family:system-ui,sans-serif;color:var(--sb-text);backdrop-filter:blur(8px);box-shadow:0 4px 16px color-mix(in srgb, black 20%, transparent);margin:8px 0">
+  <div style="font-size:11px;color:var(--sb-faint);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid color-mix(in srgb, var(--sb-primary) 15%, transparent);padding-bottom:6px;font-weight:600">${title}</div>
   <div style="display:block;width:100%">
 ${rows}
   </div>
@@ -206,16 +254,16 @@ const glassLight: StatusBarTemplate = {
   generate(sections, title) {
     const vars = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$').slice(0, 8);
     const rows = buildVarRows(vars, {
-      labelColor: '#64748b',
-      valueColor: '#6366f1',
-      boxBg: 'rgba(255,255,255,0.5)',
-      barColor: '#6366f1',
-      barTrack: 'rgba(0,0,0,0.06)',
+      labelColor: 'var(--sb-muted)',
+      valueColor: 'var(--sb-primary)',
+      boxBg: 'color-mix(in srgb, var(--sb-bg) 50%, transparent)',
+      barColor: 'var(--sb-primary)',
+      barTrack: 'color-mix(in srgb, var(--sb-text) 6%, transparent)',
       twoColumn: false,
     });
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:rgba(255,255,255,0.78);border:1px solid rgba(99,102,241,0.18);border-radius:12px;padding:12px 14px;font-family:system-ui,sans-serif;color:#334155;backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,0.06);margin:8px 0">
-  <div style="font-size:11px;color:#94a3b8;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.06);padding-bottom:6px">${title}</div>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:color-mix(in srgb, var(--sb-bg) 78%, transparent);border:1px solid color-mix(in srgb, var(--sb-primary) 18%, transparent);border-radius:12px;padding:12px 14px;font-family:system-ui,sans-serif;color:var(--sb-text);backdrop-filter:blur(12px);box-shadow:0 8px 24px color-mix(in srgb, black 6%, transparent);margin:8px 0">
+  <div style="font-size:11px;color:var(--sb-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;border-bottom:1px solid color-mix(in srgb, var(--sb-text) 6%, transparent);padding-bottom:6px">${title}</div>
   <div style="display:block;width:100%">
 ${rows}
   </div>
@@ -233,16 +281,16 @@ const gameHud: StatusBarTemplate = {
   generate(sections, title) {
     const vars = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$').slice(0, 8);
     const rows = buildVarRows(vars, {
-      labelColor: '#cbd5e1',
-      valueColor: '#fbbf24',
-      boxBg: 'rgba(0,0,0,0.25)',
-      barColor: 'linear-gradient(90deg,#f59e0b,#fbbf24)',
-      barTrack: 'rgba(0,0,0,0.4)',
+      labelColor: 'var(--sb-muted)',
+      valueColor: 'var(--sb-primary)',
+      boxBg: 'color-mix(in srgb, var(--sb-text) 4%, transparent)',
+      barColor: 'var(--sb-primary)',
+      barTrack: 'color-mix(in srgb, var(--sb-text) 8%, transparent)',
       twoColumn: false,
     });
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:linear-gradient(135deg,rgba(15,23,42,0.95),rgba(30,41,59,0.95));border:2px solid rgba(251,191,36,0.25);border-radius:10px;padding:12px 14px;font-family:'Segoe UI',system-ui,sans-serif;color:#e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,0.3),inset 0 1px 0 rgba(251,191,36,0.1);margin:8px 0">
-  <div style="font-size:11px;color:#fbbf24;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;font-weight:700;border-bottom:1px solid rgba(251,191,36,0.2);padding-bottom:6px;text-shadow:0 0 8px rgba(251,191,36,0.3)">⚔️ ${title}</div>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:linear-gradient(135deg,color-mix(in srgb, var(--sb-bg) 95%, transparent),color-mix(in srgb, var(--sb-bg) 85%, transparent));border:2px solid var(--sb-primary-a);border-radius:10px;padding:12px 14px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--sb-text);box-shadow:0 4px 20px color-mix(in srgb, black 30%, transparent),inset 0 1px 0 color-mix(in srgb, var(--sb-primary) 10%, transparent);margin:8px 0">
+  <div style="font-size:11px;color:var(--sb-primary);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;font-weight:700;border-bottom:1px solid color-mix(in srgb, var(--sb-primary) 20%, transparent);padding-bottom:6px;text-shadow:0 0 8px color-mix(in srgb, var(--sb-primary) 30%, transparent)">⚔️ ${title}</div>
   <div style="display:block;width:100%">
 ${rows}
   </div>
@@ -260,16 +308,16 @@ const animeCard: StatusBarTemplate = {
   generate(sections, title) {
     const vars = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$').slice(0, 8);
     const rows = buildVarRows(vars, {
-      labelColor: '#fce7f3',
-      valueColor: '#fdf2f8',
-      boxBg: 'rgba(255,255,255,0.12)',
-      barColor: '#f472b6',
-      barTrack: 'rgba(255,255,255,0.12)',
+      labelColor: 'var(--sb-muted)',
+      valueColor: 'var(--sb-text)',
+      boxBg: 'color-mix(in srgb, var(--sb-text) 12%, transparent)',
+      barColor: 'var(--sb-primary)',
+      barTrack: 'color-mix(in srgb, var(--sb-text) 12%, transparent)',
       twoColumn: false,
     });
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:linear-gradient(135deg,rgba(236,72,153,0.3),rgba(168,85,247,0.3));border:1px solid rgba(244,114,182,0.35);border-radius:14px;padding:12px 14px;font-family:'Segoe UI',system-ui,sans-serif;color:#fdf2f8;backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(236,72,153,0.15);margin:8px 0">
-  <div style="font-size:12px;color:#fbcfe8;margin-bottom:10px;text-align:center;font-weight:600;letter-spacing:0.5px;text-shadow:0 0 6px rgba(244,114,182,0.3);border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:6px">🌸 ${title} 🌸</div>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:linear-gradient(135deg,color-mix(in srgb, var(--sb-primary) 30%, transparent),color-mix(in srgb, var(--sb-primary) 30%, transparent));border:1px solid color-mix(in srgb, var(--sb-primary) 35%, transparent);border-radius:14px;padding:12px 14px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--sb-text);backdrop-filter:blur(10px);box-shadow:0 8px 24px color-mix(in srgb, var(--sb-primary) 15%, transparent);margin:8px 0">
+  <div style="font-size:12px;color:var(--sb-muted);margin-bottom:10px;text-align:center;font-weight:600;letter-spacing:0.5px;text-shadow:0 0 6px color-mix(in srgb, var(--sb-primary) 30%, transparent);border-bottom:1px solid color-mix(in srgb, var(--sb-text) 15%, transparent);padding-bottom:6px">🌸 ${title} 🌸</div>
   <div style="display:block;width:100%">
 ${rows}
   </div>
@@ -290,16 +338,16 @@ const terminal: StatusBarTemplate = {
       .map(v => {
         const name = getDisplayName(v.path);
         const expr = formatVarExpr(v);
-        return `<div style="display:block;width:100%;box-sizing:border-box;margin-bottom:6px;padding:5px 8px;font-size:12px;background:rgba(34,211,238,0.06);border-radius:4px;font-family:'Cascadia Code','Fira Code',monospace">
-          <span style="color:#22d3ee">[</span><span style="color:#94a3b8">${name}</span><span style="color:#22d3ee">]</span>
-          <span style="color:#4ade80;font-weight:600;float:right">→ ${expr}</span>
+        return `<div style="display:block;width:100%;box-sizing:border-box;margin-bottom:6px;padding:5px 8px;font-size:12px;background:color-mix(in srgb, var(--sb-primary) 6%, transparent);border-radius:4px;font-family:'Cascadia Code','Fira Code',monospace">
+          <span style="color:var(--sb-primary)">[</span><span style="color:var(--sb-muted)">${name}</span><span style="color:var(--sb-primary)">]</span>
+          <span style="color:var(--sb-success);font-weight:600;float:right">→ ${expr}</span>
           <div style="clear:both"></div>
         </div>`;
       })
       .join('\n');
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:rgba(10,14,26,0.92);border:1px solid rgba(34,211,238,0.25);border-radius:8px;padding:12px 14px;font-family:'Cascadia Code','Fira Code',monospace;color:#e2e8f0;box-shadow:0 0 20px rgba(34,211,238,0.08),inset 0 0 20px rgba(34,211,238,0.03);margin:8px 0">
-  <div style="font-size:11px;color:#22d3ee;margin-bottom:10px;border-bottom:1px solid rgba(34,211,238,0.15);padding-bottom:6px;letter-spacing:1px">&gt; ${title}</div>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;background:color-mix(in srgb, var(--sb-bg) 92%, transparent);border:1px solid color-mix(in srgb, var(--sb-primary) 25%, transparent);border-radius:8px;padding:12px 14px;font-family:'Cascadia Code','Fira Code',monospace;color:var(--sb-text);box-shadow:0 0 20px color-mix(in srgb, var(--sb-primary) 8%, transparent),inset 0 0 20px color-mix(in srgb, var(--sb-primary) 3%, transparent);margin:8px 0">
+  <div style="font-size:11px;color:var(--sb-primary);margin-bottom:10px;border-bottom:1px solid color-mix(in srgb, var(--sb-primary) 15%, transparent);padding-bottom:6px;letter-spacing:1px">&gt; ${title}</div>
   <div style="display:block;width:100%">
 ${rows}
   </div>
@@ -319,11 +367,11 @@ const ancientScroll: StatusBarTemplate = {
     const emotionVars = vars.filter(v => v.zodType === 'z.coerce.number()' && /情感|心境|好感|爱意|恨意|信任|亲密|倾向|天平|羁绊|忠诚|敌意|欲望|羞耻|理智|压力/.test(v.path));
     const otherVars = vars.filter(v => !emotionVars.includes(v));
     const otherRows = buildVarRows(otherVars, {
-      labelColor: '#6b5a45',
-      valueColor: '#8b6914',
-      boxBg: 'rgba(250,248,245,0.82)',
-      barColor: '#b54a3a',
-      barTrack: '#e3dbce',
+      labelColor: 'var(--sb-text)',
+      valueColor: 'var(--sb-primary)',
+      boxBg: 'color-mix(in srgb, var(--sb-bg) 82%, transparent)',
+      barColor: 'var(--sb-primary)',
+      barTrack: 'color-mix(in srgb, var(--sb-text) 12%, transparent)',
       twoColumn: false,
     });
 
@@ -336,30 +384,30 @@ const ancientScroll: StatusBarTemplate = {
       const isDual = min < 0;
       const leftText = isDual ? '疏离' : `${min}`;
       const rightText = isDual ? '亲近' : `${max}`;
-      return `<div style="background:linear-gradient(135deg,rgba(255,252,246,0.95),rgba(242,232,213,0.86));border:1px solid rgba(151,108,55,0.24);border-radius:10px;padding:10px 11px;margin-bottom:9px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.7),0 2px 6px rgba(96,56,19,0.06)">
+      return `<div style="background:linear-gradient(135deg,color-mix(in srgb, var(--sb-bg) 95%, transparent),color-mix(in srgb, var(--sb-bg) 86%, transparent));border:1px solid color-mix(in srgb, var(--sb-text) 24%, transparent);border-radius:10px;padding:10px 11px;margin-bottom:9px;box-shadow:inset 0 1px 0 color-mix(in srgb, var(--sb-text) 20%, transparent),0 2px 6px color-mix(in srgb, black 6%, transparent)">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-          <span style="font-size:12px;color:#5f4b32;font-weight:700;letter-spacing:0.5px">${icon} ${name}</span>
-          <span style="font-size:12px;color:#8b4513;font-weight:800;font-family:Georgia,'Times New Roman',serif">${expr}</span>
+          <span style="font-size:12px;color:var(--sb-text);font-weight:700;letter-spacing:0.5px">${icon} ${name}</span>
+          <span style="font-size:12px;color:var(--sb-primary);font-weight:800;font-family:Georgia,'Times New Roman',serif">${expr}</span>
         </div>
-        <meter min="${min}" max="${max}" low="${isDual ? min * 0.35 : min}" high="${isDual ? max * 0.35 : max}" optimum="${isDual ? 0 : max}" value="${expr}" style="display:block;width:100%;height:12px;accent-color:#b45309;background:#e8dcc6;border-radius:999px"></meter>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:#9a7b56;letter-spacing:0.5px;margin-top:4px">
+        <meter min="${min}" max="${max}" low="${isDual ? min * 0.35 : min}" high="${isDual ? max * 0.35 : max}" optimum="${isDual ? 0 : max}" value="${expr}" style="display:block;width:100%;height:12px;accent-color:var(--sb-primary);background:var(--sb-bg-a);border-radius:999px"></meter>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--sb-muted);letter-spacing:0.5px;margin-top:4px">
           <span>${leftText}</span><span>${isDual ? '中和' : `${min}~${max}`}</span><span>${rightText}</span>
         </div>
       </div>`;
     };
 
     const emotionSection = emotionVars.length > 0 ? `<div style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;color:#7a4f22;font-size:12px;font-weight:700;letter-spacing:1px">
-        <span>❦</span><span>心绪流转</span><span style="flex:1;height:1px;background:linear-gradient(90deg,rgba(122,79,34,0.28),transparent)"></span>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--sb-primary);font-size:12px;font-weight:700;letter-spacing:1px">
+        <span>❦</span><span>心绪流转</span><span style="flex:1;height:1px;background:linear-gradient(90deg,color-mix(in srgb, var(--sb-primary) 28%, transparent),transparent)"></span>
       </div>
 ${emotionVars.map(renderEmotion).join('\n')}
     </div>` : '';
 
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;margin:8px 0;border:1px solid #d0bfa5;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(72,44,15,0.08);font-family:'Noto Serif SC','Source Han Serif SC',serif;color:#2c2418;background:linear-gradient(180deg,#fffaf0,#f7efe1)">
-  <div style="padding:10px 14px;background:linear-gradient(to right,#e7d8bd,#f6eddc,#e7d8bd);border-bottom:1px solid #d0bfa5">
-    <span style="font-weight:700;color:#7a4f22;letter-spacing:1px">📜 ${title}</span>
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;margin:8px 0;border:1px solid color-mix(in srgb, var(--sb-text) 30%, transparent);border-radius:8px;overflow:hidden;box-shadow:0 4px 12px color-mix(in srgb, black 8%, transparent);font-family:'Noto Serif SC','Source Han Serif SC',serif;color:var(--sb-text);background:linear-gradient(180deg,color-mix(in srgb, var(--sb-bg) 98%, white),color-mix(in srgb, var(--sb-bg) 90%, white))">
+  <div style="padding:10px 14px;background:linear-gradient(to right,color-mix(in srgb, var(--sb-bg) 80%, white),color-mix(in srgb, var(--sb-bg) 95%, white),color-mix(in srgb, var(--sb-bg) 80%, white));border-bottom:1px solid color-mix(in srgb, var(--sb-text) 30%, transparent)">
+    <span style="font-weight:700;color:var(--sb-primary);letter-spacing:1px">📜 ${title}</span>
   </div>
-  <div style="padding:13px;background:linear-gradient(180deg,#fffaf0,#fbf5e9)">
+  <div style="padding:13px;background:linear-gradient(180deg,color-mix(in srgb, var(--sb-bg) 98%, white),color-mix(in srgb, var(--sb-bg) 94%, white))">
     ${emotionSection}
     <div style="display:block;width:100%">
 ${otherRows}
@@ -398,10 +446,10 @@ const visualNovel: StatusBarTemplate = {
 
       return `<div style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px">
-          <span style="font-size:13px;font-weight:500;color:#775555">${icon} ${name}</span>
-          <span style="font-weight:800;font-size:14px;color:#e87a90;font-family:'ZCOOL KuaiLe',cursive,sans-serif">${expr} / ${min}~${max}</span>
+          <span style="font-size:13px;font-weight:500;color:var(--sb-text)">${icon} ${name}</span>
+          <span style="font-weight:800;font-size:14px;color:var(--sb-primary);font-family:'ZCOOL KuaiLe',cursive,sans-serif">${expr} / ${min}~${max}</span>
         </div>
-        <meter min="${min}" max="${max}" low="${min < 0 ? min * 0.35 : min}" high="${min < 0 ? max * 0.35 : max}" optimum="${min < 0 ? 0 : max}" value="${expr}" style="display:block;width:100%;height:11px;accent-color:#e87a90;background:rgba(0,0,0,0.05);border-radius:999px"></meter>
+        <meter min="${min}" max="${max}" low="${min < 0 ? min * 0.35 : min}" high="${min < 0 ? max * 0.35 : max}" optimum="${min < 0 ? 0 : max}" value="${expr}" style="display:block;width:100%;height:11px;accent-color:var(--sb-primary);background:color-mix(in srgb, var(--sb-text) 5%, transparent);border-radius:999px"></meter>
       </div>`;
     };
 
@@ -409,10 +457,10 @@ const visualNovel: StatusBarTemplate = {
       const icon = getVarIcon(v.path);
       const name = v.path.split('.').pop() || v.path;
       const expr = formatVarExpr(v);
-      return `<div style="display:flex;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.7);border-radius:10px;margin-bottom:6px;border-left:3px solid #e87a90;box-shadow:0 2px 4px rgba(0,0,0,0.02)">
+      return `<div style="display:flex;align-items:center;padding:8px 12px;background:color-mix(in srgb, var(--sb-bg) 70%, transparent);border-radius:10px;margin-bottom:6px;border-left:3px solid var(--sb-primary);box-shadow:0 2px 4px color-mix(in srgb, black 2%, transparent)">
         <span style="margin-right:10px;font-size:16px">${icon}</span>
-        <span style="font-weight:600;color:#886666;margin-right:8px;min-width:40px;font-size:12px">${name}</span>
-        <span style="color:#333;font-weight:500;font-size:12px;flex:1;text-align:right">${expr}</span>
+        <span style="font-weight:600;color:var(--sb-muted);margin-right:8px;min-width:40px;font-size:12px">${name}</span>
+        <span style="color:var(--sb-text);font-weight:500;font-size:12px;flex:1;text-align:right">${expr}</span>
       </div>`;
     };
 
@@ -420,21 +468,21 @@ const visualNovel: StatusBarTemplate = {
       const icon = getVarIcon(v.path);
       const name = getDisplayName(v.path);
       const expr = formatVarExpr(v);
-      return `<div style="background:rgba(255,255,255,0.7);border:1px solid rgba(0,0,0,0.06);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:inset 0 2px 5px rgba(0,0,0,0.02)">
-        <div style="font-size:12px;font-weight:500;color:#886666;margin-bottom:6px">${icon} ${name}</div>
-        <div style="font-size:13px;line-height:1.6;color:#443333;font-family:'ZCOOL KuaiLe',cursive,sans-serif">${expr}</div>
+      return `<div style="background:color-mix(in srgb, var(--sb-bg) 70%, transparent);border:1px solid color-mix(in srgb, var(--sb-text) 6%, transparent);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:inset 0 2px 5px color-mix(in srgb, black 2%, transparent)">
+        <div style="font-size:12px;font-weight:500;color:var(--sb-muted);margin-bottom:6px">${icon} ${name}</div>
+        <div style="font-size:13px;line-height:1.6;color:var(--sb-text);font-family:'ZCOOL KuaiLe',cursive,sans-serif">${expr}</div>
       </div>`;
     };
 
     // 分区标题样式
     const sectionTitle = (icon: string, label: string) => `
-      <div style="font-family:'ZCOOL KuaiLe',cursive,sans-serif;font-size:16px;color:#e87a90;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <div style="font-family:'ZCOOL KuaiLe',cursive,sans-serif;font-size:16px;color:var(--sb-primary);margin-bottom:14px;display:flex;align-items:center;gap:8px">
         <span>${icon}</span><span>${label}</span>
-        <span style="flex:1;height:1px;background:linear-gradient(90deg,rgba(232,122,144,0.25),transparent)"></span>
+        <span style="flex:1;height:1px;background:linear-gradient(90deg,color-mix(in srgb, var(--sb-primary) 25%, transparent),transparent)"></span>
       </div>`;
 
     // 卡片容器样式
-    const cardStyle = 'background:rgba(255,255,255,0.78);border:1px solid rgba(232,122,144,0.25);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 4px 16px rgba(0,0,0,0.06);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)';
+    const cardStyle = 'background:color-mix(in srgb, var(--sb-bg) 78%, transparent);border:1px solid color-mix(in srgb, var(--sb-primary) 25%, transparent);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 4px 16px color-mix(in srgb, black 6%, transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)';
 
     const numberSection = numberVars.length > 0 ? `
       <div style="${cardStyle}">
@@ -462,10 +510,10 @@ const visualNovel: StatusBarTemplate = {
           ${eventVars.map(v => {
             const name = v.path.split('.').pop() || v.path;
             const expr = formatVarExpr(v);
-            return `<div style="flex:1;min-width:80px;aspect-ratio:9/14;border-radius:12px;overflow:hidden;position:relative;background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid rgba(232,122,144,0.25);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px">
+            return `<div style="flex:1;min-width:80px;aspect-ratio:9/14;border-radius:12px;overflow:hidden;position:relative;background:color-mix(in srgb, var(--sb-bg) 60%, transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid color-mix(in srgb, var(--sb-primary) 25%, transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px">
               <div style="font-size:24px;margin-bottom:6px">🎭</div>
-              <div style="font-size:11px;font-weight:600;color:#e87a90;text-align:center">${name}</div>
-              <div style="font-size:10px;color:#886666;margin-top:4px">${expr}</div>
+              <div style="font-size:11px;font-weight:600;color:var(--sb-primary);text-align:center">${name}</div>
+              <div style="font-size:10px;color:var(--sb-muted);margin-top:4px">${expr}</div>
             </div>`;
           }).join('\n')}
         </div>
@@ -483,21 +531,21 @@ const visualNovel: StatusBarTemplate = {
     const AVATAR_IMAGE = 'https://placehold.co/80x80/e87a90/fff?text=头像';
 
     // 全部使用内联样式，不使用<style>标签
-    return `<div style="width:100%;max-width:none;box-sizing:border-box;margin:8px 0;position:relative;border-radius:20px;overflow:hidden;box-shadow:0 15px 35px rgba(0,0,0,0.15);font-family:'ZCOOL KuaiLe',cursive,-apple-system,BlinkMacSystemFont,sans-serif">
+    return `<div style="width:100%;max-width:none;box-sizing:border-box;margin:8px 0;position:relative;border-radius:20px;overflow:hidden;box-shadow:0 15px 35px color-mix(in srgb, black 15%, transparent);font-family:'ZCOOL KuaiLe',cursive,-apple-system,BlinkMacSystemFont,sans-serif">
       <div style="position:absolute;top:0;left:0;width:100%;height:100%;background-image:url('${BG_IMAGE}');background-size:cover;background-position:center top;z-index:0"></div>
-      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(180deg,rgba(255,255,255,0.15) 0%,rgba(255,255,255,0.35) 35%,rgba(255,255,255,0.6) 100%);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:1"></div>
+      <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(180deg,color-mix(in srgb, var(--sb-bg) 15%, transparent) 0%,color-mix(in srgb, var(--sb-bg) 35%, transparent) 35%,color-mix(in srgb, var(--sb-bg) 60%, transparent) 100%);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:1"></div>
       <div style="position:relative;z-index:2;padding:20px">
-        <div style="background:rgba(255,255,255,0.7);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:14px 20px;border-radius:16px;border:1px solid rgba(232,122,144,0.25);box-shadow:0 4px 15px rgba(0,0,0,0.05);margin-bottom:16px;display:flex;align-items:center;gap:14px">
-          <div style="width:56px;height:56px;border-radius:12px;overflow:hidden;border:2px solid #e87a90;box-shadow:0 4px 10px rgba(0,0,0,0.1);flex-shrink:0">
+        <div style="background:color-mix(in srgb, var(--sb-bg) 70%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:14px 20px;border-radius:16px;border:1px solid color-mix(in srgb, var(--sb-primary) 25%, transparent);box-shadow:0 4px 15px color-mix(in srgb, black 5%, transparent);margin-bottom:16px;display:flex;align-items:center;gap:14px">
+          <div style="width:56px;height:56px;border-radius:12px;overflow:hidden;border:2px solid var(--sb-primary);box-shadow:0 4px 10px color-mix(in srgb, black 10%, transparent);flex-shrink:0">
             <img src="${AVATAR_IMAGE}" alt="avatar" style="width:100%;height:100%;object-fit:cover;display:block">
           </div>
           <div style="flex:1">
-            <div style="font-size:20px;color:#d64d79;text-shadow:0 2px 4px rgba(255,255,255,0.8);letter-spacing:2px">${title}</div>
-            <div style="font-size:11px;color:#886666;margin-top:4px">Visual Novel Status Bar</div>
+            <div style="font-size:20px;color:var(--sb-primary);text-shadow:0 2px 4px color-mix(in srgb, var(--sb-bg) 80%, transparent);letter-spacing:2px">${title}</div>
+            <div style="font-size:11px;color:var(--sb-muted);margin-top:4px">Visual Novel Status Bar</div>
           </div>
         </div>
         <div style="position:relative;width:100%;min-height:180px;margin-bottom:16px;display:flex;justify-content:flex-end">
-          <img src="${TACHIE_IMAGE}" alt="tachie" style="position:absolute;bottom:0;left:5%;width:45%;max-height:250px;object-fit:contain;object-position:bottom center;filter:drop-shadow(3px 5px 10px rgba(0,0,0,0.2));z-index:3">
+          <img src="${TACHIE_IMAGE}" alt="tachie" style="position:absolute;bottom:0;left:5%;width:45%;max-height:250px;object-fit:contain;object-position:bottom center;filter:drop-shadow(3px 5px 10px color-mix(in srgb, black 20%, transparent));z-index:3">
           <div style="width:50%;margin-left:auto">
             ${numberSection}
           </div>
@@ -535,7 +583,7 @@ export function generateStatusBarHtml(
 ): string {
   const template = getTemplateById(templateId);
   if (!template) return '';
-  return template.generate(sections, title);
+  return wrapStatusBarHtml(template.generate(sections, title));
 }
 
 /**
@@ -577,7 +625,7 @@ export function generateStatusBarFromAiConfig(
   }
 
   return {
-    html: generateStatusBarHtml(templateId, usedSections, title),
+    html: wrapStatusBarHtml(generateStatusBarHtml(templateId, usedSections, title)),
     templateId,
     title,
   };

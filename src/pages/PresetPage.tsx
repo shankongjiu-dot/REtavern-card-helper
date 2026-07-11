@@ -13,6 +13,19 @@ import {
   type LoadedPreset,
 } from '../services/preset-service';
 import { useTranslation } from '../i18n/I18nContext';
+import { themeAlpha } from '../constants/theme';
+
+const textPrimaryStyle = { color: 'var(--text-color)' };
+const textSecondaryStyle = { color: 'var(--color-text-secondary)' };
+const textMutedStyle = { color: 'var(--color-text-muted)' };
+const borderColor = 'var(--color-border-default)';
+const cardBgSemiTransparent = (alpha: number) =>
+  `rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), ${alpha})`;
+const inputStyle = {
+  backgroundColor: 'var(--input-bg)',
+  borderColor: 'var(--input-border)',
+  color: 'var(--text-color)',
+};
 
 export function PresetPage() {
   const { t } = useTranslation();
@@ -39,7 +52,7 @@ export function PresetPage() {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
     }
-  }, []);
+  }, [t]);
 
   const handleClear = useCallback(() => {
     clearSavedPreset();
@@ -60,9 +73,9 @@ export function PresetPage() {
 
   const typeLabel = (type: string) => {
     switch (type) {
-      case 'example': return <span className="text-xs px-2 py-0.5 rounded bg-green-900/30 text-green-300">{t('preset.typeExample')}</span>;
-      case 'jailbreak': return <span className="text-xs px-2 py-0.5 rounded bg-amber-900/30 text-amber-300">{t('preset.typeJailbreak')}</span>;
-      default: return <span className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">{t('preset.typeSystem')}</span>;
+      case 'example': return <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: themeAlpha('success', 30), color: 'var(--color-status-success)' }}>{t('preset.typeExample')}</span>;
+      case 'jailbreak': return <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: themeAlpha('warning', 30), color: 'var(--color-status-warning)' }}>{t('preset.typeJailbreak')}</span>;
+      default: return <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--color-surface-raised)', ...textMutedStyle }}>{t('preset.typeSystem')}</span>;
     }
   };
 
@@ -83,9 +96,9 @@ export function PresetPage() {
           <div className="p-2 rounded-lg bg-primary-tint-light animate-pulse-slow">
             <span className="text-xl">📋</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">{t('preset.title')}</h1>
+          <h1 className="text-2xl font-bold" style={textPrimaryStyle}>{t('preset.title')}</h1>
         </div>
-        <p className="text-sm text-slate-400 ml-11">
+        <p className="text-sm ml-11" style={textMutedStyle}>
           {t('preset.subtitle')}
         </p>
       </div>
@@ -122,15 +135,15 @@ export function PresetPage() {
         )}
         {preset && (
           <>
-            <span className="text-sm text-slate-400 animate-badge-pop">
+            <span className="text-sm animate-badge-pop" style={textMutedStyle}>
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary-tint text-primary-bright">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-status-success)' }}></span>
                 {t('preset.enabledCount', { enabled: String(enabledCount), total: String(preset.prompts.length) })}
               </span>
             </span>
             {preset.isBuiltIn && (
-              <span className="text-sm text-emerald-400 animate-badge-pop">
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-900/50 text-emerald-300">
+              <span className="text-sm animate-badge-pop" style={{ color: 'var(--color-status-success)' }}>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full" style={{ backgroundColor: themeAlpha('success', 50), color: 'var(--color-status-success)' }}>
                   ⭐ 默认写卡模式
                 </span>
               </span>
@@ -141,31 +154,31 @@ export function PresetPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-700/50 animate-shake">
+        <div className="mb-4 p-3 rounded-lg animate-shake" style={{ backgroundColor: themeAlpha('danger', 20), border: `1px solid ${themeAlpha('danger', 35)}` }}>
           <div className="flex items-center gap-2">
-            <span className="text-red-400">⚠️</span>
-            <p className="text-sm text-red-400">{error}</p>
+            <span style={{ color: 'var(--color-status-danger)' }}>⚠️</span>
+            <p className="text-sm" style={{ color: 'var(--color-status-danger)' }}>{error}</p>
           </div>
         </div>
       )}
 
       {/* Empty state */}
       {!preset && !error && (
-        <div className="p-8 rounded-xl border border-dashed border-slate-700 bg-slate-800/20 text-center animate-fade-in-up">
+        <div className="p-8 rounded-xl border border-dashed text-center animate-fade-in-up" style={{ borderColor: borderColor, backgroundColor: cardBgSemiTransparent(0.2) }}>
           <div className="relative inline-block mb-4">
             <div className="text-6xl animate-float">📋</div>
             <div className="absolute -top-2 -right-2 text-2xl animate-bounce">✨</div>
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">{t('preset.emptyTitle')}</h3>
-          <p className="text-sm text-slate-400 max-w-md mx-auto">
+          <h3 className="text-lg font-semibold mb-2" style={textPrimaryStyle}>{t('preset.emptyTitle')}</h3>
+          <p className="text-sm max-w-md mx-auto" style={textMutedStyle}>
             {t('preset.emptyDescription')}
           </p>
-          <div className="mt-6 p-4 rounded-lg bg-slate-900/50 text-left text-xs text-slate-500 max-w-md mx-auto animate-slide-up animation-delay-200">
-            <p className="font-medium text-slate-400 mb-2">{t('preset.supportedFormats')}</p>
+          <div className="mt-6 p-4 rounded-lg text-left text-xs max-w-md mx-auto animate-slide-up animation-delay-200" style={{ backgroundColor: cardBgSemiTransparent(0.5) }}>
+            <p className="font-medium mb-2" style={textMutedStyle}>{t('preset.supportedFormats')}</p>
             <ul className="list-disc list-inside space-y-1">
-              <li className="hover:text-slate-300 transition-colors cursor-default">{t('preset.formatSillyTavern')}</li>
-              <li className="hover:text-slate-300 transition-colors cursor-default">{t('preset.formatSystemPrompt')}</li>
-              <li className="hover:text-slate-300 transition-colors cursor-default">{t('preset.formatPromptsArray')}</li>
+              <li className="transition-colors cursor-default text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]">{t('preset.formatSillyTavern')}</li>
+              <li className="transition-colors cursor-default text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]">{t('preset.formatSystemPrompt')}</li>
+              <li className="transition-colors cursor-default text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]">{t('preset.formatPromptsArray')}</li>
             </ul>
           </div>
         </div>
@@ -175,37 +188,42 @@ export function PresetPage() {
       {preset && (
         <div className="space-y-4 animate-fade-in-up">
           {/* Preset info */}
-          <div className="p-4 rounded-lg bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 backdrop-blur-sm">
+          <div className="p-4 rounded-lg backdrop-blur-sm" style={{ background: `linear-gradient(135deg, ${cardBgSemiTransparent(0.5)} 0%, ${cardBgSemiTransparent(0.45)} 100%)`, border: `1px solid ${borderColor}` }}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-primary-tint-light flex items-center justify-center">
                   <span className="text-sm">📁</span>
                 </div>
-                <h3 className="font-semibold text-white">{preset.fileName}</h3>
+                <h3 className="font-semibold" style={textPrimaryStyle}>{preset.fileName}</h3>
               </div>
-              <span className="text-xs px-2 py-1 rounded-full bg-slate-700/50 text-slate-300">
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: cardBgSemiTransparent(0.5), ...textSecondaryStyle }}>
                 {t('preset.totalRules', { count: String(preset.prompts.length) })}
               </span>
             </div>
             {preset.description && (
-              <p className="text-sm text-slate-400 ml-10">{preset.description}</p>
+              <p className="text-sm ml-10" style={textMutedStyle}>{preset.description}</p>
             )}
           </div>
 
           {/* Rule list */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-slate-300 flex items-center gap-2">
+            <h4 className="text-sm font-medium flex items-center gap-2" style={textSecondaryStyle}>
               <span className="w-1 h-4 rounded-full bg-primary"></span>
               {t('preset.rulesTitle')}
             </h4>
-            <div className="rounded-lg border border-slate-700/50 bg-slate-800/20 overflow-hidden backdrop-blur-sm">
+            <div className="rounded-lg overflow-hidden backdrop-blur-sm" style={{ border: `1px solid ${borderColor}`, backgroundColor: cardBgSemiTransparent(0.2) }}>
               {preset.prompts.map((p, i) => (
                 <div
                   key={p.id}
-                  className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/30 last:border-b-0
+                  className={`flex items-center gap-3 px-4 py-3
                     ${p.enabled ? '' : 'opacity-50'}
-                    transition-all duration-300 hover:bg-slate-700/20 animate-slide-in-left`}
-                  style={{ animationDelay: `${i * 50}ms` }}
+                    transition-all duration-300 animate-slide-in-left`}
+                  style={{
+                    animationDelay: `${i * 50}ms`,
+                    borderBottom: i === (preset?.prompts.length ?? 0) - 1 ? undefined : `1px solid ${cardBgSemiTransparent(0.3)}`,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = cardBgSemiTransparent(0.2); }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                 >
                   <label className="relative cursor-pointer">
                     <input
@@ -215,13 +233,13 @@ export function PresetPage() {
                       className="sr-only"
                     />
                     <div className={`w-5 h-5 rounded border-2 transition-all duration-300 ${
-                      p.enabled 
-                        ? 'bg-primary border-primary-tint shadow-lg shadow-primary-glow' 
-                        : 'bg-slate-800 border-slate-600'
-                    }`}>
+                      p.enabled
+                        ? 'bg-primary border-primary-tint shadow-lg shadow-primary-glow'
+                        : ''
+                    }`} style={p.enabled ? {} : inputStyle}>
                       {p.enabled && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white animate-checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <svg className="w-3 h-3 animate-checkmark" style={textPrimaryStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                             <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                         </div>
@@ -230,16 +248,16 @@ export function PresetPage() {
                   </label>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-medium truncate transition-colors ${p.enabled ? 'text-white' : 'text-slate-500'}`}>
+                      <span className="font-medium truncate transition-colors" style={p.enabled ? textPrimaryStyle : textMutedStyle}>
                         {p.name}
                       </span>
                       {typeLabel(p.type)}
                     </div>
-                    <p className="text-xs text-slate-500 line-clamp-2">
+                    <p className="text-xs line-clamp-2" style={textMutedStyle}>
                       {p.content}
                     </p>
                   </div>
-                  <span className="text-xs text-slate-600 shrink-0 transition-colors hover:text-slate-400">
+                  <span className="text-xs shrink-0 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]">
                     {t('preset.charCount', { count: String(p.content.length) })}
                   </span>
                 </div>
@@ -248,12 +266,12 @@ export function PresetPage() {
           </div>
 
           {/* Tips */}
-          <div className="p-4 rounded-lg bg-gradient-to-br from-indigo-900/30 to-purple-900/20 border border-primary-tint-light backdrop-blur-sm animate-fade-in-up animation-delay-300">
+          <div className="p-4 rounded-lg border border-primary-tint-light backdrop-blur-sm animate-fade-in-up animation-delay-300" style={{ background: `linear-gradient(135deg, ${themeAlpha('info', 30)} 0%, ${themeAlpha('purple', 20)} 100%)` }}>
             <div className="flex items-start gap-2">
               <span className="text-lg mt-0.5">💡</span>
               <div>
                 <h4 className="text-sm font-medium text-primary-bright mb-2">{t('preset.tipsTitle')}</h4>
-                <ul className="text-xs text-slate-400 space-y-1">
+                <ul className="text-xs space-y-1" style={textMutedStyle}>
                   <li className="flex items-start gap-2">
                     <span className="text-primary-muted">•</span>
                     <span>{t('preset.tip1')}</span>

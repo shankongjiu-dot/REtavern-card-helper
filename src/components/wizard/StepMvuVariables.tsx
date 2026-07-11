@@ -534,8 +534,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
   const [avatarImageUrl, setAvatarImageUrl] = useState('');
   const [showMultiCharModal, setShowMultiCharModal] = useState(false);
 
-  const fieldCls = 'w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-sm text-slate-200';
-  const labelCls = 'text-xs text-slate-400';
+  const fieldCls = 'w-full rounded border border-[var(--input-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-sm text-[var(--text-color)]';
+  const labelCls = 'text-xs text-[var(--color-text-secondary)]';
 
   // ── MVU enable toggle ─────────────────────────────────────────────────
   const toggleMvu = () => {
@@ -702,7 +702,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                 ? { min: Number(v.rangeMin), max: Number(v.rangeMax) }
                 : parseRangeString(v.range);
               range = rm || { min: 0, max: 100 };
-              initialValue = Number(initialValue) || 0;
+              initialValue = isNaN(Number(initialValue)) ? 0 : Number(initialValue);
             } else if (type === 'enum') {
               const ev = Array.isArray(v.enumValues) ? v.enumValues.map(String) : [];
               enumValues = ev;
@@ -799,7 +799,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
     // Otherwise generate from template
     if (mvu.schemaSections.length === 0 || !statusBarStyle) {
-      return '<p style="color:#6b7280;font-size:12px;text-align:center;padding:20px">暂无变量，请先选择模板或生成变量</p>';
+      return '<p style="color:var(--color-text-muted);font-size:12px;text-align:center;padding:20px">暂无变量，请先选择模板或生成变量</p>';
     }
     return generateStatusBarHtml(statusBarStyle, mvu.schemaSections, statusBarTitle);
   }, [mvu.statusBarHtml, mvu.schemaSections, statusBarStyle, statusBarTitle]);
@@ -965,13 +965,13 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-white">MVU 变量系统</h2>
-            <p className="text-sm text-slate-400 mt-1">基于 tavern-cards MVU 规范，为角色卡定义动态变量追踪系统</p>
+            <h2 className="text-xl font-bold text-[var(--text-color)]">MVU 变量系统</h2>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-1">基于 tavern-cards MVU 规范，为角色卡定义动态变量追踪系统</p>
           </div>
         </div>
-        <div className="text-center py-16 border border-dashed border-slate-700 rounded-xl">
-          <p className="text-slate-400 mb-4">MVU 变量系统用于追踪角色好感度、场景状态、装备等动态信息</p>
-          <p className="text-sm text-slate-500 mb-6">启用后可在世界书条目中使用 EJS 条件渲染，开场白也可引用变量初始状态</p>
+        <div className="text-center py-16 border border-dashed border-[var(--color-border-default)] rounded-xl">
+          <p className="text-[var(--color-text-secondary)] mb-4">MVU 变量系统用于追踪角色好感度、场景状态、装备等动态信息</p>
+          <p className="text-sm text-[var(--color-text-muted)] mb-6">启用后可在世界书条目中使用 EJS 条件渲染，开场白也可引用变量初始状态</p>
           <Button onClick={toggleMvu}>✨ 启用 MVU 变量系统</Button>
         </div>
       </div>
@@ -996,8 +996,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-white">MVU 变量系统</h2>
-            <p className="text-sm text-slate-400 mt-1">schema.ts · initvar.yaml · 更新规则 · EJS 配置</p>
+            <h2 className="text-xl font-bold text-[var(--text-color)]">MVU 变量系统</h2>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-1">schema.ts · initvar.yaml · 更新规则 · EJS 配置</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={toggleMode} title="切换到小白模式">
@@ -1008,11 +1008,11 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-4 border-b border-slate-700">
+        <div className="flex gap-1 mb-4 border-b border-[var(--color-border-default)]">
           {(['schema', 'updateRules', 'ejs', 'output'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-[1px] ${
-                activeTab === tab ? 'border-primary-tint text-primary-bright' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                activeTab === tab ? 'border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
               {{ schema: '📐 Schema', updateRules: '📋 更新规则', ejs: '⚡ EJS', output: '📤 输出' }[tab]}
             </button>
           ))}
@@ -1025,16 +1025,16 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
               {mvu.schemaSections.map((s, i) => (
                 <button key={i} onClick={() => setSelectedSection(i)}
                   className={`px-3 py-1 text-xs rounded-lg border transition-colors ${
-                    i === selectedSection ? 'bg-primary-tint-strong border-primary-tint text-primary-bright' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`}>
+                    i === selectedSection ? 'bg-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[var(--input-border)]'}`}>
                   {s.name}
-                  {s.variables.length > 0 && <span className="ml-1 text-[10px] text-slate-500">({s.variables.length})</span>}
+                  {s.variables.length > 0 && <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">({s.variables.length})</span>}
                 </button>
               ))}
               <Button variant="ghost" size="sm" onClick={addSection}>+ 新分区</Button>
             </div>
 
             {section && (
-              <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4 space-y-3">
+              <div className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
                 <div className="flex items-center gap-3">
                   <TextInput label="分区名称" value={section.name} onChange={(e) => updateSection(selectedSection, { name: e.target.value })} placeholder="例如：角色、世界、主角" />
                   {mvu.schemaSections.length > 1 && <Button variant="danger" size="sm" onClick={() => removeSection(selectedSection)}>删除分区</Button>}
@@ -1042,23 +1042,23 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-300">变量定义</span>
+                    <span className="text-sm font-medium text-[var(--color-text-secondary)]">变量定义</span>
                     <Button variant="secondary" size="sm" onClick={() => addVariable(selectedSection)}>+ 添加变量</Button>
                   </div>
-                  {section.variables.length === 0 && <p className="text-xs text-slate-500 py-4 text-center">暂无变量</p>}
+                  {section.variables.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">暂无变量</p>}
                   {section.variables.map((v, vi) => (
-                    <div key={vi} className="rounded-lg border border-slate-700/50 bg-slate-900/30 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-slate-800/50" onClick={() => toggleExpanded(v.path)}>
+                    <div key={vi} className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)] overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)]" onClick={() => toggleExpanded(v.path)}>
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-xs text-slate-500">{expandedVars.has(v.path) ? '▼' : '▶'}</span>
-                          <span className="text-sm font-mono text-slate-200 truncate">{v.path || '(未命名变量)'}</span>
-                          {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400">{v.prefix}前缀</span>}
-                          <span className="text-[10px] text-slate-500 bg-slate-700/50 px-1.5 py-0.5 rounded">{v.zodType.replace(/\(.*\)/, '(...)')}</span>
+                          <span className="text-xs text-[var(--color-text-muted)]">{expandedVars.has(v.path) ? '▼' : '▶'}</span>
+                          <span className="text-sm font-mono text-[var(--text-color)] truncate">{v.path || '(未命名变量)'}</span>
+                          {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)]">{v.prefix}前缀</span>}
+                          <span className="text-[10px] text-[var(--color-text-muted)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] px-1.5 py-0.5 rounded">{v.zodType.replace(/\(.*\)/, '(...)')}</span>
                         </div>
                         <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); removeVariable(selectedSection, vi); }}>×</Button>
                       </div>
                       {expandedVars.has(v.path) && (
-                        <div className="px-3 pb-3 space-y-2 border-t border-slate-700/30 pt-2">
+                        <div className="px-3 pb-3 space-y-2 border-t border-[color-mix(in_srgb,var(--color-border-default)_30%,transparent)] pt-2">
                           <div className="grid grid-cols-2 gap-2">
                             <div><label className={labelCls}>变量路径</label><input value={v.path} onChange={(e) => updateVariable(selectedSection, vi, { path: e.target.value })} placeholder="角色.好感度" className={fieldCls} /></div>
                             <div><label className={labelCls}>Zod 类型</label><select value={v.zodType} onChange={(e) => updateVariable(selectedSection, vi, { zodType: e.target.value })} className={fieldCls}>{ZOD_TYPE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
@@ -1070,8 +1070,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                           <div><label className={labelCls}>描述</label><input value={v.description} onChange={(e) => updateVariable(selectedSection, vi, { description: e.target.value })} placeholder="变量用途说明" className={fieldCls} /></div>
                           {v.zodType === 'z.coerce.number()' && (
                             <div className="grid grid-cols-2 gap-2">
-                              <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => updateVariable(selectedSection, vi, { range: { min: Number(e.target.value), max: v.range?.max ?? 100 } })} className={fieldCls} /></div>
-                              <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => updateVariable(selectedSection, vi, { range: { min: v.range?.min ?? 0, max: Number(e.target.value) } })} className={fieldCls} /></div>
+                              <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: Number.isNaN(parsed) ? (v.range?.min ?? 0) : parsed, max: v.range?.max ?? 100 } }); }} className={fieldCls} /></div>
+                              <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: v.range?.min ?? 0, max: Number.isNaN(parsed) ? (v.range?.max ?? 100) : parsed } }); }} className={fieldCls} /></div>
                             </div>
                           )}
                           {v.zodType.startsWith('z.enum(') && (
@@ -1091,14 +1091,14 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         {activeTab === 'updateRules' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-400">告诉 AI 如何更新变量。自明变量不需写规则。</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">告诉 AI 如何更新变量。自明变量不需写规则。</p>
               <Button variant="secondary" size="sm" onClick={addUpdateRule}>+ 添加规则</Button>
             </div>
 
             {/* Auto-suggest: variables without rules */}
             {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).length > 0 && (
-              <div className="rounded-lg border border-amber-700/30 bg-amber-950/10 p-3">
-                <p className="text-xs text-amber-400/80 mb-2">💡 以下变量尚无更新规则：</p>
+              <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_10%,transparent)] p-3">
+                <p className="text-xs text-[var(--color-status-warning)] mb-2">💡 以下变量尚无更新规则：</p>
                 <div className="flex flex-wrap gap-1.5">
                   {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).map(v => (
                     <button
@@ -1114,7 +1114,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                         };
                         onChange({ ...mvu, updateRules: [...mvu.updateRules, newRule] });
                       }}
-                      className="text-[11px] px-2 py-1 rounded border border-amber-600/40 text-amber-300 hover:bg-amber-900/20 transition-colors"
+                      className="text-[11px] px-2 py-1 rounded border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)] hover:bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] transition-colors"
                     >
                       + {v.path}
                     </button>
@@ -1123,10 +1123,10 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
               </div>
             )}
 
-            {mvu.updateRules.length === 0 && <p className="text-xs text-slate-500 py-8 text-center">暂无更新规则</p>}
+            {mvu.updateRules.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-8 text-center">暂无更新规则</p>}
             {mvu.updateRules.map((rule, ri) => (
-              <div key={ri} className="rounded-xl border border-slate-700 bg-slate-800/50 p-4 space-y-3">
-                <div className="flex items-center justify-between"><span className="text-sm font-mono text-primary-bright">{rule.path || '(新规则)'}</span><Button variant="danger" size="sm" onClick={() => removeUpdateRule(ri)}>×</Button></div>
+              <div key={ri} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
+                <div className="flex items-center justify-between"><span className="text-sm font-mono text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]">{rule.path || '(新规则)'}</span><Button variant="danger" size="sm" onClick={() => removeUpdateRule(ri)}>×</Button></div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={labelCls}>变量路径</label>
@@ -1165,7 +1165,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                           updateUpdateRule(ri, { check: [...existing, ...preset.check] });
                         }
                         e.target.value = '';
-                      }} className="text-[11px] rounded border border-slate-600 bg-slate-800 px-1.5 py-0.5 text-slate-300">
+                      }} className="text-[11px] rounded border border-[var(--input-border)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 text-[var(--color-text-secondary)]">
                         <option value="">预设规则...</option>
                         {CHECK_RULE_PRESETS.filter(p => rule.type ? p.type === rule.type : true).map(p => (
                           <option key={p.label} value={p.label}>{p.label}</option>
@@ -1187,13 +1187,13 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         {activeTab === 'ejs' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-400">配置世界书条目的 EJS 动态渲染。</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">配置世界书条目的 EJS 动态渲染。</p>
               <Button variant="secondary" size="sm" onClick={addEjsConfig}>+ 添加 EJS 配置</Button>
             </div>
-            {mvu.ejsConfigs.length === 0 && <p className="text-xs text-slate-500 py-8 text-center">暂无 EJS 配置</p>}
+            {mvu.ejsConfigs.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-8 text-center">暂无 EJS 配置</p>}
             {mvu.ejsConfigs.map((cfg, ci) => (
-              <div key={ci} className="rounded-xl border border-slate-700 bg-slate-800/50 p-4 space-y-3">
-                <div className="flex items-center justify-between"><span className="text-sm font-mono text-emerald-300">EJS 配置 #{ci + 1}</span><Button variant="danger" size="sm" onClick={() => removeEjsConfig(ci)}>×</Button></div>
+              <div key={ci} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
+                <div className="flex items-center justify-between"><span className="text-sm font-mono text-[var(--color-status-success)]">EJS 配置 #{ci + 1}</span><Button variant="danger" size="sm" onClick={() => removeEjsConfig(ci)}>×</Button></div>
                 <div><label className={labelCls}>关联世界书条目</label><select value={cfg.entryId} onChange={(e) => updateEjsConfig(ci, { entryId: e.target.value })} className={fieldCls}><option value="">-- 选择条目 --</option>{lorebookEntries.map(e => <option key={e.id} value={e.id}>{e.name || e.comment || `条目 ${e.id}`}</option>)}</select></div>
                 <div><label className={labelCls}>复杂度</label><select value={cfg.complexity} onChange={(e) => updateEjsConfig(ci, { complexity: e.target.value as EjsEntryConfig['complexity'] })} className={fieldCls}>{EJS_COMPLEXITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}</select></div>
                 <div><label className={labelCls}>{cfg.complexity === '显隐' ? '@@if 条件表达式' : cfg.complexity === '段落控制' ? 'if/else 条件表达式' : 'EJS 模板代码'}</label><TextArea value={cfg.condition} onChange={(e) => updateEjsConfig(ci, { condition: e.target.value })} placeholder={cfg.complexity === '显隐' ? 'current_location?.includes("万剑山")' : cfg.complexity === '段落控制' ? 'affection >= 60' : '<%= variable %>'} rows={cfg.complexity === '动态文本' ? 4 : 2} /></div>
@@ -1207,8 +1207,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                       return (
                         <label key={varName} className={`text-[11px] px-2 py-1 rounded border cursor-pointer transition-colors select-none ${
                           isChecked
-                            ? 'border-emerald-500/50 bg-emerald-900/30 text-emerald-300'
-                            : 'border-slate-600/50 text-slate-400 hover:border-slate-500'
+                            ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
+                            : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
                         }`}>
                           <input
                             type="checkbox"
@@ -1227,7 +1227,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                       );
                     })}
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">这些变量名将在 EJS 预处理中通过 define() 注册</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1">这些变量名将在 EJS 预处理中通过 define() 注册</p>
                 </div>
               </div>
             ))}
@@ -1237,12 +1237,12 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         {/* Output Tab */}
         {activeTab === 'output' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between"><p className="text-sm text-slate-400">预览生成的 MVU 文件内容（修改变量后自动同步更新）。</p><Button onClick={generateAll}>🔄 强制重新生成</Button></div>
-            <details className="rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 text-sm font-medium text-primary-bright">📐 schema.ts</summary><pre className="px-4 pb-3 text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.schemaTsContent || '(请先添加变量分区和变量)'}</pre></details>
-            <details className="rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 text-sm font-medium text-amber-300">📋 initvar.yaml</summary><pre className="px-4 pb-3 text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.initvarYamlContent || '(请先添加变量分区和变量)'}</pre></details>
-            <details className="rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 text-sm font-medium text-emerald-300">📋 变量更新规则.yaml</summary><pre className="px-4 pb-3 text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.updateRulesYamlContent || '(请先添加更新规则)'}</pre></details>
-            <details className="rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 text-sm font-medium text-teal-300">⚡ EJS 预处理</summary><pre className="px-4 pb-3 text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.ejsPreprocessContent || '(未配置 EJS 条目或使用的变量为空)'}</pre></details>
-            {mvu.schemaTsContent && <details className="rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 text-sm font-medium text-purple-300">🔧 Zod.txt (SillyTavern 运行时)</summary><pre className="px-4 pb-3 text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{buildZodTxt(mvu.schemaTsContent)}</pre></details>}
+            <div className="flex items-center justify-between"><p className="text-sm text-[var(--color-text-secondary)]">预览生成的 MVU 文件内容（修改变量后自动同步更新）。</p><Button onClick={generateAll}>🔄 强制重新生成</Button></div>
+            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]">📐 schema.ts</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.schemaTsContent || '(请先添加变量分区和变量)'}</pre></details>
+            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-status-warning)]">📋 initvar.yaml</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.initvarYamlContent || '(请先添加变量分区和变量)'}</pre></details>
+            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-status-success)]">📋 变量更新规则.yaml</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.updateRulesYamlContent || '(请先添加更新规则)'}</pre></details>
+            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-info)]">⚡ EJS 预处理</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.ejsPreprocessContent || '(未配置 EJS 条目或使用的变量为空)'}</pre></details>
+            {mvu.schemaTsContent && <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-primary)]">🔧 Zod.txt (SillyTavern 运行时)</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{buildZodTxt(mvu.schemaTsContent)}</pre></details>}
           </div>
         )}
       </div>
@@ -1260,9 +1260,9 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-white">MVU 变量系统</h2>
-            <p className="text-sm text-slate-400 mt-1">
-              <span className="text-emerald-400">小白模式</span> — 预设模板 + AI 辅助，无需懂代码
+            <h2 className="text-xl font-bold text-[var(--text-color)]">MVU 变量系统</h2>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+              <span className="text-[var(--color-status-success)]">小白模式</span> — 预设模板 + AI 辅助，无需懂代码
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1274,31 +1274,31 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         </div>
 
         {/* Step 1: Choose template */}
-        <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-4 mb-4">
-          <h3 className="text-sm font-bold text-emerald-300 mb-3">📋 第一步：选择场景模板</h3>
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] p-4 mb-4">
+          <h3 className="text-sm font-bold text-[var(--color-status-success)] mb-3">📋 第一步：选择场景模板</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {BEGINNER_TEMPLATES.map(tmpl => (
               <button
                 key={tmpl.id}
                 onClick={() => handleApplyTemplate(tmpl.id)}
-                className={`rounded-xl border p-3 text-left transition-all hover:border-emerald-500/50 ${
+                className={`rounded-xl border p-3 text-left transition-all hover:border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] ${
                   selectedTemplate === tmpl.id
-                    ? 'border-emerald-500 bg-emerald-900/30'
-                    : 'border-slate-700 bg-slate-800/50'
+                    ? 'border-[var(--color-status-success)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)]'
+                    : 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)]'
                 }`}
               >
                 <div className="text-2xl mb-1">{tmpl.icon}</div>
-                <div className="text-sm font-medium text-slate-200">{tmpl.name}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{tmpl.description}</div>
+                <div className="text-sm font-medium text-[var(--text-color)]">{tmpl.name}</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{tmpl.description}</div>
               </button>
             ))}
           </div>
         </div>
 
         {/* Step 2: AI generate or manual tweak */}
-        <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4 mb-4">
-          <h3 className="text-sm font-bold text-amber-300 mb-3">🤖 第二步：AI 生成（可选）</h3>
-          <p className="text-xs text-amber-400/60 mb-2">
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] p-4 mb-4">
+          <h3 className="text-sm font-bold text-[var(--color-status-warning)] mb-3">🤖 第二步：AI 生成（可选）</h3>
+          <p className="text-xs text-[var(--color-status-warning)] mb-2">
             用自然语言描述你想要的变量系统，AI 会自动生成。例如："我想追踪角色好感度、当前情绪、以及两人的关系阶段"
           </p>
           <div className="flex gap-2">
@@ -1312,8 +1312,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
               {aiGenerating ? '⏳ 生成中...' : '✨ AI 生成'}
             </Button>
           </div>
-          <div className="mt-3 pt-3 border-t border-amber-700/20">
-            <p className="text-xs text-amber-400/60 mb-2">
+          <div className="mt-3 pt-3 border-t border-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)]">
+            <p className="text-xs text-[var(--color-status-warning)] mb-2">
               多角色卡？可直接为每个角色套用纯爱 / NTR / 双路线模板，并统一生成阶段轴。
             </p>
             <Button variant="secondary" size="sm" onClick={() => setShowMultiCharModal(true)}>
@@ -1324,9 +1324,9 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
         {/* Step 3: Variable cards */}
         {hasVariables && (
-          <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4 mb-4">
+          <div className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-200">📐 变量列表 ({totalVars}个)</h3>
+              <h3 className="text-sm font-bold text-[var(--text-color)]">📐 变量列表 ({totalVars}个)</h3>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={addSection}>+ 新分区</Button>
               </div>
@@ -1338,7 +1338,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                   <input
                     value={section.name}
                     onChange={(e) => updateSection(si, { name: e.target.value })}
-                    className="text-sm font-medium text-primary-bright bg-transparent border-b border-transparent hover:border-primary-tint focus:border-primary-tint focus:outline-none px-1"
+                    className="text-sm font-medium text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))] bg-transparent border-b border-transparent hover:border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] focus:border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] focus:outline-none px-1"
                     style={{ width: `${Math.max(4, section.name.length + 2)}ch` }}
                   />
                   {mvu.schemaSections.length > 1 && (
@@ -1351,18 +1351,18 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                     const isNumber = v.zodType === 'z.coerce.number()';
                     const isEnum = v.zodType.startsWith('z.enum(');
                     const typeLabel = isNumber ? '数字' : isEnum ? '枚举' : '字符串';
-                    const typeBadgeColor = isNumber ? 'bg-emerald-900/40 text-emerald-400' : isEnum ? 'bg-violet-900/40 text-violet-400' : 'bg-sky-900/40 text-sky-400';
+                    const typeBadgeColor = isNumber ? 'bg-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)] text-[var(--color-status-success)]' : isEnum ? 'bg-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[var(--color-primary)]' : 'bg-[color-mix(in_srgb,var(--color-info)_40%,transparent)] text-[var(--color-info)]';
                     return (
-                      <div key={vi} className="rounded-lg border border-slate-700/50 bg-slate-900/30 overflow-hidden">
+                      <div key={vi} className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)] overflow-hidden">
                         {/* Collapsed row */}
                         <div
-                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] transition-colors"
                           onClick={() => toggleExpanded(v.path)}
                         >
-                          <span className="text-[10px] text-slate-500">{isExpanded ? '▼' : '▶'}</span>
-                          <span className="text-sm font-mono text-slate-200 truncate flex-1 min-w-0">{v.path.split('.').pop()}</span>
+                          <span className="text-[10px] text-[var(--color-text-muted)]">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="text-sm font-mono text-[var(--text-color)] truncate flex-1 min-w-0">{v.path.split('.').pop()}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${typeBadgeColor}`}>{typeLabel}</span>
-                          {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400">{v.prefix}前缀</span>}
+                          {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)]">{v.prefix}前缀</span>}
                           <input
                             value={String(v.initialValue ?? '')}
                             onChange={(e) => {
@@ -1373,14 +1373,14 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                               }
                               updateVariable(si, vi, { initialValue: val });
                             }}
-                            className="w-16 text-center rounded border border-slate-600 bg-slate-800 text-xs text-primary-bright py-0.5"
+                            className="w-16 text-center rounded border border-[var(--input-border)] bg-[var(--color-surface-raised)] text-xs text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))] py-0.5"
                             onClick={(e) => e.stopPropagation()}
                           />
                           <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); removeVariable(si, vi); }}>×</Button>
                         </div>
                         {/* Expanded editor */}
                         {isExpanded && (
-                          <div className="px-3 pb-3 space-y-2 border-t border-slate-700/30 pt-2">
+                          <div className="px-3 pb-3 space-y-2 border-t border-[color-mix(in_srgb,var(--color-border-default)_30%,transparent)] pt-2">
                             <div className="grid grid-cols-2 gap-2">
                               <div><label className={labelCls}>变量路径</label><input value={v.path} onChange={(e) => updateVariable(si, vi, { path: e.target.value })} placeholder="角色.好感度" className={fieldCls} /></div>
                               <div><label className={labelCls}>Zod 类型</label><select value={v.zodType} onChange={(e) => updateVariable(si, vi, { zodType: e.target.value })} className={fieldCls}>{ZOD_TYPE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
@@ -1391,8 +1391,8 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                             </div>
                             {isNumber && (
                               <div className="grid grid-cols-2 gap-2">
-                                <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => updateVariable(si, vi, { range: { min: Number(e.target.value), max: v.range?.max ?? 100 } })} className={fieldCls} /></div>
-                                <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => updateVariable(si, vi, { range: { min: v.range?.min ?? 0, max: Number(e.target.value) } })} className={fieldCls} /></div>
+                                <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(si, vi, { range: { min: Number.isNaN(parsed) ? (v.range?.min ?? 0) : parsed, max: v.range?.max ?? 100 } }); }} className={fieldCls} /></div>
+                                <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(si, vi, { range: { min: v.range?.min ?? 0, max: Number.isNaN(parsed) ? (v.range?.max ?? 100) : parsed } }); }} className={fieldCls} /></div>
                               </div>
                             )}
                             {isEnum && (
@@ -1411,16 +1411,16 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
             ))}
 
             {/* Variable presets library */}
-            <div className="mt-3 pt-3 border-t border-slate-700/50">
-              <details className="rounded-lg border border-emerald-700/30 bg-emerald-950/10">
-                <summary className="px-3 py-2 cursor-pointer hover:bg-emerald-900/10 text-xs font-medium text-emerald-300 flex items-center gap-1.5">
+            <div className="mt-3 pt-3 border-t border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)]">
+              <details className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_10%,transparent)]">
+                <summary className="px-3 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-status-success)_10%,transparent)] text-xs font-medium text-[var(--color-status-success)] flex items-center gap-1.5">
                   📚 一键添加常用变量
-                  <span className="text-emerald-500/60">点击展开</span>
+                  <span className="text-[var(--color-status-success)]">点击展开</span>
                 </summary>
                 <div className="px-3 pb-3 space-y-2">
                   {VARIABLE_PRESETS.map(presetCat => (
                     <div key={presetCat.category}>
-                      <div className="text-[10px] text-slate-500 mb-1">{presetCat.category}</div>
+                      <div className="text-[10px] text-[var(--color-text-muted)] mb-1">{presetCat.category}</div>
                       <div className="flex flex-wrap gap-1">
                         {presetCat.items.map(preset => {
                           // 检查该变量路径是否已存在
@@ -1435,13 +1435,13 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                               disabled={alreadyExists}
                               className={`text-[11px] px-2 py-1 rounded border transition-colors ${
                                 alreadyExists
-                                  ? 'border-slate-700/30 text-slate-600 cursor-not-allowed'
-                                  : 'border-slate-600/50 text-slate-300 hover:border-emerald-500/50 hover:text-emerald-300 hover:bg-emerald-900/20'
+                                  ? 'border-[color-mix(in_srgb,var(--color-border-default)_30%,transparent)] text-[var(--color-text-muted)] cursor-not-allowed'
+                                  : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] hover:text-[var(--color-status-success)] hover:bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)]'
                               }`}
                               title={alreadyExists ? '已存在' : `添加 ${preset.path}`}
                             >
                               {preset.path.split('.').pop()}
-                              {alreadyExists && <span className="ml-0.5 text-slate-600">✓</span>}
+                              {alreadyExists && <span className="ml-0.5 text-[var(--color-text-muted)]">✓</span>}
                             </button>
                           );
                         })}
@@ -1455,14 +1455,14 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         )}
 
         {/* Step 4: Status bar styling & preview */}
-        <div className="rounded-xl border border-purple-700/40 bg-purple-950/20 p-4 mb-4">
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] p-4 mb-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-purple-300">🎨 状态栏美化</h3>
-                <span className="rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[10px] text-purple-200">{statusBarModeLabel}</span>
+                <h3 className="text-sm font-bold text-[var(--color-primary)]">🎨 状态栏美化</h3>
+                <span className="rounded border border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] px-1.5 py-0.5 text-[10px] text-[var(--color-primary)]">{statusBarModeLabel}</span>
               </div>
-              <p className="mt-1 text-[10px] text-purple-300/60">{statusBarModeHint}</p>
+              <p className="mt-1 text-[10px] text-[var(--color-primary)]">{statusBarModeHint}</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={regenerateStatusBar} title="根据当前变量重新生成">
@@ -1476,7 +1476,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
           {/* Template selector */}
           <div className="mb-3">
-            <label className="text-xs text-slate-400 mb-1.5 block">选择风格模板</label>
+            <label className="text-xs text-[var(--color-text-secondary)] mb-1.5 block">选择风格模板</label>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
               {STATUS_BAR_TEMPLATES.map(tmpl => (
                 <button
@@ -1484,19 +1484,19 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                   onClick={() => applyStatusBarTemplate(tmpl.id)}
                   className={`rounded-lg border p-2 text-center transition-all ${
                     statusBarStyle === tmpl.id
-                      ? 'border-purple-500 bg-purple-900/40'
-                      : 'border-slate-700 bg-slate-800/50 hover:border-purple-500/40'
+                      ? 'border-[var(--color-primary)] bg-[color-mix(in_srgb,var(--color-primary)_40%,transparent)]'
+                      : 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)]'
                   }`}
                   title={tmpl.description}
                 >
                   <div className="text-lg">{tmpl.icon}</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">{tmpl.name}</div>
+                  <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">{tmpl.name}</div>
                 </button>
               ))}
               {mvu.statusBarStyle === 'ai-custom' && (
-                <div className="rounded-lg border border-purple-500 bg-purple-900/40 p-2 text-center">
+                <div className="rounded-lg border border-[var(--color-primary)] bg-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] p-2 text-center">
                   <div className="text-lg">🤖</div>
-                  <div className="text-[10px] text-purple-300 mt-0.5">AI 定制</div>
+                  <div className="text-[10px] text-[var(--color-primary)] mt-0.5">AI 定制</div>
                 </div>
               )}
             </div>
@@ -1504,12 +1504,12 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
           {/* Visual Novel 图片配置 - 仅在选择visual-novel模板时显示 */}
           {statusBarStyle === 'visual-novel' && (
-            <div className="mb-3 rounded-lg border border-pink-700/30 bg-pink-950/10 p-3">
-              <label className="text-xs text-pink-400/80 mb-1.5 block">🖼️ 图片配置（可选，留空使用占位图）</label>
-              <p className="text-[10px] text-pink-300/50 mb-2">外部图片依赖网络环境，导入 SillyTavern 后可能因跨域或资源失效而无法显示。</p>
+            <div className="mb-3 rounded-lg border border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] p-3">
+              <label className="text-xs text-[var(--color-primary)] mb-1.5 block">🖼️ 图片配置（可选，留空使用占位图）</label>
+              <p className="text-[10px] text-[var(--color-primary)] mb-2">外部图片依赖网络环境，导入 SillyTavern 后可能因跨域或资源失效而无法显示。</p>
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-0.5 block">背景图 URL</label>
+                  <label className="text-[10px] text-[var(--color-text-muted)] mb-0.5 block">背景图 URL</label>
                   <input
                     value={bgImageUrl}
                     onChange={(e) => {
@@ -1523,7 +1523,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-0.5 block">角色立绘 URL</label>
+                  <label className="text-[10px] text-[var(--color-text-muted)] mb-0.5 block">角色立绘 URL</label>
                   <input
                     value={tachieImageUrl}
                     onChange={(e) => {
@@ -1537,7 +1537,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500 mb-0.5 block">头像 URL</label>
+                  <label className="text-[10px] text-[var(--color-text-muted)] mb-0.5 block">头像 URL</label>
                   <input
                     value={avatarImageUrl}
                     onChange={(e) => {
@@ -1556,7 +1556,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
           {/* Title input */}
           <div className="mb-3">
-            <label className="text-xs text-slate-400 mb-1 block">状态栏标题</label>
+            <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">状态栏标题</label>
             <input
               value={statusBarTitle}
               onChange={(e) => {
@@ -1572,9 +1572,9 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
           </div>
 
           {/* AI generate */}
-          <div className="mb-3 rounded-lg border border-amber-700/30 bg-amber-950/10 p-3">
-            <label className="text-xs text-amber-400/80 mb-1.5 block">🤖 AI 生成状态栏（可选）</label>
-            <p className="text-[10px] text-amber-400/50 mb-2">
+          <div className="mb-3 rounded-lg border border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_10%,transparent)] p-3">
+            <label className="text-xs text-[var(--color-status-warning)] mb-1.5 block">🤖 AI 生成状态栏（可选）</label>
+            <p className="text-[10px] text-[var(--color-status-warning)] mb-2">
               描述你想要的状态栏风格，AI 会根据当前变量生成。约束已内置：变量必须用 {'{{getvar::stat_data.路径}}'} 宏读取
             </p>
             <div className="flex gap-2">
@@ -1596,9 +1596,9 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
           </div>
 
           {/* AI modify */}
-          <div className="mb-3 rounded-lg border border-teal-700/30 bg-teal-950/10 p-3">
-            <label className="text-xs text-teal-400/80 mb-1.5 block">✏️ AI 修改状态栏（可选）</label>
-            <p className="text-[10px] text-teal-400/50 mb-2">
+          <div className="mb-3 rounded-lg border border-[color-mix(in_srgb,var(--color-info)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-info)_10%,transparent)] p-3">
+            <label className="text-xs text-[var(--color-info)] mb-1.5 block">✏️ AI 修改状态栏（可选）</label>
+            <p className="text-[10px] text-[var(--color-info)] mb-2">
               用自然语言描述想怎么改当前状态栏，AI 会在保留变量宏的基础上调整样式和布局
             </p>
             <div className="flex gap-2">
@@ -1622,39 +1622,39 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
           {/* Preview or Code view */}
           {showBarCode ? (
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">HTML 代码（可手动编辑）</label>
+              <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">HTML 代码（可手动编辑）</label>
               <textarea
                 value={mvu.statusBarHtml || statusBarHtml}
                 onChange={(e) => onChange({ ...mvu, statusBarHtml: e.target.value, statusBarStyle: 'ai-custom' })}
                 rows={10}
-                className="w-full rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-300 font-mono"
+                className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1 text-xs text-[var(--color-text-secondary)] font-mono"
                 placeholder="状态栏 HTML 代码..."
               />
-              <p className="text-[10px] text-slate-500 mt-1">
-                提示：编辑时用 <code className="text-amber-400">{'{{getvar::stat_data.路径}}'}</code> 宏读取变量，导出时会自动转换为 SillyTavern 可显示的宏。
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                提示：编辑时用 <code className="text-[var(--color-status-warning)]">{'{{getvar::stat_data.路径}}'}</code> 宏读取变量，导出时会自动转换为 SillyTavern 可显示的宏。
               </p>
             </div>
           ) : (
-            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+            <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_40%,transparent)] p-4">
               <div className="w-full" dangerouslySetInnerHTML={{ __html: statusBarPreviewHtml }} />
             </div>
           )}
 
-          <p className="text-[10px] text-purple-400/60 mt-3 text-center">
+          <p className="text-[10px] text-[var(--color-primary)] mt-3 text-center">
             导出时状态栏 HTML 会通过 regex_scripts 替换 first_mes 中的占位符，在 SillyTavern 前端显示
           </p>
         </div>
 
         {/* Generated code preview — auto-synced */}
         {mvu.schemaTsContent && (
-          <details className="rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden">
-            <summary className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 text-sm font-medium text-slate-400">
+          <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden">
+            <summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-text-secondary)]">
               🔧 查看生成的代码 (schema.ts + initvar.yaml + 更新规则) — 自动同步
             </summary>
             <div className="px-4 pb-3 space-y-2">
-              <pre className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded max-h-[200px] overflow-y-auto font-mono whitespace-pre-wrap">{mvu.schemaTsContent || '(空)'}</pre>
-              <pre className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded max-h-[200px] overflow-y-auto font-mono whitespace-pre-wrap">{mvu.initvarYamlContent || '(空)'}</pre>
-              <pre className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded max-h-[200px] overflow-y-auto font-mono whitespace-pre-wrap">{mvu.updateRulesYamlContent || '(空)'}</pre>
+              <pre className="text-xs text-[var(--color-text-secondary)] bg-[color-mix(in_srgb,var(--input-bg)_50%,transparent)] p-2 rounded max-h-[200px] overflow-y-auto font-mono whitespace-pre-wrap">{mvu.schemaTsContent || '(空)'}</pre>
+              <pre className="text-xs text-[var(--color-text-secondary)] bg-[color-mix(in_srgb,var(--input-bg)_50%,transparent)] p-2 rounded max-h-[200px] overflow-y-auto font-mono whitespace-pre-wrap">{mvu.initvarYamlContent || '(空)'}</pre>
+              <pre className="text-xs text-[var(--color-text-secondary)] bg-[color-mix(in_srgb,var(--input-bg)_50%,transparent)] p-2 rounded max-h-[200px] overflow-y-auto font-mono whitespace-pre-wrap">{mvu.updateRulesYamlContent || '(空)'}</pre>
             </div>
           </details>
         )}

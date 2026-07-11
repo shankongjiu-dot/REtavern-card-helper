@@ -43,7 +43,8 @@ export function AppShell() {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ backgroundColor: 'var(--color-surface-overlay)' }}
           onClick={closeSidebar}
         />
       )}
@@ -62,7 +63,7 @@ export function AppShell() {
         <div className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 glass-header">
           <button
             onClick={toggleSidebar}
-            className="p-1.5 -ml-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 -ml-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)] transition-colors"
             aria-label={t('sidebar.openMenu')}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

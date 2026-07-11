@@ -17,6 +17,11 @@ import {
 import type { WizardDraftRecord } from '../db/database';
 import { FolderOpen, Trash2, Edit2, FileText } from 'lucide-react';
 
+const borderColor = 'var(--color-border-default)';
+const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
+const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
+const cardBgSemiTransparent = 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.4)';
+
 export function DraftsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -90,25 +95,25 @@ export function DraftsPage() {
     <div className="animate-fade-in max-w-5xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-2">
         <FileText size={24} className="text-primary" />
-        <h1 className="text-2xl font-bold text-white">{t('wizard.draftBox')}</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-color)' }}>{t('wizard.draftBox')}</h1>
       </div>
-      <p className="text-sm text-slate-400 mb-6">{t('wizard.draftsDescription')}</p>
+      <p className="text-sm mb-6" style={{ color: mutedText }}>{t('wizard.draftsDescription')}</p>
 
       {drafts.length === 0 && !loading ? (
-        <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-12 text-center">
-          <FileText size={48} className="mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-400">{t('wizard.noDrafts')}</p>
+        <div className="rounded-xl border p-12 text-center" style={{ borderColor, backgroundColor: cardBgSemiTransparent }}>
+          <FileText size={48} className="mx-auto mb-4" style={{ color: faintText }} />
+          <p style={{ color: mutedText }}>{t('wizard.noDrafts')}</p>
           <Button variant="secondary" className="mt-4" onClick={() => navigate('/wizard')}>
             {t('wizard.createNewCard')}
           </Button>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--color-border-default)' }}>
-          <ul className="divide-y" style={{ borderColor: 'var(--color-border-default)' }}>
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor }}>
+          <ul className="divide-y" style={{ borderColor }}>
             {drafts.map((draft) => (
               <li
                 key={draft.id}
-                className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-white/5 transition-colors"
+                className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
               >
                 <div className="min-w-0 flex-1">
                   {editingId === draft.id ? (
@@ -133,7 +138,7 @@ export function DraftsPage() {
                       <div className="text-base font-medium truncate" style={{ color: 'var(--text-color)' }}>
                         {draft.name || t('wizard.unnamedDraft')}
                       </div>
-                      <div className="text-xs opacity-50 mt-1">
+                      <div className="text-xs mt-1" style={{ color: faintText }}>
                         {formatTime(draft.updatedAt)} · {t('wizard.stepLabel', { step: String(draft.currentStep) })}
                       </div>
                     </>
@@ -144,14 +149,15 @@ export function DraftsPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => startRename(draft)}
-                      className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                      className="p-2 rounded-lg transition-colors text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_8%,transparent)]"
                       title={t('wizard.renameDraft')}
                     >
                       <Edit2 size={16} />
                     </button>
                     <button
                       onClick={() => setDeletingId(draft.id)}
-                      className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                      className="p-2 rounded-lg transition-colors hover:bg-[color-mix(in_srgb,var(--color-status-danger)_12%,transparent)]"
+                      style={{ color: 'var(--color-status-danger)' }}
                       title={t('wizard.deleteDraft')}
                     >
                       <Trash2 size={16} />
@@ -174,7 +180,7 @@ export function DraftsPage() {
         title={t('wizard.deleteDraft')}
         maxWidth="max-w-md"
       >
-        <p className="text-sm text-slate-300 mb-6">{t('wizard.deleteDraftConfirm')}</p>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-color)' }}>{t('wizard.deleteDraftConfirm')}</p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setDeletingId(null)}>
             {t('common.cancel')}

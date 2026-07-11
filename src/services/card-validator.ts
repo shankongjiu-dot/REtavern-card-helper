@@ -1,12 +1,16 @@
 import { MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 
 /**
- * Card Validator - validates a card against SillyTavern Character Card V2 spec.
+ * Card Validator - validates a card against SillyTavern Character Card V2/V3 spec.
  *
  * V2 Spec: https://github.com/malfoyslastname/character-card-spec-v2
+ * V3 Spec: https://github.com/malfoyslastname/character-card-spec-v3
  *
  * Returns errors (blocking) and warnings (non-blocking).
  */
+
+const ACCEPTABLE_SPECS = ['chara_card_v2', 'chara_card_v3'];
+const ACCEPTABLE_SPEC_VERSIONS = ['2.0', '3.0'];
 
 interface ValidationResult {
   valid: boolean;
@@ -32,13 +36,13 @@ export function validateCard(card: Record<string, unknown>, options: ValidationO
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // ── V2 envelope validation ──────────────────────────────────────────────
-  if (!card.spec || card.spec !== 'chara_card_v2') {
-    errors.push('缺少 spec: "chara_card_v2"');
+  // ── Spec envelope validation (accept V2 and V3) ────────────────────────
+  if (!card.spec || !ACCEPTABLE_SPECS.includes(card.spec as string)) {
+    errors.push('缺少 spec: "chara_card_v2" 或 "chara_card_v3"');
   }
 
-  if (!card.spec_version || card.spec_version !== '2.0') {
-    errors.push('缺少 spec_version: "2.0"');
+  if (!card.spec_version || !ACCEPTABLE_SPEC_VERSIONS.includes(card.spec_version as string)) {
+    errors.push('缺少 spec_version: "2.0" 或 "3.0"');
   }
 
   const data = card.data as Record<string, unknown> | undefined;

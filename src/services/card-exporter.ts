@@ -69,6 +69,22 @@ const STATUS_BAR_PLACEHOLDER = '<StatusPlaceHolderImpl/>';
 /** Default creator notes used when draft.creator_notes is empty */
 const DEFAULT_CREATOR_NOTES = '本卡由「吟游手册」制作。\nhttps://tavern-card-helper.tavern-helper.workers.dev/';
 
+/**
+ * Escape a value for use as a single-quoted JS string literal embedded in EJS.
+ * Escapes backslash/quote/newline (so multi-line defaults don't break syntax)
+ * and neutralises the EJS close delimiter `%>` to prevent early tag termination.
+ */
+function escapeEjsJsString(s: unknown): string {
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/%>/g, '%\\>');
+}
+
 function buildFirstMessage(draft: WizardDraft): string {
   const base = draft.firstMessage || '';
   let result = base;
@@ -90,7 +106,7 @@ function buildFirstMessage(draft: WizardDraft): string {
             const boolVal = initVal === true || initVal === 'true';
             setvarCalls.push(`setvar('stat_data.${v.path}', ${boolVal});`);
           } else {
-            const escapedVal = String(initVal).replace(/'/g, "\\'");
+            const escapedVal = escapeEjsJsString(initVal);
             setvarCalls.push(`setvar('stat_data.${v.path}', '${escapedVal}');`);
           }
         }
@@ -152,6 +168,25 @@ export function findStagedLorebookEntryIndices(entries: LorebookEntry[]): Set<nu
   });
 
   return indices;
+}
+
+export function isProtectedLorebookEntry(entry: LorebookEntry, idx: number, stagedIndices: Set<number>): boolean {
+  const name = (entry.name || '').trim();
+  const comment = (entry.comment || '').trim();
+  return MVU_LOREBOOK_ENTRY_NAMES.includes(name) || MVU_LOREBOOK_ENTRY_NAMES.includes(comment) || stagedIndices.has(idx);
+}
+
+/** Returns the editable (non-protected) lorebook entries, accounting for staged mode. */
+export function editableLorebookEntries(draft: WizardDraft): LorebookEntry[] {
+  let stagedIndices = new Set<number>();
+  if (draft.stagedMode?.enabled) {
+    try {
+      stagedIndices = findStagedLorebookEntryIndices(draft.lorebookEntries || []);
+    } catch {
+      stagedIndices = new Set();
+    }
+  }
+  return (draft.lorebookEntries || []).filter((entry, idx) => !isProtectedLorebookEntry(entry, idx, stagedIndices));
 }
 
 function buildCardExtensions(draft: WizardDraft, zodScript?: string): Record<string, unknown> {
@@ -399,6 +434,8 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
 
   // MVU 未启用时，普通世界书条目中的 MVU 资产也应被过滤掉，避免污染未启用 MVU 的卡片。
   const mvuEnabled = Boolean(draft.mvu?.enabled && (draft.mvu.schemaTsContent || draft.mvu.schemaSections.length > 0));
+  // 过滤掉已不存在于当前世界书中的 entryIds，避免下次编辑时生成重复条目。
+  const validEntryIds = new Set(draft.lorebookEntries.map((e) => e.id));
 
   // ── Build character_book entries (V2 CharacterBook format) ─────────────
   // V2 spec fields go directly on the entry.
@@ -658,7 +695,7 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
         id: c.id || generateId(),
         name: c.name,
         description: c.description,
-        entryIds: c.entryIds || [],
+        entryIds: (c.entryIds || []).filter((id) => validEntryIds.has(id)),
       })),
     },
 
@@ -774,7 +811,7 @@ function reconstructMvuConfig(
       || MVU_LOREBOOK_ENTRY_NAMES.includes((e.comment as string) || '')
   );
 
-  let schemaTsContent = '';
+  const schemaTsContent = '';
   let initvarYamlContent = '';
   let updateRulesYamlContent = '';
   let ejsPreprocessContent = '';
@@ -808,7 +845,7 @@ function reconstructMvuConfig(
   for (const entry of rawEntries) {
     const content = (entry.content as string) || '';
     if (!content.includes('<%') && !content.includes('@@if') && !content.includes('getWorldInfo')) continue;
-    const entryId = (entry.id as string) || '';
+    const entryId = entry.id != null ? String(entry.id) : '';
     if (!entryId) continue;
 
     let complexity: EjsEntryConfig['complexity'];
@@ -874,10 +911,10 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
     characters = (meta.characters as unknown[]).map((c: unknown) => {
       const ch = c as Record<string, unknown>;
       return {
-        id: (ch.id as string) || generateId(),
+        id: String(ch.id ?? '') || generateId(),
         name: (ch.name as string) || '',
         description: (ch.description as string) || '',
-        entryIds: (ch.entryIds as string[]) || [],
+        entryIds: ((ch.entryIds as Array<string | number>) || []).map((id) => String(id ?? '')),
       };
     }) as WizardDraft['characters'];
   } else if (data.description) {
@@ -914,28 +951,49 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
     }
   );
 
+  let reconstructedEntryIds = new Set<string>();
   if (characters.length === 0) {
+    // 从自动生成的角色设定条目重建角色。主条目名为 "Name - 角色设定"；
+    // 长描述拆分后的续篇条目名为 "Name - 角色设定 (2)" 等，必须合并回同一角色。
     const generatedCharacterEntries = rawEntries.filter((e) => {
       const name = (e.name as string) || '';
-      return e.constant === true && name.endsWith(' - 角色设定') && typeof e.content === 'string';
+      return e.constant === true && /^.+ - 角色设定(\s+\(\d+\))?$/.test(name) && typeof e.content === 'string';
     });
 
-    characters = generatedCharacterEntries.map((e) => ({
-      id: generateId(),
-      name: ((e.name as string) || '').replace(/ - 角色设定$/, ''),
-      description: (e.content as string) || '',
-      entryIds: [(e.id as string) || generateId()],
-    }));
+    const entryGroups = new Map<string, Array<{ id: string; content: string; insertionOrder: number }>>();
+    for (const e of generatedCharacterEntries) {
+      const name = (e.name as string) || '';
+      const baseName = name.replace(/ - 角色设定(\s+\(\d+\))?$/, '');
+      const id = String(e.id ?? '') || generateId();
+      const insertionOrder = (e.insertion_order as number) ?? 0;
+      if (!entryGroups.has(baseName)) entryGroups.set(baseName, []);
+      entryGroups.get(baseName)!.push({ id, content: (e.content as string) || '', insertionOrder });
+    }
+
+    reconstructedEntryIds = new Set(
+      generatedCharacterEntries.map((e) => String(e.id ?? '')).filter(Boolean),
+    );
+
+    characters = Array.from(entryGroups.entries()).map(([baseName, groupEntries]) => {
+      const sorted = groupEntries.slice().sort((a, b) => a.insertionOrder - b.insertionOrder);
+      return {
+        id: generateId(),
+        name: baseName,
+        description: sorted.map((e) => e.content).join('\n\n'),
+        entryIds: sorted.map((e) => e.id),
+      };
+    });
   }
 
   return {
     cardName: (data.name as string) || (card.name as string) || '',
     characters,
     lorebookEntries: rawEntries
+      .filter((e) => !reconstructedEntryIds.has(String(e.id ?? '')))
       .map((e, i) => {
         const ext = (e.extensions || {}) as Record<string, unknown>;
         return {
-          id: (e.id as string) || generateId(),
+          id: String(e.id ?? '') || generateId(),
           keys: (e.keys as string[]) || [],
           secondary_keys: (e.secondary_keys as string[]) || [],
           content: (e.content as string) || '',

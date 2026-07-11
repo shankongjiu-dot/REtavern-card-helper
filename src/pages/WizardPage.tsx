@@ -26,6 +26,9 @@ import { findStagedLorebookEntryIndices } from '../services/card-exporter';
 import { useTranslation } from '../i18n/I18nContext';
 import { logger } from '../services/logger';
 
+const textPrimaryStyle = { color: 'var(--text-color)' };
+const textMutedStyle = { color: 'var(--color-text-muted)' };
+
 /** A single version in the character generation history */
 export interface CharacterVersion {
   id: string;
@@ -52,7 +55,20 @@ function syncCharacterEntries(
     for (const eid of c.entryIds ?? []) allCharEntryIds.add(eid);
   }
 
-  const userEntries = existingEntries.filter(e => !allCharEntryIds.has(e.id));
+  // Drop old auto-generated role-setting entries (including split chunks) for each
+  // named character so that re-syncing a long description doesn't leave stale
+  // "(2)" / "(3)" entries behind.
+  const roleEntryIdsToReplace = new Set<string>();
+  for (const c of characters) {
+    if (!c.name?.trim()) continue;
+    const prefix = t('wizard.roleSettingEntryName', { name: c.name });
+    for (const e of existingEntries) {
+      if (e.name.startsWith(prefix)) roleEntryIdsToReplace.add(e.id);
+    }
+  }
+
+  const syncExistingEntries = existingEntries.filter(e => !roleEntryIdsToReplace.has(e.id));
+  const userEntries = syncExistingEntries.filter(e => !allCharEntryIds.has(e.id));
 
   const newCharEntries: LorebookEntry[] = [];
   const updatedCharacters: WizardCharacter[] = [];
@@ -66,12 +82,21 @@ function syncCharacterEntries(
     const charEntryIds: string[] = [];
 
     if (char.description?.trim()) {
-      // Reuse existing entry ID if available
-      const existingId = char.entryIds?.find(id =>
-        existingEntries.find(e => e.id === id)
+      // Reuse existing entry ID if available; fallback to matching by name/comment
+      // so manually deleted duplicates don't cause brand-new entries to be created.
+      const expectedName = t('wizard.roleSettingEntryName', { name: char.name });
+      const expectedComment = t('wizard.roleSettingComment', { name: char.name });
+      const existingById = char.entryIds?.find(id =>
+        syncExistingEntries.find(e => e.id === id)
       );
+      const existingByName = existingById
+        ? undefined
+        : syncExistingEntries.find(
+            e => e.name === expectedName || e.comment === expectedComment
+          );
+      const existingId = existingById || existingByName?.id;
       const entryId = existingId || generateId();
-      const existing = existingEntries.find(e => e.id === entryId);
+      const existing = syncExistingEntries.find(e => e.id === entryId);
 
       // Split long content (>2000 chars) into multiple entries for better token management
       const content = char.description.trim();
@@ -149,8 +174,10 @@ function syncCharacterEntries(
     updatedCharacters.push({ ...char, entryIds: charEntryIds });
   }
 
+  // Ensure entries reused by name aren't also kept as user entries.
+  const reusedEntryIds = new Set(newCharEntries.map(e => e.id));
   return {
-    entries: [...newCharEntries, ...userEntries],
+    entries: [...newCharEntries, ...userEntries.filter(e => !reusedEntryIds.has(e.id))],
     characters: updatedCharacters,
   };
 }
@@ -193,8 +220,10 @@ export function WizardPage() {
   const { generateCharacterParsedStreaming, modifyCharacterDescription, polishSelection } = useAIGenerate();
   const { addToast } = useToast();
 
-  // ── Streaming chunk callback — set by CharacterEditor before generation starts ──
-  const streamingChunkCallbackRef = useRef<((chunk: string, fullText: string) => void) | null>(null);
+  // ── Streaming chunk callback map — each CharacterEditor registers its own
+  //    preview handler keyed by index, so single AND batch generation can route
+  //    chunks to the correct editor by looking up the index. ──────────────────
+  const streamingChunkCallbackRef = useRef<Map<number, (chunk: string, fullText: string) => void>>(new Map());
 
   // ── Character generation history ──────────────────────────────────────
   const [characterHistory, setCharacterHistory] = useState<Record<string, CharacterVersion[]>>({});
@@ -310,7 +339,7 @@ ${e.content || ''}`)
   }, [currentStep, injectCharacterEntries, goNext]);
 
   const handleSave = async () => {
-    const success = await saveCard(draftWithCharacterEntries);
+    const success = await saveCard(draft);
     if (success) {
       navigate('/library');
     }
@@ -405,7 +434,7 @@ ${e.content || ''}`)
         char.name,
         hint,
         (chunk, fullText) => {
-          streamingChunkCallbackRef.current?.(chunk, fullText);
+          streamingChunkCallbackRef.current.get(index)?.(chunk, fullText);
         },
         otherCharsContext || undefined,
         char.alignment || undefined,
@@ -498,7 +527,7 @@ ${e.content || ''}`)
             char.name,
             hint,
             (chunk, fullText) => {
-              streamingChunkCallbackRef.current?.(chunk, fullText);
+              streamingChunkCallbackRef.current.get(index)?.(chunk, fullText);
             },
             otherCharsContext || undefined,
             char.alignment || undefined,
@@ -732,8 +761,17 @@ ${e.content || ''}`)
             mvu={draft.mvu}
             lorebookEntries={draft.lorebookEntries}
             onApplyEntries={(newEntries) => {
+              const prefix = draft.stagedMode?.dispatcherPrefix?.trim() || '分阶段人设';
+              const dispatcherNames = new Set(
+                (draft.stagedMode?.characters || [])
+                  .map((c) => `${c.name?.trim() ?? ''}${prefix}`)
+                  .filter(Boolean)
+              );
+              const isStagedEntry = (comment: string) =>
+                [...dispatcherNames].some((dn) => comment === dn || comment.startsWith(`${dn}：`));
+              const cleaned = draft.lorebookEntries.filter((e) => !isStagedEntry(e.comment));
               const newNames = new Set(newEntries.map((e) => e.comment));
-              const filtered = draft.lorebookEntries.filter((e) => !newNames.has(e.comment));
+              const filtered = cleaned.filter((e) => !newNames.has(e.comment));
               updateDraft({ lorebookEntries: [...filtered, ...newEntries] });
             }}
             nsfw={draft.worldbookNsfw}
@@ -756,7 +794,7 @@ ${e.content || ''}`)
       case 7:
         return (
           <StepPolishExport
-            draft={draftWithCharacterEntries}
+            draft={draft}
             cardName={draft.cardName}
             characterDescriptions={characterDescriptions}
             worldbookContext={worldbookContext}
@@ -788,10 +826,10 @@ ${e.content || ''}`)
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-1">
+      <h1 className="text-2xl font-bold mb-1" style={textPrimaryStyle}>
         {isEditMode ? t('wizard.titleEdit') : t('wizard.titleCreate')}
       </h1>
-      <p className="text-sm text-slate-400 mb-6">
+      <p className="text-sm mb-6" style={textMutedStyle}>
         {isEditMode ? t('wizard.subtitleEdit') : t('wizard.subtitleCreate')}
       </p>
 

@@ -40,10 +40,10 @@ export function AIProgressPanel({
   }, [status]);
 
   const statusConfig = {
-    idle: { label: t('aiProgress.idle'), color: 'color-mix(in srgb, var(--text-color) 60%, transparent)', dot: 'bg-slate-400' },
-    generating: { label: t('aiProgress.generating'), color: '#fbbf24', dot: 'bg-amber-400 animate-pulse' },
-    done: { label: t('aiProgress.done'), color: '#4ade80', dot: 'bg-emerald-400' },
-    error: { label: t('aiProgress.error'), color: '#f87171', dot: 'bg-red-400' },
+    idle: { label: t('aiProgress.idle'), color: 'color-mix(in srgb, var(--text-color) 60%, transparent)', dot: 'bg-[var(--color-text-muted)]' },
+    generating: { label: t('aiProgress.generating'), color: 'var(--color-status-warning)', dot: 'bg-[var(--color-status-warning)] animate-pulse' },
+    done: { label: t('aiProgress.done'), color: 'var(--color-status-success)', dot: 'bg-[var(--color-status-success)]' },
+    error: { label: t('aiProgress.error'), color: 'var(--color-status-danger)', dot: 'bg-[var(--color-status-danger)]' },
   };
 
   const { label, color, dot } = statusConfig[status];
@@ -52,10 +52,10 @@ export function AIProgressPanel({
   const borderColor = 'var(--color-border-default)';
 
   return (
-    <div className="rounded-xl border" style={{ borderColor, backgroundColor: 'rgba(15, 23, 42, 0.8)' }}>
+    <div className="rounded-xl border" style={{ borderColor, backgroundColor: 'color-mix(in srgb, var(--color-surface-base) 80%, transparent)' }}>
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none transition-colors hover:bg-white/5"
+        className="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
         style={{ borderBottom: `1px solid ${borderColor}` }}
         onClick={() => setCollapsed(!collapsed)}
       >
@@ -105,14 +105,14 @@ export function AIProgressPanel({
               {t('aiProgress.waitingResponse')}
             </span>
           ) : status === 'error' ? (
-            <span className="text-red-400">{error || t('aiProgress.unknownError')}</span>
+            <span className="text-[var(--color-status-danger)]">{error || t('aiProgress.unknownError')}</span>
           ) : (
             <span className="italic" style={{ color: 'color-mix(in srgb, var(--text-color) 40%, transparent)' }}>
               {t('aiProgress.clickToStart')}
             </span>
           )}
           {status === 'generating' && text && (
-            <span className="inline-block w-2 h-4 bg-amber-400 animate-pulse ml-0.5 align-middle" />
+            <span className="inline-block w-2 h-4 bg-[var(--color-status-warning)] animate-pulse ml-0.5 align-middle" />
           )}
         </div>
       )}

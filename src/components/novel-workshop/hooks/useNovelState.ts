@@ -31,6 +31,7 @@ import {
   sanitizeSegment,
   clampNumber,
 } from '../utils';
+import { consumeWorkshopBridge } from '../../../services/novel-workshop-bridge';
 
 // ── Default State Factory ─────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ export function useNovelState() {
     mergeTotal: 0,
   });
   const [statusText, setStatusText] = useState<string>('');
-  const [statusColor, setStatusColor] = useState<string>('#34d399');
+  const [statusColor, setStatusColor] = useState<string>('var(--color-status-success)');
 
   const suppressReload = useRef(false);
   const rawSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,7 +91,7 @@ export function useNovelState() {
 
   const setStatus = useCallback((text: string, color?: string) => {
     setStatusText(text);
-    setStatusColor(color || '#34d399');
+    setStatusColor(color || 'var(--color-status-success)');
   }, []);
 
   // ── Raw State Persistence ─────────────────────────────────────────────
@@ -204,10 +205,10 @@ export function useNovelState() {
         name: String(file.name || '未命名文件'),
         charCount: text.length,
       });
-      setStatus(`✅ 已载入文件：${file.name}，全文仅保留在内存中。`, '#38bdf8');
+      setStatus(`✅ 已载入文件：${file.name}，全文仅保留在内存中。`, 'var(--color-info)');
     };
     reader.onerror = () => {
-      setStatus(`❌ 文件读取失败：${file.name}，请检查文件是否损坏或权限不足。`, '#f87171');
+      setStatus(`❌ 文件读取失败：${file.name}，请检查文件是否损坏或权限不足。`, 'var(--color-status-danger)');
     };
     reader.readAsText(file, 'utf-8');
   }, [setStatus]);
@@ -215,7 +216,7 @@ export function useNovelState() {
   const clearFile = useCallback(() => {
     setImportedFileText('');
     setImportedFileMeta(null);
-    setStatus('已清空当前导入文件，保留手动摘录。', '#64748b');
+    setStatus('已清空当前导入文件，保留手动摘录。', 'var(--color-text-muted)');
   }, [setStatus]);
 
   // ── Reset ────────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ export function useNovelState() {
     });
     clearRawState();
     clearCheckpoint();
-    setStatus('已重置小说世界书工坊。', '#64748b');
+    setStatus('已重置小说世界书工坊。', 'var(--color-text-muted)');
   }, [clearRawState, clearCheckpoint, setStatus]);
 
   // ── Load from Extension ──────────────────────────────────────────────
@@ -280,12 +281,30 @@ export function useNovelState() {
   // ── Initialize ───────────────────────────────────────────────────────
 
   useEffect(() => {
+    const bridge = consumeWorkshopBridge();
+    if (bridge) {
+      suppressReload.current = true;
+      setImportedFileText(bridge.sourceText);
+      if (bridge.sourceText) {
+        setImportedFileMeta({
+          name: bridge.title || '来自小说分析',
+          charCount: bridge.sourceText.length,
+        });
+      }
+      setState(prev => ({
+        ...prev,
+        contextText: bridge.contextText,
+        lastFileName: bridge.title || '',
+      }));
+      suppressReload.current = false;
+      setStatus('已从小说分析导入原文与分析摘要，可直接生成。', 'var(--color-status-success)');
+    }
     loadFromExtension();
     window.addEventListener('card-builder-data-changed', loadFromExtension);
     return () => {
       window.removeEventListener('card-builder-data-changed', loadFromExtension);
     };
-  }, [loadFromExtension]);
+  }, [loadFromExtension, setStatus]);
 
   return {
     // State

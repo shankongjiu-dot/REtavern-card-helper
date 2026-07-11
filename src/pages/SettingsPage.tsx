@@ -148,7 +148,7 @@ export function SettingsPage() {
                 className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors
                   ${settings.apiUrl === p.url
                     ? 'border-primary-tint bg-primary-tint text-primary-bright'
-                    : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                    : 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-elevated)_50%,transparent)] text-[var(--color-text-muted)] hover:border-[var(--color-text-secondary)] hover:text-[var(--color-text-secondary)]'
                   }`}
               >
                 {p.label}
@@ -172,7 +172,7 @@ export function SettingsPage() {
               </div>
               <button
                 onClick={handleUnlockKey}
-                className="text-xs text-primary-muted hover:text-primary-bright px-2 py-1 rounded border border-slate-600 hover:border-primary-tint transition-colors"
+                className="text-xs text-primary-muted hover:text-primary-bright px-2 py-1 rounded border border-[var(--color-border-default)] hover:border-primary-tint transition-colors"
               >
                 ✏️ {t('common.edit')}
               </button>
@@ -303,7 +303,7 @@ export function SettingsPage() {
       </div>
 
       {/* Help section */}
-      <div className="mt-6 rounded-xl border p-5" style={{ borderColor: 'rgba(51, 65, 85, 0.5)', backgroundColor: 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.3)' }}>
+      <div className="mt-6 rounded-xl border p-5" style={{ borderColor, backgroundColor: 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.3)' }}>
         <h3 className="text-sm font-medium mb-3" style={{ color: 'color-mix(in srgb, var(--text-color) 80%, transparent)' }}>
           💡 {t('settings.helpTitle')}
         </h3>

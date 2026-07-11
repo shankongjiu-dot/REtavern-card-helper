@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { Check, ChevronDown, Code2, Eye } from 'lucide-react';
 import { useTranslation } from '../../i18n/I18nContext';
 import { Button } from '../shared/Button';
+import { getThemeSettings } from '../../services/theme-service';
 import type { FieldDiff } from '../../services/card-optimizer';
 import type { OptimizeFieldKey } from '../../services/card-optimizer';
 
@@ -44,6 +45,11 @@ function countCharDelta(before: string, after: string): number {
   return after.length - before.length;
 }
 
+function buildPreviewSrcDoc(content: string): string {
+  const theme = getThemeSettings();
+  return `<!DOCTYPE html><html><body style="background:${theme.cardBgColor};color:${theme.textColor};font-family:sans-serif;padding:8px;margin:0;">${content}</body></html>`;
+}
+
 export function FieldDiffCard({ diff, applied, onApply }: FieldDiffCardProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(true);
@@ -57,7 +63,7 @@ export function FieldDiffCard({ diff, applied, onApply }: FieldDiffCardProps) {
   const deltaText = delta !== 0 ? ` (${delta > 0 ? '+' : ''}${delta} ${t('optimizeCompare.charsChanged', { count: '' }).replace(' ', '')})` : '';
 
   return (
-    <div className="rounded-lg border" style={{ borderColor, backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
+    <div className="rounded-lg border" style={{ borderColor, backgroundColor: 'color-mix(in srgb, var(--color-surface-base) 40%, transparent)' }}>
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
@@ -71,13 +77,13 @@ export function FieldDiffCard({ diff, applied, onApply }: FieldDiffCardProps) {
           <span className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>
             {label}
           </span>
-          <span className="text-[10px]" style={{ color: delta > 0 ? '#fbbf24' : delta < 0 ? '#60a5fa' : faintText }}>
+          <span className="text-[10px]" style={{ color: delta > 0 ? 'var(--color-status-warning)' : delta < 0 ? 'var(--color-blue)' : faintText }}>
             {deltaText}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {applied ? (
-            <span className="flex items-center gap-1 text-[11px]" style={{ color: '#4ade80' }}>
+            <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--color-status-success)' }}>
               <Check className="w-3 h-3" />
               {t('optimizeCompare.applied')}
             </span>
@@ -134,7 +140,7 @@ function FieldDiffContent({
               <span key={x} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-surface-base)', color: mutedText }}>{x}</span>
             ))}
             {removed.map((x) => (
-              <span key={x} className="text-[10px] px-1.5 py-0.5 rounded line-through" style={{ background: 'rgba(248,113,113,.15)', color: '#f87171' }}>{x}</span>
+              <span key={x} className="text-[10px] px-1.5 py-0.5 rounded line-through" style={{ background: 'var(--color-danger-bg)', color: 'var(--color-status-danger)' }}>{x}</span>
             ))}
           </div>
         </div>
@@ -145,7 +151,7 @@ function FieldDiffContent({
               <span key={x} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-surface-base)', color: mutedText }}>{x}</span>
             ))}
             {added.map((x) => (
-              <span key={x} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(74,222,128,.15)', color: '#4ade80' }}>{x}</span>
+              <span key={x} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-success-bg)', color: 'var(--color-status-success)' }}>{x}</span>
             ))}
           </div>
         </div>
@@ -184,7 +190,7 @@ function FieldDiffContent({
                     <div className="rounded px-2 py-1 break-words" style={{ background: 'var(--color-surface-base)', color: mutedText }}>
                       {formatPatch((ed.before as Record<string, unknown> | null)?.[field])}
                     </div>
-                    <div className="rounded px-2 py-1 break-words" style={{ background: 'rgba(74,222,128,.12)', color: '#4ade80' }}>
+                    <div className="rounded px-2 py-1 break-words" style={{ background: 'var(--color-success-bg)', color: 'var(--color-status-success)' }}>
                       {formatPatch((ed.after as Record<string, unknown> | null)?.[field])}
                     </div>
                   </div>
@@ -208,7 +214,7 @@ function FieldDiffContent({
             className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors"
             style={{
               background: htmlMode === 'source' ? 'var(--color-primary)' : 'transparent',
-              color: htmlMode === 'source' ? '#fff' : mutedText,
+              color: htmlMode === 'source' ? 'var(--text-color)' : mutedText,
             }}
           >
             <Code2 className="w-3 h-3" />
@@ -219,7 +225,7 @@ function FieldDiffContent({
             className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors"
             style={{
               background: htmlMode === 'preview' ? 'var(--color-primary)' : 'transparent',
-              color: htmlMode === 'preview' ? '#fff' : mutedText,
+              color: htmlMode === 'preview' ? 'var(--text-color)' : mutedText,
             }}
           >
             <Eye className="w-3 h-3" />
@@ -236,7 +242,7 @@ function FieldDiffContent({
             </div>
             <div>
               <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.after')}</div>
-              <pre className="text-[10px] p-2 rounded whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto font-mono" style={{ background: 'var(--color-surface-base)', color: '#4ade80' }}>
+              <pre className="text-[10px] p-2 rounded whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto font-mono" style={{ background: 'var(--color-surface-base)', color: 'var(--color-status-success)' }}>
                 {after || t('optimizeCompare.emptyBefore')}
               </pre>
             </div>
@@ -246,7 +252,7 @@ function FieldDiffContent({
             <div>
               <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.before')}</div>
               <iframe
-                srcDoc={`<!DOCTYPE html><html><body style="background:#1a1a2e;color:#e2e2ee;font-family:sans-serif;padding:8px;margin:0;">${before}</body></html>`}
+                srcDoc={buildPreviewSrcDoc(before)}
                 className="w-full h-[200px] rounded border"
                 style={{ borderColor }}
                 title="before-preview"
@@ -256,7 +262,7 @@ function FieldDiffContent({
             <div>
               <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.after')}</div>
               <iframe
-                srcDoc={`<!DOCTYPE html><html><body style="background:#1a1a2e;color:#e2e2ee;font-family:sans-serif;padding:8px;margin:0;">${after}</body></html>`}
+                srcDoc={buildPreviewSrcDoc(after)}
                 className="w-full h-[200px] rounded border"
                 style={{ borderColor }}
                 title="after-preview"
@@ -294,7 +300,7 @@ function FieldDiffContent({
                     <td className="p-1" style={{ color: mutedText }}>{sec.sectionName || '-'}</td>
                     <td className="p-1 font-mono" style={{ color: 'var(--text-color)' }}>{v.path}</td>
                     <td className="p-1" style={{ color: mutedText }}>{beforeVar?.description || '-'}</td>
-                    <td className="p-1" style={{ color: changed ? '#4ade80' : mutedText }}>{v.description || '-'}</td>
+                    <td className="p-1" style={{ color: changed ? 'var(--color-status-success)' : mutedText }}>{v.description || '-'}</td>
                   </tr>
                 );
               }),
@@ -322,7 +328,7 @@ function FieldDiffContent({
         <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.after')}</div>
         <pre
           className="text-xs p-2 rounded whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto"
-          style={{ background: 'var(--color-surface-base)', color: '#4ade80' }}
+          style={{ background: 'var(--color-surface-base)', color: 'var(--color-status-success)' }}
           dangerouslySetInnerHTML={{ __html: escapeHtml(after) || t('optimizeCompare.emptyBefore') }}
         />
       </div>

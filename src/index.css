@@ -39,15 +39,36 @@
   --color-surface-base: #0f172a;
   --color-surface-raised: #1e293b;
   --color-surface-elevated: #334155;
-  --color-surface-overlay: rgba(0, 0, 0, 0.6);
+  --color-surface-overlay: color-mix(in srgb, black 60%, transparent);
 }
 
 /* ─── Semantic Border Tokens ────────────────────────────────────────── */
 :root {
   --color-border-default: #334155;
-  --color-border-subtle: rgba(16, 185, 129, 0.08);
-  --color-border-interactive: rgba(16, 185, 129, 0.12);
+  --color-border-subtle: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  --color-border-interactive: color-mix(in srgb, var(--color-primary) 12%, transparent);
   --color-border-focus: var(--color-primary);
+}
+
+/* ─── Semantic Status Tokens ────────────────────────────────────────── */
+:root {
+  --color-status-success: #4ade80;
+  --color-status-warning: #fbbf24;
+  --color-status-danger: #f87171;
+  --color-info: #38bdf8;
+  --color-purple: #a78bfa;
+  --color-blue: #60a5fa;
+
+  --color-success-bg: color-mix(in srgb, var(--color-status-success) 12%, transparent);
+  --color-success-border: color-mix(in srgb, var(--color-status-success) 35%, transparent);
+  --color-warning-bg: color-mix(in srgb, var(--color-status-warning) 12%, transparent);
+  --color-warning-border: color-mix(in srgb, var(--color-status-warning) 35%, transparent);
+  --color-danger-bg: color-mix(in srgb, var(--color-status-danger) 12%, transparent);
+  --color-danger-border: color-mix(in srgb, var(--color-status-danger) 35%, transparent);
+  --color-info-bg: color-mix(in srgb, var(--color-info) 12%, transparent);
+  --color-info-border: color-mix(in srgb, var(--color-info) 35%, transparent);
+  --color-purple-bg: color-mix(in srgb, var(--color-purple) 12%, transparent);
+  --color-purple-border: color-mix(in srgb, var(--color-purple) 35%, transparent);
 }
 
 /* ─── Spacing Scale ─────────────────────────────────────────────────── */
@@ -65,7 +86,7 @@
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.25);
   --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.35);
-  --shadow-glow: 0 0 24px rgba(16, 185, 129, 0.25);
+  --shadow-glow: 0 0 24px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 /* ─── Transition Scale ──────────────────────────────────────────────── */
@@ -93,7 +114,7 @@
   --bg-overlay-opacity: 0.23;
   --text-color: #f1f5f9;
   --text-shadow: none;
-  --card-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 4px rgba(16, 185, 129, 0.15);
+  --card-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 4px color-mix(in srgb, var(--color-primary) 15%, transparent);
   --input-bg: #0f172a;
   --input-border: #475569;
   --card-bg-r: 30;
@@ -161,12 +182,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
+  background: color-mix(in srgb, var(--color-border-default) 50%, transparent);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.7);
+  background: color-mix(in srgb, var(--color-border-default) 70%, transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -194,8 +215,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+  0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 20%, transparent); }
+  50% { box-shadow: 0 0 20px color-mix(in srgb, var(--color-primary) 40%, transparent); }
 }
 
 @keyframes float {
@@ -272,7 +293,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--text-color) 5%, transparent) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 2s ease-in-out infinite;
 }
@@ -283,7 +304,7 @@ h1, h2, h3, h4, h5, h6 {
 .animate-shimmer.rounded-xl,
 .animate-shimmer.rounded-full {
   background:
-    linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--text-color) 6%, transparent) 50%, transparent 100%),
     color-mix(in srgb, var(--color-surface-raised) 60%, transparent);
   background-size: 200% 100%, 100% 100%;
   animation: shimmer 2s ease-in-out infinite;
@@ -396,21 +417,21 @@ h1, h2, h3, h4, h5, h6 {
 .glass-sidebar {
   background: linear-gradient(
     180deg,
-    rgba(15, 23, 42, calc(var(--surface-opacity) * 1.05)) 0%,
-    rgba(15, 23, 42, var(--surface-opacity)) 100%
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), calc(var(--surface-opacity) * 1.05)) 0%,
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), var(--surface-opacity)) 100%
   );
   backdrop-filter: blur(var(--blur-intensity));
   -webkit-backdrop-filter: blur(var(--blur-intensity));
   border-right: 1px solid var(--color-border-subtle);
-  box-shadow: var(--card-shadow), inset -1px 0 0 rgba(148, 163, 184, 0.04);
+  box-shadow: var(--card-shadow), inset -1px 0 0 color-mix(in srgb, var(--color-text-secondary) 4%, transparent);
 }
 
 /* Glass header (mobile) */
 .glass-header {
   background: linear-gradient(
     180deg,
-    rgba(15, 23, 42, var(--surface-opacity)) 0%,
-    rgba(15, 23, 42, calc(var(--surface-opacity) * 0.92)) 100%
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), var(--surface-opacity)) 0%,
+    rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), calc(var(--surface-opacity) * 0.92)) 100%
   );
   backdrop-filter: blur(var(--blur-intensity));
   -webkit-backdrop-filter: blur(var(--blur-intensity));
@@ -434,8 +455,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-card:hover {
-  border-color: rgba(16, 185, 129, 0.25);
-  box-shadow: var(--card-shadow), 0 0 20px rgba(16, 185, 129, 0.06);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  box-shadow: var(--card-shadow), 0 0 20px color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
 /* Card surface */
@@ -555,7 +576,7 @@ select:focus {
 
 .btn-primary {
   background: linear-gradient(to bottom, var(--color-primary), color-mix(in srgb, var(--color-primary) 80%, black));
-  color: white;
+  color: var(--text-color);
   box-shadow: var(--shadow-md), 0 0 0 0 transparent;
 }
 .btn-primary:hover {
@@ -583,7 +604,7 @@ select:focus {
 
 .btn-danger {
   background: linear-gradient(to bottom, var(--color-danger), color-mix(in srgb, var(--color-danger) 80%, black));
-  color: white;
+  color: var(--text-color);
   box-shadow: var(--shadow-md), 0 0 0 0 transparent;
 }
 .btn-danger:hover {
@@ -639,6 +660,16 @@ select:focus {
 .shadow-primary-glow {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
+
+/* Semantic gradient fills */
+.bg-gradient-primary { background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, white)); }
+.bg-gradient-info     { background: linear-gradient(135deg, var(--color-info),     color-mix(in srgb, var(--color-info) 70%, white)); }
+.bg-gradient-success  { background: linear-gradient(135deg, var(--color-status-success), color-mix(in srgb, var(--color-status-success) 70%, white)); }
+.bg-gradient-warning  { background: linear-gradient(135deg, var(--color-status-warning), color-mix(in srgb, var(--color-status-warning) 70%, white)); }
+.bg-gradient-danger   { background: linear-gradient(135deg, var(--color-status-danger),  color-mix(in srgb, var(--color-status-danger) 70%, white)); }
+
+/* Inverse text for use on saturated colored backgrounds */
+.text-inverse { color: var(--color-text-inverse); }
 
 /* Semantic status text */
 .text-status-success { color: var(--color-success); }
@@ -785,10 +816,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
 input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
 textarea,
 select {
-  background-color: var(--input-bg, #0f172a);
-  border-color: var(--input-border, #475569);
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
   border-width: 1px;
-  color: var(--text-color, #f1f5f9);
+  color: var(--text-color);
   font-family: var(--font-sans);
   font-size: 0.875rem;
   line-height: var(--leading-normal);

@@ -112,6 +112,29 @@ describe('assembleCard', () => {
     expect(card._meta.characters[0].name).toBe('角色1');
   });
 
+  it('_meta 中的 entryIds 会剔除已不存在的条目', () => {
+    const entry = createEmptyLorebookEntry();
+    const char = { ...createEmptyCharacter(), name: '角色1', description: '描述', entryIds: [entry.id, 'deleted-id'] };
+    const draft = makeDraft({ cardName: '测试', characters: [char], lorebookEntries: [entry] });
+    const card = assembleCard(draft);
+    expect(card._meta.characters[0].entryIds).toEqual([entry.id]);
+  });
+
+  it('从 _meta 恢复时，数字型 id/entryIds 会被规范化为字符串', () => {
+    const card = assembleCard(makeDraft({ cardName: '测试' }));
+    card._meta = {
+      characters: [{
+        id: 123,
+        name: 'Alice',
+        description: '描述',
+        entryIds: [1, 2],
+      }],
+    } as unknown as typeof card._meta;
+    const restored = cardToDraft(card as unknown as Record<string, unknown>);
+    expect(restored.characters[0].id).toBe('123');
+    expect(restored.characters[0].entryIds).toEqual(['1', '2']);
+  });
+
   it('tags 被正确导出', () => {
     const draft = makeDraft({ cardName: '测试', tags: ['奇幻', '冒险'] });
     const card = assembleCard(draft);
@@ -181,6 +204,30 @@ describe('cardToDraft', () => {
     const restored = cardToDraft(card as unknown as Record<string, unknown>);
     expect(restored.bookScanDepth).toBe(300);
     expect(restored.bookTokenBudget).toBe(2000);
+  });
+
+  it('缺少 _meta.characters 时，从角色设定条目重建角色后不会保留重复条目', () => {
+    const roleEntry = { ...createEmptyLorebookEntry(), name: 'Alice - 角色设定', content: '描述', constant: true };
+    const otherEntry = { ...createEmptyLorebookEntry(), name: '其他', content: '内容' };
+    const draft = makeDraft({ cardName: '测试', lorebookEntries: [roleEntry, otherEntry] });
+    const card = assembleCard(draft);
+    const cardWithoutMeta = { ...card, _meta: {} };
+    const restored = cardToDraft(cardWithoutMeta as unknown as Record<string, unknown>);
+    expect(restored.characters).toHaveLength(1);
+    expect(restored.characters[0].name).toBe('Alice');
+    expect(restored.lorebookEntries).toHaveLength(1);
+    expect(restored.lorebookEntries[0].name).toBe('其他');
+  });
+
+  it('往返后世界书条目和角色 entryIds 保持字符串类型', () => {
+    const entries = [
+      { ...createEmptyLorebookEntry(), comment: '条目1', name: '条目1', content: '内容1', keys: ['词1'] },
+      { ...createEmptyLorebookEntry(), comment: '条目2', name: '条目2', content: '内容2', keys: ['词2'] },
+    ];
+    const draft = makeDraft({ cardName: '测试', lorebookEntries: entries });
+    const card = assembleCard(draft);
+    const restored = cardToDraft(card as unknown as Record<string, unknown>);
+    expect(restored.lorebookEntries.every((e) => typeof e.id === 'string')).toBe(true);
   });
 });
 

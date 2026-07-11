@@ -4,12 +4,12 @@
  */
 import { useRef, useCallback } from 'react';
 import { CharacterEditor } from './CharacterEditor';
+import type { StreamingChunkMap } from './CharacterEditor';
 import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
 import { useTranslation } from '../../i18n/I18nContext';
 import type { WizardCharacter, LorebookEntry } from '../../constants/defaults';
 import type { CharacterVersion } from '../../pages/WizardPage';
-import type { MutableRefObject } from 'react';
 
 interface StepCharactersProps {
   characters: WizardCharacter[];
@@ -27,7 +27,7 @@ interface StepCharactersProps {
   onSelectVersion: (charIndex: number, charId: string, versionId: string) => void;
   onDeleteVersion: (charId: string, versionId: string) => void;
   onSaveVersion: (charId: string, content: string) => void;
-  streamingChunkCallbackRef: MutableRefObject<((chunk: string, fullText: string) => void) | null>;
+  streamingChunkCallbackRef: StreamingChunkMap;
 }
 
 export function StepCharacters({
@@ -136,10 +136,10 @@ export function StepCharacters({
                   <span className="text-[10px] transition-transform group-open:rotate-90" style={{ color: faintText }}>&#x25B6;</span>
                   <span className="text-sm">{entry.constant ? '\uD83D\uDD35' : '\uD83D\uDFE2'}</span>
                   <h4 className="text-sm font-medium min-w-0 truncate" style={{ color: 'var(--text-color)' }}>{entry.name}</h4>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 shrink-0">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-text-secondary)' }}>
                     {t('characters.priorityLabel', { value: String(entry.priority) })}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 min-w-0 truncate">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded min-w-0 truncate" style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-text-secondary)' }}>
                     {t('characters.keysLabel', { value: entry.keys.join(', ') || t('characters.constantLabel') })}
                   </span>
                 </summary>

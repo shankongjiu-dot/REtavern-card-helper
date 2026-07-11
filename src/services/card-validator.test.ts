@@ -64,13 +64,13 @@ describe('validateCard', () => {
   it('缺少 spec 时报错', () => {
     const result = validateCard(makeValidCard({ spec: 'wrong' }));
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('缺少 spec: "chara_card_v2"');
+    expect(result.errors).toContain('缺少 spec: "chara_card_v2" 或 "chara_card_v3"');
   });
 
   it('缺少 spec_version 时报错', () => {
     const result = validateCard(makeValidCard({ spec_version: '1.0' }));
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('缺少 spec_version: "2.0"');
+    expect(result.errors).toContain('缺少 spec_version: "2.0" 或 "3.0"');
   });
 
   it('缺少 data 对象时报错并提前返回', () => {

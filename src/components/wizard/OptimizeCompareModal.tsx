@@ -276,12 +276,12 @@ export function OptimizeCompareModal({
       {phase === 'config' && (
         <div className="space-y-4">
           {error && (
-            <div className="rounded-lg p-3 text-xs" style={{ background: 'rgba(248,113,113,.15)', color: '#f87171' }}>
+            <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--color-danger-bg)', color: 'var(--color-status-danger)' }}>
               {t('optimizeCompare.optimizeFailed')}: {error}
             </div>
           )}
 
-          <div className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: BORDER, background: 'rgba(15,23,42,.35)' }}>
+          <div className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: BORDER, background: 'color-mix(in srgb, var(--color-surface-base) 35%, transparent)' }}>
             <div className="font-medium mb-1" style={{ color: 'var(--text-color)' }}>
               {t('optimizeCompare.scopeTitle')}
             </div>
@@ -303,10 +303,10 @@ export function OptimizeCompareModal({
                 return (
                   <label
                     key={field}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors hover:bg-white/5"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
                     style={{
                       borderColor: checked ? 'var(--color-primary)' : BORDER,
-                      background: checked ? 'rgba(99,102,241,.1)' : 'transparent',
+                      background: checked ? 'var(--color-purple-bg)' : 'transparent',
                     }}
                   >
                     <input
@@ -370,14 +370,14 @@ export function OptimizeCompareModal({
           `}</style>
           <RefreshCw
             className="w-9 h-9"
-            style={{ color: '#a78bfa', animation: 'optimize-spin 0.8s linear infinite' }}
+            style={{ color: 'var(--color-purple)', animation: 'optimize-spin 0.8s linear infinite' }}
           />
           <div className="text-center space-y-2">
             <p className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>
               {loadingMode === 'lorebookBatch' ? '世界书分批优化中' : t('optimizeCompare.optimizing')}
             </p>
             {batchInfo && (
-              <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs" style={{ borderColor: BORDER, background: 'rgba(99,102,241,.12)', color: '#c4b5fd', animation: 'optimize-pulse 1.4s ease-in-out infinite' }}>
+              <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs" style={{ borderColor: BORDER, background: 'var(--color-purple-bg)', color: 'color-mix(in srgb, var(--color-purple) 80%, white)', animation: 'optimize-pulse 1.4s ease-in-out infinite' }}>
                 <span>当前第 {batchInfo.current} 批 / 共 {batchInfo.total} 批</span>
                 <span>每批最多 10 条</span>
               </div>
@@ -386,7 +386,7 @@ export function OptimizeCompareModal({
               已运行 {elapsedSeconds}s，正在等待模型返回内容，请不要关闭窗口
             </p>
           </div>
-          <div className="w-full max-w-3xl rounded-lg border p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-y-auto" style={{ borderColor: BORDER, background: 'rgba(15,23,42,.45)', color: MUTED }}>
+          <div className="w-full max-w-3xl rounded-lg border p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-y-auto" style={{ borderColor: BORDER, background: 'color-mix(in srgb, var(--color-surface-base) 45%, transparent)', color: MUTED }}>
             {streamPreview || (loadingMode === 'lorebookBatch' ? '正在准备世界书分批任务...' : '等待首个输出片段...')}
           </div>
         </div>
@@ -397,7 +397,7 @@ export function OptimizeCompareModal({
         <div className="space-y-3">
           {fieldDiffs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
-              <Check className="w-8 h-8" style={{ color: '#4ade80' }} />
+              <Check className="w-8 h-8" style={{ color: 'var(--color-status-success)' }} />
               <div className="text-center space-y-1 max-w-md">
                 <p className="text-sm" style={{ color: MUTED }}>
                   AI 已完成检修，未发现需要修改的问题
@@ -423,7 +423,7 @@ export function OptimizeCompareModal({
               {/* Toolbar */}
               <div
                 className="flex items-center justify-between px-3 py-2 rounded-lg"
-                style={{ background: 'rgba(15,23,42,.4)', borderBottom: `1px solid ${BORDER}` }}
+                style={{ background: 'color-mix(in srgb, var(--color-surface-base) 40%, transparent)', borderBottom: `1px solid ${BORDER}` }}
               >
                 <span className="text-xs" style={{ color: MUTED }}>
                   {appliedFields.size} / {fieldDiffs.length} · {t('optimizeCompare.applied')}

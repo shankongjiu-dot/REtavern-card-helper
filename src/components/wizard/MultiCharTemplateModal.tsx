@@ -17,6 +17,7 @@ import { Button } from '../shared/Button';
 import { useToast } from '../shared/Toast';
 import { useTranslation } from '../../i18n/I18nContext';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
+import { themeAlpha } from '../../constants/theme';
 import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPanel';
 import {
   buildSchemaTs,
@@ -198,6 +199,21 @@ const MULTI_CHAR_TEMPLATES: MultiCharTemplate[] = [
     statusBarVars: ['{charName}.情感天平'],
   },
 ];
+
+/** 语义化颜色常量 */
+const C = {
+  text: 'var(--text-color)',
+  secondary: 'var(--color-text-secondary)',
+  muted: 'var(--color-text-muted)',
+  border: 'var(--color-border-default)',
+  surface: 'var(--color-surface-raised)',
+  primary: 'var(--color-primary)',
+  info: 'var(--color-info)',
+  success: 'var(--color-status-success)',
+  warning: 'var(--color-status-warning)',
+} as const;
+const surfaceA = (n: number) => `color-mix(in srgb, ${C.surface} ${n}%, transparent)`;
+const borderA = (n: number) => `color-mix(in srgb, ${C.border} ${n}%, transparent)`;
 
 /** 模板蓝图：描述变量结构（供 AI 参考），与结构化模板保持一致 */
 function buildTemplateBlueprint(templateId: string): string {
@@ -399,7 +415,7 @@ export function MultiCharTemplateModal({
               ? { min: Number(v.rangeMin), max: Number(v.rangeMax) }
               : parseRangeString(v.range);
             range = rm || { min: 0, max: 100 };
-            initialValue = Number(initialValue) || 0;
+            initialValue = isNaN(Number(initialValue)) ? 0 : Number(initialValue);
             // 解析 categories（数值阈值型阶段轴的分段信息）
             if (Array.isArray(v.categories)) {
               categories = (v.categories as Array<Record<string, unknown>>)
@@ -539,19 +555,19 @@ export function MultiCharTemplateModal({
     setPreviewAxes([]);
   };
 
-  const fieldCls = 'w-full rounded border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]';
+  const fieldCls = 'w-full rounded border border-[var(--input-border)] px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('multiCharTemplate.title')} maxWidth="max-w-3xl">
       <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
         {/* 说明 */}
-        <div className="rounded-lg bg-violet-900/20 border border-violet-700/40 px-3 py-2 text-[11px] text-violet-200 leading-relaxed">
+        <div className="rounded-lg border px-3 py-2 text-[11px] leading-relaxed" style={{ borderColor: themeAlpha('info', 40), backgroundColor: themeAlpha('info', 20), color: C.info }}>
           {t('multiCharTemplate.intro')}
         </div>
 
         {/* Step 1: 选模板 + AI 识别角色 */}
-        <div className="rounded-lg border border-slate-700/50 p-3 space-y-3">
-          <p className="text-xs font-medium text-slate-300">{t('multiCharTemplate.step1Title')}</p>
+        <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: borderA(50) }}>
+          <p className="text-xs font-medium" style={{ color: C.text }}>{t('multiCharTemplate.step1Title')}</p>
           <div className="grid grid-cols-3 gap-2">
             {TEMPLATE_OPTIONS.map((opt) => (
               <button
@@ -560,9 +576,10 @@ export function MultiCharTemplateModal({
                 onClick={() => setTemplateId(opt.id)}
                 className={`rounded-lg border p-3 text-center transition ${
                   templateId === opt.id
-                    ? 'border-violet-500 bg-violet-900/30 text-violet-200'
-                    : 'border-slate-700/50 bg-slate-900/30 text-slate-300 hover:border-slate-500'
+                    ? 'border-[var(--color-primary)] text-[var(--text-color)]'
+                    : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[color-mix(in_srgb,var(--color-border-default)_80%,transparent)]'
                 }`}
+                style={{ backgroundColor: templateId === opt.id ? themeAlpha('primary', 30) : surfaceA(30) }}
               >
                 <div className="text-xl">{opt.icon}</div>
                 <div className="text-xs mt-1">{opt.name}</div>
@@ -579,10 +596,10 @@ export function MultiCharTemplateModal({
 
         {/* Step 2: 角色确认 */}
         {step === 'detect' && characters.length > 0 && (
-          <div className="rounded-lg border border-slate-700/50 p-3 space-y-2">
+          <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: borderA(50) }}>
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-slate-300">{t('multiCharTemplate.step2Title')}</p>
-              <span className="text-[10px] text-slate-500">
+              <p className="text-xs font-medium" style={{ color: C.text }}>{t('multiCharTemplate.step2Title')}</p>
+              <span className="text-[10px]" style={{ color: C.muted }}>
                 {t('multiCharTemplate.selectedCount', { count: String(characters.filter((c) => c.selected).length) })}
               </span>
             </div>
@@ -591,7 +608,9 @@ export function MultiCharTemplateModal({
                 <label
                   key={idx}
                   className={`flex items-start gap-2 p-2 rounded border cursor-pointer ${
-                    c.selected ? 'border-violet-500/50 bg-violet-900/20' : 'border-slate-700/40 bg-slate-900/30'
+                    c.selected
+                      ? 'border-[color-mix(in_srgb,var(--color-primary)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)]'
+                      : 'border-[color-mix(in_srgb,var(--color-border-default)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)]'
                   }`}
                 >
                   <input
@@ -602,11 +621,11 @@ export function MultiCharTemplateModal({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-200">{c.name}</span>
-                      {!c.suitable && <span className="text-[10px] text-amber-400">⚠ {t('multiCharTemplate.notSuitable')}</span>}
+                      <span className="text-sm font-medium" style={{ color: C.text }}>{c.name}</span>
+                      {!c.suitable && <span className="text-[10px]" style={{ color: C.warning }}>⚠ {t('multiCharTemplate.notSuitable')}</span>}
                     </div>
-                    <p className="text-[11px] text-slate-400">{c.summary}</p>
-                    {c.comment && <p className="text-[10px] text-slate-500 mt-0.5">来源：{c.comment}</p>}
+                    <p className="text-[11px]" style={{ color: C.secondary }}>{c.summary}</p>
+                    {c.comment && <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>来源：{c.comment}</p>}
                   </div>
                 </label>
               ))}
@@ -622,7 +641,7 @@ export function MultiCharTemplateModal({
                 <AIProgressPanel status={genStatus} text="" />
               )}
             </div>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[10px]" style={{ color: C.muted }}>
               {t('multiCharTemplate.copyTemplateHint')}
             </p>
           </div>
@@ -630,17 +649,17 @@ export function MultiCharTemplateModal({
 
         {/* Step 3: 预览 */}
         {step === 'preview' && previewMvu && (
-          <div className="rounded-lg border border-slate-700/50 p-3 space-y-3">
-            <p className="text-xs font-medium text-slate-300">{t('multiCharTemplate.step3Title')}</p>
-            <p className="text-[10px] text-slate-500">
+          <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: borderA(50) }}>
+            <p className="text-xs font-medium" style={{ color: C.text }}>{t('multiCharTemplate.step3Title')}</p>
+            <p className="text-[10px]" style={{ color: C.muted }}>
               {t('multiCharTemplate.editHint')}
             </p>
             {/* 变量预览 / 编辑 */}
             <div className="space-y-2">
               {previewMvu.schemaSections.map((section, sIdx) => (
-                <div key={sIdx} className="rounded border border-slate-700/40 p-2 bg-slate-900/30">
+                <div key={sIdx} className="rounded border p-2" style={{ borderColor: borderA(40), backgroundColor: surfaceA(30) }}>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] text-slate-500">角色分区</span>
+                    <span className="text-[10px]" style={{ color: C.muted }}>角色分区</span>
                     <input
                       value={section.name}
                       onChange={(e) => updatePreviewSection(sIdx, { name: e.target.value })}
@@ -654,10 +673,10 @@ export function MultiCharTemplateModal({
                       const isBoolean = v.zodType === 'z.boolean()';
                       const typeLabel = isNumber ? 'number' : isEnum ? 'enum' : isBoolean ? 'boolean' : 'string';
                       return (
-                        <div key={vIdx} className="rounded border border-slate-700/30 bg-slate-900/20 p-2">
+                        <div key={vIdx} className="rounded border p-2" style={{ borderColor: borderA(30), backgroundColor: surfaceA(20) }}>
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
                             <div className="sm:col-span-4">
-                              <label className="text-[10px] text-slate-500 block mb-0.5">变量路径</label>
+                              <label className="text-[10px] block mb-0.5" style={{ color: C.muted }}>变量路径</label>
                               <input
                                 value={v.path}
                                 onChange={(e) => updatePreviewVariable(sIdx, vIdx, { path: e.target.value })}
@@ -665,7 +684,7 @@ export function MultiCharTemplateModal({
                               />
                             </div>
                             <div className="sm:col-span-5">
-                              <label className="text-[10px] text-slate-500 block mb-0.5">描述</label>
+                              <label className="text-[10px] block mb-0.5" style={{ color: C.muted }}>描述</label>
                               <input
                                 value={v.description}
                                 onChange={(e) => updatePreviewVariable(sIdx, vIdx, { description: e.target.value })}
@@ -673,7 +692,7 @@ export function MultiCharTemplateModal({
                               />
                             </div>
                             <div className="sm:col-span-2">
-                              <label className="text-[10px] text-slate-500 block mb-0.5">初始值</label>
+                              <label className="text-[10px] block mb-0.5" style={{ color: C.muted }}>初始值</label>
                               <input
                                 value={String(v.initialValue ?? '')}
                                 onChange={(e) => {
@@ -692,10 +711,10 @@ export function MultiCharTemplateModal({
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{typeLabel}</span>
-                            {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400">{v.prefix}前缀</span>}
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: surfaceA(80), color: C.secondary }}>{typeLabel}</span>
+                            {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: themeAlpha('warning', 40), color: C.warning }}>{v.prefix}前缀</span>}
                             {isNumber && v.range && (
-                              <span className="text-[10px] text-slate-500">
+                              <span className="text-[10px]" style={{ color: C.muted }}>
                                 范围 {v.range.min}~{v.range.max}
                               </span>
                             )}
@@ -709,24 +728,24 @@ export function MultiCharTemplateModal({
             </div>
             {/* 阶段轴预览：展示每个角色的阶段轴变量及其 categories 阶段划分 */}
             {previewAxes.length > 0 && (
-              <div className="rounded border border-teal-700/30 bg-teal-900/10 p-2">
-                <p className="text-[11px] text-teal-300 mb-1">{t('multiCharTemplate.stageAxesPreview')}</p>
+              <div className="rounded border p-2" style={{ borderColor: themeAlpha('success', 30), backgroundColor: themeAlpha('success', 10) }}>
+                <p className="text-[11px] mb-1" style={{ color: C.success }}>{t('multiCharTemplate.stageAxesPreview')}</p>
                 {previewAxes.map((a, i) => {
                   const section = previewMvu.schemaSections.find((s) => s.name === a.characterName);
                   const axisVar = section?.variables.find((v) => v.path === a.axisPath);
                   const cats = axisVar?.categories;
                   return (
-                    <div key={i} className="text-[11px] text-slate-400 mb-1.5">
-                      <span className="text-slate-300">{a.characterName}</span> → <code className="text-teal-200">{a.axisPath}</code>
+                    <div key={i} className="text-[11px] mb-1.5" style={{ color: C.secondary }}>
+                      <span style={{ color: C.text }}>{a.characterName}</span> → <code style={{ color: C.success }}>{a.axisPath}</code>
                       {axisVar?.range && (
-                        <span className="text-slate-500 ml-1">[{axisVar.range.min}~{axisVar.range.max}]</span>
+                        <span className="ml-1" style={{ color: C.muted }}>[{axisVar.range.min}~{axisVar.range.max}]</span>
                       )}
                       {cats && cats.length > 0 && (
                         <div className="mt-0.5 ml-3 flex flex-wrap gap-1">
                           {cats.map((c, ci) => (
-                            <span key={ci} className="px-1.5 py-0.5 rounded bg-slate-800/60 text-[10px]">
-                              <code className="text-amber-300">{c.range}</code>
-                              <span className="text-slate-400 ml-1">{c.label}</span>
+                            <span key={ci} className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: surfaceA(60) }}>
+                              <code style={{ color: C.warning }}>{c.range}</code>
+                              <span className="ml-1" style={{ color: C.secondary }}>{c.label}</span>
                             </span>
                           ))}
                         </div>
@@ -736,12 +755,12 @@ export function MultiCharTemplateModal({
                 })}
               </div>
             )}
-            <p className="text-[10px] text-slate-500">{t('multiCharTemplate.previewHint')}</p>
+            <p className="text-[10px]" style={{ color: C.muted }}>{t('multiCharTemplate.previewHint')}</p>
           </div>
         )}
 
         {/* 底部操作 */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-700/40">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: borderA(40) }}>
           <Button variant="ghost" size="sm" onClick={onClose} disabled={detecting || generating}>{t('common.cancel')}</Button>
           {step === 'preview' && (
             <Button variant="primary" size="sm" onClick={handleApply} disabled={detecting || generating}>

@@ -55,7 +55,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
       {/* Toggle button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--text-color)] transition-colors"
         title={t('theme.toggleTitle')}
       >
         <span className="flex items-center gap-1.5">
@@ -68,12 +68,13 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
       {/* Expanded settings panel */}
       {effectiveExpanded && (
-        <div className="absolute bottom-full left-0 right-0 mb-1 p-3 bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-lg w-64 max-h-[70vh] overflow-y-auto">
+        <div className="absolute bottom-full left-0 right-0 mb-1 p-3 backdrop-blur-sm border rounded-lg shadow-lg w-64 max-h-[70vh] overflow-y-auto"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--color-surface-raised) 95%, transparent)', borderColor: 'var(--color-border-default)' }}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-slate-300">{t('theme.title')}</span>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-color)' }}>{t('theme.title')}</span>
             <button
               onClick={() => setIsExpanded(false)}
-              className="p-0.5 rounded text-slate-500 hover:text-white hover:bg-slate-700 transition-colors"
+              className="p-0.5 rounded text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_8%,transparent)] transition-colors"
               title={t('theme.close')}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -87,7 +88,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
             <div>
               <button
                 onClick={() => setSectionAppearance(!sectionAppearance)}
-                className="w-full flex items-center justify-between text-xs text-slate-300 hover:text-white transition-colors mb-2"
+                className="w-full flex items-center justify-between text-xs text-[var(--text-color)] hover:text-[var(--text-color)] transition-colors mb-2"
               >
                 <span className="font-medium">🎨 {t('theme.appearanceSection')}</span>
                 <span className={`text-[10px] transition-transform ${sectionAppearance ? 'rotate-180' : ''}`}>▾</span>
@@ -96,7 +97,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                 <div className="space-y-3">
                   {/* Primary Color */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5">{t('theme.primaryColor')}</label>
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('theme.primaryColor')}</label>
                     <div className="flex flex-wrap gap-1.5">
                       {COLOR_PRESETS.map((preset) => (
                         <button
@@ -104,7 +105,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                           onClick={() => handleUpdate({ primaryColor: preset.value })}
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
                             settings.primaryColor === preset.value
-                              ? 'border-white scale-110'
+                              ? 'border-[var(--color-text-inverse)] scale-110'
                               : 'border-transparent'
                           }`}
                           style={{ backgroundColor: preset.value }}
@@ -116,7 +117,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Background Overlay Opacity */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1">
                       {t('theme.bgOverlay')}: {settings.bgOverlayOpacity}%
                     </label>
                     <input
@@ -131,7 +132,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Surface Opacity */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1">
                       {t('theme.cardOpacity')}: {settings.surfaceOpacity}%
                     </label>
                     <input
@@ -146,7 +147,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Blur Intensity */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1">
                       {t('theme.blurIntensity')}: {settings.blurIntensity}px
                     </label>
                     <input
@@ -161,7 +162,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Card Shadow */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1">
                       {t('theme.cardShadow')}: {settings.cardShadow}
                     </label>
                     <input
@@ -176,7 +177,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Card Background Color */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5">{t('theme.cardBgColor')}</label>
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('theme.cardBgColor')}</label>
                     <div className="flex flex-wrap gap-1.5 items-center">
                       {CARD_BG_PRESETS.map((preset) => (
                         <button
@@ -184,8 +185,8 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                           onClick={() => handleUpdate({ cardBgColor: preset.value })}
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
                             settings.cardBgColor === preset.value
-                              ? 'border-white scale-110'
-                              : 'border-slate-600'
+                              ? 'border-[var(--color-text-inverse)] scale-110'
+                              : 'border-[var(--color-border-default)]'
                           }`}
                           style={{ backgroundColor: preset.value }}
                           title={preset.name}
@@ -195,7 +196,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                         type="color"
                         value={settings.cardBgColor}
                         onChange={(e) => handleUpdate({ cardBgColor: e.target.value })}
-                        className="w-7 h-7 rounded-full overflow-hidden border-2 border-slate-600 cursor-pointer bg-transparent p-0"
+                        className="w-7 h-7 rounded-full overflow-hidden border-2 border-[var(--color-border-default)] cursor-pointer bg-transparent p-0"
                         title={t('theme.customColor')}
                       />
                     </div>
@@ -205,13 +206,13 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
             </div>
 
             {/* Divider */}
-            <div className="border-t border-slate-700/50" />
+            <div className="border-t" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 50%, transparent)' }} />
 
             {/* Section 2: Text & Input */}
             <div>
               <button
                 onClick={() => setSectionText(!sectionText)}
-                className="w-full flex items-center justify-between text-xs text-slate-300 hover:text-white transition-colors mb-2"
+                className="w-full flex items-center justify-between text-xs text-[var(--text-color)] hover:text-[var(--text-color)] transition-colors mb-2"
               >
                 <span className="font-medium">✏️ {t('theme.textSection')}</span>
                 <span className={`text-[10px] transition-transform ${sectionText ? 'rotate-180' : ''}`}>▾</span>
@@ -220,7 +221,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                 <div className="space-y-3">
                   {/* Text Color */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5">{t('theme.textColor')}</label>
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('theme.textColor')}</label>
                     <div className="flex flex-wrap gap-1.5">
                       {TEXT_COLOR_PRESETS.map((preset) => (
                         <button
@@ -229,7 +230,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
                             settings.textColor === preset.value
                               ? 'border-primary-tint scale-110'
-                              : 'border-slate-600'
+                              : 'border-[var(--color-border-default)]'
                           }`}
                           style={{ backgroundColor: preset.value }}
                           title={preset.name}
@@ -240,7 +241,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Text Shadow */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1">
                       {t('theme.textShadow')}: {settings.textShadow}
                     </label>
                     <input
@@ -255,7 +256,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Text Shadow Color */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5">{t('theme.textShadowColor')}</label>
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('theme.textShadowColor')}</label>
                     <div className="flex flex-wrap gap-1.5">
                       {TEXT_SHADOW_COLOR_PRESETS.map((preset) => (
                         <button
@@ -263,8 +264,8 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                           onClick={() => handleUpdate({ textShadowColor: preset.value })}
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
                             settings.textShadowColor === preset.value
-                              ? 'border-white scale-110'
-                              : 'border-slate-600'
+                              ? 'border-[var(--color-text-inverse)] scale-110'
+                              : 'border-[var(--color-border-default)]'
                           }`}
                           style={{ backgroundColor: preset.value }}
                           title={preset.name}
@@ -275,7 +276,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Input Background Color */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5">{t('theme.inputBgColor')}</label>
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('theme.inputBgColor')}</label>
                     <div className="flex flex-wrap gap-1.5">
                       {INPUT_BG_PRESETS.map((preset) => (
                         <button
@@ -284,12 +285,12 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
                             settings.inputBgColor === preset.value
                               ? 'border-primary-tint scale-110'
-                              : 'border-slate-600'
+                              : 'border-[var(--color-border-default)]'
                           }`}
                           style={{ 
                             backgroundColor: preset.value === 'transparent' ? undefined : preset.value,
                             backgroundImage: preset.value === 'transparent' 
-                              ? 'linear-gradient(45deg, #666 25%, transparent 25%), linear-gradient(-45deg, #666 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #666 75%), linear-gradient(-45deg, transparent 75%, #666 75%)'
+                              ? 'linear-gradient(45deg, var(--color-text-muted) 25%, transparent 25%), linear-gradient(-45deg, var(--color-text-muted) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--color-text-muted) 75%), linear-gradient(-45deg, transparent 75%, var(--color-text-muted) 75%)'
                               : undefined,
                             backgroundSize: preset.value === 'transparent' ? '4px 4px' : undefined,
                             backgroundPosition: preset.value === 'transparent' ? '0 0, 0 2px, 2px -2px, -2px 0px' : undefined,
@@ -302,7 +303,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
                   {/* Input Border Color */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5">{t('theme.inputBorderColor')}</label>
+                    <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('theme.inputBorderColor')}</label>
                     <div className="flex flex-wrap gap-1.5">
                       {INPUT_BORDER_PRESETS.map((preset) => (
                         <button
@@ -310,10 +311,10 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
                           onClick={() => handleUpdate({ inputBorderColor: preset.value })}
                           className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
                             settings.inputBorderColor === preset.value
-                              ? 'border-white scale-110'
-                              : 'border-slate-600'
+                              ? 'border-[var(--color-text-inverse)] scale-110'
+                              : 'border-[var(--color-border-default)]'
                           }`}
-                          style={{ backgroundColor: preset.value === 'auto' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : preset.value }}
+                          style={{ backgroundColor: preset.value === 'auto' ? 'linear-gradient(135deg, var(--color-primary), var(--color-accent))' : preset.value }}
                           title={preset.name}
                         />
                       ))}
@@ -326,7 +327,7 @@ export function ThemeSettings({ sidebarOpen }: { sidebarOpen?: boolean }) {
             {/* Reset button */}
             <button
               onClick={handleReset}
-              className="w-full px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/50 hover:bg-slate-700 rounded transition-colors"
+              className="w-full px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--text-color)] bg-[color-mix(in_srgb,var(--color-surface-elevated)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-surface-elevated)_70%,transparent)] rounded transition-colors"
             >
               🔄 {t('theme.reset')}
             </button>

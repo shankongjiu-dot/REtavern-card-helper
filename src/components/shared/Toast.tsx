@@ -25,21 +25,21 @@ export function useToast() {
 
 const toastStyles: Record<ToastMessage['type'], { bg: string; border: string; text: string; icon: string }> = {
   success: {
-    bg: 'rgba(34, 197, 94, 0.1)',
-    border: 'rgba(34, 197, 94, 0.3)',
-    text: '#86efac',
+    bg: 'var(--color-success-bg)',
+    border: 'var(--color-success-border)',
+    text: 'var(--color-status-success)',
     icon: '\u2713',
   },
   error: {
-    bg: 'rgba(239, 68, 68, 0.1)',
-    border: 'rgba(239, 68, 68, 0.3)',
-    text: '#fca5a5',
+    bg: 'var(--color-danger-bg)',
+    border: 'var(--color-danger-border)',
+    text: 'var(--color-status-danger)',
     icon: '\u2715',
   },
   info: {
-    bg: 'rgba(16, 185, 129, 0.1)',
-    border: 'rgba(16, 185, 129, 0.3)',
-    text: '#6ee7b7',
+    bg: 'var(--color-info-bg)',
+    border: 'var(--color-info-border)',
+    text: 'var(--color-info)',
     icon: '\u2139',
   },
 };

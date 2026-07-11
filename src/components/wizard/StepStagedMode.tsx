@@ -302,21 +302,21 @@ export function StepStagedMode({
       : !!templateId && (STAGED_COMPATIBLE_TEMPLATE_IDS as readonly string[]).includes(templateId);
     return (
       <div className="space-y-4">
-        <div className="text-center py-16 border border-dashed border-slate-700 rounded-xl">
-          <p className="text-slate-400 mb-4">{t('stagedMode.introDisabled')}</p>
+        <div className="text-center py-16 border border-dashed border-[var(--color-border-default)] rounded-xl">
+          <p className="text-[var(--color-text-secondary)] mb-4">{t('stagedMode.introDisabled')}</p>
           {mvuDisabled ? (
             <>
-              <p className="text-sm text-amber-400 mb-6">{t('stagedMode.mvuDisabledHint')}</p>
+              <p className="text-sm text-[var(--color-status-warning)] mb-6">{t('stagedMode.mvuDisabledHint')}</p>
               <Button disabled>✨ {t('stagedMode.enable')}</Button>
             </>
           ) : !templateCompatible ? (
             <>
-              <p className="text-sm text-amber-400 mb-6">{t('stagedMode.templateMismatchHint')}</p>
+              <p className="text-sm text-[var(--color-status-warning)] mb-6">{t('stagedMode.templateMismatchHint')}</p>
               <Button disabled>✨ {t('stagedMode.enable')}</Button>
             </>
           ) : (
             <>
-              <p className="text-sm text-slate-500 mb-6">{t('stagedMode.introHint')}</p>
+              <p className="text-sm text-[var(--color-text-muted)] mb-6">{t('stagedMode.introHint')}</p>
               <Button onClick={toggleEnabled}>✨ {t('stagedMode.enable')}</Button>
             </>
           )}
@@ -336,15 +336,15 @@ export function StepStagedMode({
   return (
     <div className="space-y-4">
       {!enabledTemplateCompatible && (
-        <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-3 text-sm text-amber-300">
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] p-3 text-sm text-[var(--color-status-warning)]">
           {t('stagedMode.templateMismatchHint')}
         </div>
       )}
       {/* 头部：禁用按钮 + NSFW 开关 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">{t('stagedMode.title')}</h2>
-          <p className="text-sm text-slate-400 mt-1">{t('stagedMode.intro')}</p>
+          <h2 className="text-xl font-bold text-[var(--text-color)]">{t('stagedMode.title')}</h2>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">{t('stagedMode.intro')}</p>
         </div>
         <div className="flex items-center gap-3">
           <label className="relative inline-flex items-center cursor-pointer">
@@ -354,32 +354,35 @@ export function StepStagedMode({
               onChange={(e) => onNsfwChange?.(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
+            <div className="w-9 h-5 bg-[var(--color-surface-raised)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[var(--text-color)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--text-color)] after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--color-status-danger)]" />
           </label>
-          <span className="text-xs text-slate-300">{t('common.nsfw')}</span>
+          <span className="text-xs text-[var(--color-text-secondary)]">{t('common.nsfw')}</span>
           <Button variant="ghost" size="sm" onClick={toggleEnabled}>{t('stagedMode.disable')}</Button>
         </div>
       </div>
 
       {/* Step 1: 标签选择 + 用户要求 + AI 剖析 */}
-      <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-4">
-        <h3 className="text-sm font-bold text-emerald-300 mb-3">📋 {t('stagedMode.step1Title')}</h3>
+      <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-border-default)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-surface-raised)_20%,transparent)] p-4">
+        <h3 className="text-sm font-bold text-[var(--text-color)] mb-3">📋 {t('stagedMode.step1Title')}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-          {TEMPLATE_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => onChange({ ...stagedMode, templateId: opt.id })}
-              className={`rounded-xl border p-3 text-left transition-all hover:border-emerald-500/50 ${
-                stagedMode.templateId === opt.id
-                  ? 'border-emerald-500 bg-emerald-900/30'
-                  : 'border-slate-700 bg-slate-800/50'
-              }`}
-            >
-              <div className="text-2xl mb-1">{opt.icon}</div>
-              <div className="text-sm font-medium text-slate-200">{opt.name}</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
-            </button>
-          ))}
+          {TEMPLATE_OPTIONS.map((opt) => {
+            const templateToken = opt.id === 'pure-love' ? 'success' : opt.id === 'ntr' ? 'danger' : 'warning';
+            return (
+              <button
+                key={opt.id}
+                onClick={() => onChange({ ...stagedMode, templateId: opt.id })}
+                className={`rounded-xl border p-3 text-left transition-all hover:border-[color-mix(in_srgb,var(--color-status-${templateToken})_50%,transparent)] ${
+                  stagedMode.templateId === opt.id
+                    ? `border-[var(--color-status-${templateToken})] bg-[color-mix(in_srgb,var(--color-status-${templateToken})_30%,transparent)]`
+                    : 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)]'
+                }`}
+              >
+                <div className="text-2xl mb-1">{opt.icon}</div>
+                <div className="text-sm font-medium text-[var(--text-color)]">{opt.name}</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{opt.desc}</div>
+              </button>
+            );
+          })}
         </div>
         <TextArea
           value={userRequirement}
@@ -398,9 +401,9 @@ export function StepStagedMode({
 
       {/* Step 2: 阶段框架展示与编辑 */}
       {hasAnalyzed && (
-        <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
-          <h3 className="text-sm font-bold text-amber-300 mb-3">✏️ {t('stagedMode.step2Title')}</h3>
-          <p className="text-xs text-amber-400/60 mb-3">{t('stagedMode.step2Hint')}</p>
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] p-4">
+          <h3 className="text-sm font-bold text-[var(--color-status-warning)] mb-3">✏️ {t('stagedMode.step2Title')}</h3>
+          <p className="text-xs text-[var(--color-status-warning)] mb-3">{t('stagedMode.step2Hint')}</p>
           <div className="space-y-3">
             {stagedMode.characters.map((character, ci) => {
               const charGenerating = generatingEntries && analyzingCharIdx === ci;
@@ -408,23 +411,23 @@ export function StepStagedMode({
               const charAllReady = charHasStages && character.stages.every((s) => s.content && s.content.trim());
               const groupOpen = openCharacterGroups.has(ci);
               return (
-              <div key={ci} className="rounded-lg border border-slate-700/50 p-3 bg-slate-900/30">
+              <div key={ci} className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] p-3 bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)]">
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => toggleCharacterGroup(ci)}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
-                    <span className={`text-[10px] text-violet-300 transition-transform ${groupOpen ? 'rotate-90' : ''}`}>&#x25B6;</span>
-                    <span className="text-sm font-bold text-violet-300 shrink-0">{character.name}</span>
-                    <code className="text-[11px] text-teal-200 bg-slate-800 px-1.5 py-0.5 rounded shrink-0">{character.axisPath}</code>
-                    <span className="text-[10px] text-slate-500 min-w-0 truncate">{character.summary}</span>
+                    <span className={`text-[10px] text-[var(--color-primary)] transition-transform ${groupOpen ? 'rotate-90' : ''}`}>&#x25B6;</span>
+                    <span className="text-sm font-bold text-[var(--color-primary)] shrink-0">{character.name}</span>
+                    <code className="text-[11px] text-[var(--color-info)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 rounded shrink-0">{character.axisPath}</code>
+                    <span className="text-[10px] text-[var(--color-text-muted)] min-w-0 truncate">{character.summary}</span>
                   </button>
                   {charHasStages && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
                       charAllReady
-                        ? 'bg-emerald-900/50 text-emerald-300 border-emerald-700/40'
-                        : 'bg-amber-900/40 text-amber-300 border-amber-700/40'
+                        ? 'bg-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] text-[var(--color-status-success)] border-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)]'
+                        : 'bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)] border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)]'
                     }`}>
                       {charAllReady
                         ? t('stagedMode.charAllReady', { count: String(character.stages.length) })
@@ -455,7 +458,7 @@ export function StepStagedMode({
                       {character.stages.map((stage, si) => {
                     const key = `${ci}-${si}`;
                     return (
-                      <div key={si} className="rounded border border-slate-700/40 p-2 bg-slate-900/50">
+                      <div key={si} className="rounded border border-[color-mix(in_srgb,var(--color-border-default)_40%,transparent)] p-2 bg-[color-mix(in_srgb,var(--input-bg)_50%,transparent)]">
                         <div className="flex items-center gap-2 mb-1">
                           <TextInput
                             value={stage.name}
@@ -486,7 +489,7 @@ export function StepStagedMode({
                             {rerollingContentKey === key ? '...' : `🎲 ${t('stagedMode.rerollContent')}`}
                           </Button>
                         </div>
-                        <p className="text-[11px] text-slate-400">{stage.annotation}</p>
+                        <p className="text-[11px] text-[var(--color-text-secondary)]">{stage.annotation}</p>
                         <TextInput
                           value={rerollGuidance[key] || ''}
                           onChange={(e) => setRerollGuidance({ ...rerollGuidance, [key]: e.target.value })}
@@ -494,17 +497,17 @@ export function StepStagedMode({
                           className="mt-1 text-[11px]"
                         />
                         {/* 阶段世界书内容：状态徽章 + 可编辑 TextArea */}
-                        <div className="mt-2 pt-2 border-t border-slate-700/40">
+                        <div className="mt-2 pt-2 border-t border-[color-mix(in_srgb,var(--color-border-default)_40%,transparent)]">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] text-slate-500 font-medium">
+                            <span className="text-[10px] text-[var(--color-text-muted)] font-medium">
                               {t('stagedMode.stageContent')}
                             </span>
                             {stage.content && stage.content.trim() ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/40">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] text-[var(--color-status-success)] border border-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)]">
                                 {t('stagedMode.contentReady', { count: String(stage.content.length) })}
                               </span>
                             ) : (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700/40">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-raised)] text-[var(--color-text-muted)] border border-[color-mix(in_srgb,var(--color-border-default)_40%,transparent)]">
                                 {t('stagedMode.contentEmpty')}
                               </span>
                             )}
@@ -535,9 +538,9 @@ export function StepStagedMode({
 
       {/* Step 3: 应用到世界书 */}
       {allHaveContent && (
-        <div className="rounded-xl border border-teal-700/40 bg-teal-950/20 p-4">
-          <h3 className="text-sm font-bold text-teal-300 mb-2">📦 {t('stagedMode.step3Title')}</h3>
-          <p className="text-xs text-teal-400/60 mb-3">{t('stagedMode.step3Hint')}</p>
+        <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-info)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-info)_20%,transparent)] p-4">
+          <h3 className="text-sm font-bold text-[var(--color-info)] mb-2">📦 {t('stagedMode.step3Title')}</h3>
+          <p className="text-xs text-[var(--color-info)] mb-3">{t('stagedMode.step3Hint')}</p>
           <Button variant="primary" onClick={handleApply}>📦 {t('stagedMode.applyButton')}</Button>
         </div>
       )}

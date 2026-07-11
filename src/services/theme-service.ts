@@ -269,6 +269,49 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 /**
+ * Compute relative luminance of a hex color (used to pick inverse text color).
+ */
+function getLuminance(hex: string): number {
+  const { r, g, b } = hexToRgb(hex);
+  const a = [r, g, b].map((v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+}
+
+/**
+ * Derive semantic surface/border/text tokens from the user's card/text colors.
+ */
+function updateDerivedTokens(settings: ThemeSettings): void {
+  const root = document.documentElement;
+  const { cardBgColor, textColor } = settings;
+
+  // Surface hierarchy: base -> raised -> elevated/hover
+  root.style.setProperty('--color-surface-base', cardBgColor);
+  root.style.setProperty('--color-surface-raised', `color-mix(in srgb, ${cardBgColor} 85%, white)`);
+  root.style.setProperty('--color-surface-elevated', `color-mix(in srgb, ${cardBgColor} 70%, white)`);
+  root.style.setProperty('--color-surface-hover', `color-mix(in srgb, ${cardBgColor} 70%, white)`);
+  root.style.setProperty('--color-surface', `color-mix(in srgb, ${cardBgColor} 85%, white)`);
+  root.style.setProperty('--color-surface-overlay', `color-mix(in srgb, ${cardBgColor} 60%, transparent)`);
+  root.style.setProperty('--color-bg', `color-mix(in srgb, ${cardBgColor} 90%, black)`);
+
+  // Border derived from text color so it remains visible on any background
+  const borderColor = `color-mix(in srgb, ${textColor} 18%, transparent)`;
+  root.style.setProperty('--color-border-default', borderColor);
+  root.style.setProperty('--color-border', borderColor);
+
+  // Text hierarchy
+  root.style.setProperty('--color-text-secondary', `color-mix(in srgb, ${textColor} 75%, transparent)`);
+  root.style.setProperty('--color-text-muted', `color-mix(in srgb, ${textColor} 55%, transparent)`);
+  root.style.setProperty('--color-text-inverse', getLuminance(textColor) > 0.5 ? '#000000' : '#ffffff');
+
+  // Primary derivatives
+  root.style.setProperty('--color-primary-hover', 'color-mix(in srgb, var(--color-primary) 80%, black)');
+  root.style.setProperty('--color-accent', 'color-mix(in srgb, var(--color-primary) 70%, white)');
+}
+
+/**
  * Apply theme settings to the document.
  */
 export function applyTheme(settings: ThemeSettings): void {
@@ -322,6 +365,9 @@ export function applyTheme(settings: ThemeSettings): void {
   root.style.setProperty('--card-bg-r', r.toString());
   root.style.setProperty('--card-bg-g', g.toString());
   root.style.setProperty('--card-bg-b', b.toString());
+
+  // Derive semantic tokens that the rest of the UI consumes
+  updateDerivedTokens(settings);
 }
 
 /**

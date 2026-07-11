@@ -12,9 +12,7 @@ import { translations, type Language, getNestedValue } from './translations';
 const STORAGE_KEY = 'tavern-card-helper-lang';
 
 function detectDefaultLanguage(): Language {
-  if (typeof window === 'undefined') return 'zh';
-  const stored = window.localStorage.getItem(STORAGE_KEY) as Language | null;
-  return stored === 'zh' ? stored : 'zh';
+  return 'zh';
 }
 
 export interface I18nContextValue {
@@ -64,8 +62,4 @@ export function useTranslation() {
     throw new Error('useTranslation must be used within I18nProvider');
   }
   return ctx;
-}
-
-export function getStoredLanguage(): Language {
-  return detectDefaultLanguage();
 }

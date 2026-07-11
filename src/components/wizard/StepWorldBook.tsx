@@ -11,6 +11,7 @@ import { useTranslation } from '../../i18n/I18nContext';
 import { AIGeneratePanel } from './AIGeneratePanel';
 import { OrganizePreviewTable } from './OrganizePreviewTable';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
+import { themeAlpha } from '../../constants/theme';
 import { createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../constants/defaults';
 import type { LorebookEntry, LorebookPosition, AIOrganizeSuggestion, MvuConfig } from '../../constants/defaults';
 import { findStagedLorebookEntryIndices } from '../../services/card-exporter';
@@ -56,7 +57,7 @@ interface StepWorldBookProps {
   mvu?: MvuConfig;
 }
 
-export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange }: StepWorldBookProps) {
+export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange, mvu }: StepWorldBookProps) {
   const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
   const [topic, setTopic] = useState('');
@@ -82,6 +83,20 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   const [expandLevels, setExpandLevels] = useState<Map<string, EntryExpandLevel>>(new Map());
   const { generateLorebookParsedStreaming, generateLorebookSkeletonStreaming, organizeEntries, generateEntryKeys, expandLorebookEntry } = useAIGenerate();
   const { addToast } = useToast();
+  const C = {
+    text: 'var(--text-color)',
+    secondary: 'var(--color-text-secondary)',
+    muted: 'var(--color-text-muted)',
+    border: 'var(--color-border-default)',
+    inputBg: 'var(--input-bg)',
+    inputBorder: 'var(--input-border)',
+    surface: 'var(--color-surface-raised)',
+    primary: 'var(--color-primary)',
+    info: 'var(--color-info)',
+    warning: 'var(--color-status-warning)',
+  } as const;
+  const surfaceA = (n: number) => `color-mix(in srgb, ${C.surface} ${n}%, transparent)`;
+  const borderA = (n: number) => `color-mix(in srgb, ${C.border} ${n}%, transparent)`;
   const stagedIndices = useMemo(() => {
     try {
       return findStagedLorebookEntryIndices(entries);
@@ -393,12 +408,18 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
 
   const renderEntry = ({ entry, index }: { entry: LorebookEntry; index: number }) => {
     const protectedLabel = getProtectedEntryLabel(entry, index, stagedIndices);
+    const ejsConfig = mvu?.enabled ? mvu.ejsConfigs.find(c => c.entryId === entry.id) : undefined;
     return (
       <div key={entry.id} className="relative">
-        {protectedLabel && (
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-violet-300">{protectedLabel}</span>
-            <span>{t('worldBook.protectedEntryHint')}</span>
+        {(protectedLabel || ejsConfig) && (
+          <div className="mb-1 flex items-center gap-1.5 text-[10px]" style={{ color: C.secondary }}>
+            {protectedLabel && (
+              <span className="rounded border px-1.5 py-0.5" style={{ borderColor: themeAlpha('primary', 30), backgroundColor: themeAlpha('primary', 10), color: C.primary }}>{protectedLabel}</span>
+            )}
+            {ejsConfig && (
+              <span className="rounded border px-1.5 py-0.5" style={{ borderColor: themeAlpha('info', 30), backgroundColor: themeAlpha('info', 10), color: C.info }}>EJS · {ejsConfig.complexity}</span>
+            )}
+            {protectedLabel && <span>{t('worldBook.protectedEntryHint')}</span>}
           </div>
         )}
         <LorebookEntryEditor
@@ -420,33 +441,34 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       {/* Batch tools bar */}
       {entries.length > 0 && (
         <div className="space-y-3 mb-4">
-          <div className="flex flex-col gap-2 p-3 rounded-lg bg-slate-900/40 border border-slate-700/50 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-col gap-2 p-3 rounded-lg border sm:flex-row sm:flex-wrap sm:items-center" style={{ backgroundColor: surfaceA(40), borderColor: borderA(50) }}>
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('worldBook.searchPlaceholder')}
-              className="w-full min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-[var(--color-primary)] focus:outline-none sm:min-w-[220px]"
+              className="w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-xs placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none sm:min-w-[220px]"
+              style={{ borderColor: C.inputBorder, backgroundColor: C.inputBg, color: C.text }}
             />
             <Button variant="ghost" size="sm" onClick={sortEntries}>{t('worldBook.sortByOrder')}</Button>
             <Button variant="ghost" size="sm" onClick={enableAllEntries}>{t('worldBook.enableAll')}</Button>
             <Button variant="ghost" size="sm" onClick={disableEmptyKeyEntries}>{t('worldBook.disableEmptyKeys')}</Button>
             <Button variant="ghost" size="sm" onClick={cleanupEmptyEntries}>{t('worldBook.cleanupEmpty')}</Button>
-            <div className="flex items-center gap-1 rounded-lg border border-slate-700/60 bg-slate-950/35 p-1">
-              <button type="button" onClick={() => applyEntryView('collapsed')} className="rounded px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200">紧凑</button>
-              <button type="button" onClick={() => applyEntryView('preview')} className="rounded px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200">摘要</button>
-              <button type="button" onClick={() => applyEntryView('edit')} className="rounded px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200">编辑</button>
+            <div className="flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: borderA(60), backgroundColor: surfaceA(35) }}>
+              <button type="button" onClick={() => applyEntryView('collapsed')} className="rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_80%,transparent)] hover:text-[var(--text-color)]">紧凑</button>
+              <button type="button" onClick={() => applyEntryView('preview')} className="rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_80%,transparent)] hover:text-[var(--text-color)]">摘要</button>
+              <button type="button" onClick={() => applyEntryView('edit')} className="rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_80%,transparent)] hover:text-[var(--text-color)]">编辑</button>
             </div>
           </div>
           {searchQuery && (
-            <p className="text-[11px] text-slate-500">{t('worldBook.searchResults', { visible: String(visibleEntries.length), total: String(entries.length) })}</p>
+            <p className="text-[11px]" style={{ color: C.muted }}>{t('worldBook.searchResults', { visible: String(visibleEntries.length), total: String(entries.length) })}</p>
           )}
         </div>
       )}
 
       {/* AI Tools bar */}
       {entries.length > 0 && (
-        <div className="flex flex-col gap-2 mb-4 p-3 rounded-lg bg-amber-900/10 border border-amber-700/30 sm:flex-row sm:flex-wrap sm:items-center">
-          <span className="text-xs text-amber-300 font-medium shrink-0">🧹 {t('worldBook.aiToolsLabel')}</span>
+        <div className="flex flex-col gap-2 mb-4 p-3 rounded-lg border sm:flex-row sm:flex-wrap sm:items-center" style={{ backgroundColor: themeAlpha('warning', 10), borderColor: themeAlpha('warning', 30) }}>
+          <span className="text-xs font-medium shrink-0" style={{ color: C.warning }}>🧹 {t('worldBook.aiToolsLabel')}</span>
           <Button
             variant="secondary"
             size="sm"
@@ -463,7 +485,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           >
             {generatingKeys ? t('worldBook.generatingKeys') : `🗝️ ${t('worldBook.generateKeys')}`}
           </Button>
-          <span className="text-[10px] text-slate-500 ml-auto">
+          <span className="text-[10px] ml-auto" style={{ color: C.muted }}>
             {t('worldBook.aiToolsHint')}
           </span>
         </div>
@@ -482,8 +504,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       {/* Header */}
       <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">{t('worldBook.title')}</h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <h2 className="text-xl font-bold" style={{ color: C.text }}>{t('worldBook.title')}</h2>
+          <p className="text-sm mt-1" style={{ color: C.secondary }}>
             {t('worldBook.headerCount', { count: String(entries.length) })}
           </p>
         </div>
@@ -526,7 +548,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       )}
 
       {entries.length === 0 && (
-        <div className="text-center py-12 text-slate-500 border border-dashed border-slate-700 rounded-xl">
+        <div className="text-center py-12 border border-dashed rounded-xl" style={{ color: C.muted, borderColor: C.border }}>
           <p>{t('worldBook.emptyEntriesTitle')}</p>
           <p className="text-sm mt-1">{t('worldBook.emptyEntriesHint')}</p>
         </div>
@@ -536,7 +558,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         {regularVisibleEntries.map(renderEntry)}
 
         {stagedVisibleEntries.length > 0 && (
-          <section className="rounded-xl border border-violet-500/25 bg-violet-500/5">
+          <section className="rounded-xl border" style={{ borderColor: themeAlpha('primary', 25), backgroundColor: themeAlpha('primary', 5) }}>
             <button
               type="button"
               onClick={() => setStagedGroupOpen(open => !open)}
@@ -544,20 +566,20 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] text-violet-300 transition-transform ${stagedGroupOpen ? 'rotate-90' : ''}`}>&#x25B6;</span>
-                  <h3 className="text-sm font-semibold text-violet-200">阶段性世界书</h3>
-                  <span className="rounded-full border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-300">
+                  <span className={`text-[10px] transition-transform ${stagedGroupOpen ? 'rotate-90' : ''}`} style={{ color: C.primary }}>&#x25B6;</span>
+                  <h3 className="text-sm font-semibold" style={{ color: C.text }}>阶段性世界书</h3>
+                  <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: themeAlpha('primary', 25), backgroundColor: themeAlpha('primary', 10), color: C.primary }}>
                     {stagedVisibleEntries.length} 条
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-500">分阶段模式生成的世界书条目，默认折叠以减少页面长度</p>
+                <p className="mt-1 text-[11px]" style={{ color: C.muted }}>分阶段模式生成的世界书条目，默认折叠以减少页面长度</p>
               </div>
-              <span className="shrink-0 rounded-lg border border-violet-400/20 px-2 py-1 text-[11px] text-violet-300">
+              <span className="shrink-0 rounded-lg border px-2 py-1 text-[11px]" style={{ borderColor: themeAlpha('primary', 20), color: C.primary }}>
                 {stagedGroupOpen ? '收起' : '展开'}
               </span>
             </button>
             {stagedGroupOpen && (
-              <div className="space-y-2 border-t border-violet-500/20 p-3 sm:space-y-3">
+              <div className="space-y-2 border-t p-3 sm:space-y-3" style={{ borderColor: themeAlpha('primary', 20) }}>
                 {stagedVisibleEntries.map(renderEntry)}
               </div>
             )}

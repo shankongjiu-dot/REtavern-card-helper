@@ -1,4 +1,4 @@
-export type Language = 'zh' | 'en';
+export type Language = 'zh';
 
 export function getNestedValue(obj: Record<string, unknown>, key: string): string {
   const parts = key.split('.');
@@ -96,10 +96,13 @@ export const translations = {
       chat: '聊天测试',
       cardEditorChat: 'AI 卡片编辑',
       novelAnalysis: '小说分析',
+      novelWorkshop: '小说工坊',
       dialogueCreator: '灵感助手',
       settings: '设置',
       openMenu: '打开菜单',
       closeMenu: '关闭菜单',
+      expandSidebar: '展开侧边栏',
+      collapseSidebar: '收起侧边栏',
     },
     // HomePage
     home: {
@@ -858,6 +861,7 @@ export const translations = {
       aiAnalyze: 'AI 分析提取',
       exportResult: '导出结果',
       importToWorldBook: '导入到世界书',
+      pushToWorkshop: '用分析启动小说工坊',
       statTotalChars: '文本字数',
       statChunks: '切块数量',
       statOutputLimit: '输出上限',

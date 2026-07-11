@@ -55,7 +55,7 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
       {/* Toggle button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--text-color)] transition-colors"
         title={t('theme.changeBackground')}
       >
         <span className="flex items-center gap-1.5">
@@ -68,18 +68,19 @@ export function BackgroundChanger({ sidebarOpen }: { sidebarOpen?: boolean }) {
 
       {/* Expanded options */}
       {effectiveExpanded && (
-        <div className="absolute bottom-full left-0 right-0 mb-1 p-2 bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-lg">
+        <div className="absolute bottom-full left-0 right-0 mb-1 p-2 backdrop-blur-sm border rounded-lg shadow-lg"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--color-surface-raised) 95%, transparent)', borderColor: 'var(--color-border-default)' }}>
           <div className="space-y-1.5">
             <button
               onClick={handleUpload}
-              className="w-full text-left px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-700 rounded transition-colors"
+              className="w-full text-left px-2 py-1.5 text-xs text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_8%,transparent)] rounded transition-colors"
             >
               📤 {t('theme.uploadImage')}
             </button>
             {hasCustomBg && (
               <button
                 onClick={handleReset}
-                className="w-full text-left px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-700 rounded transition-colors"
+                className="w-full text-left px-2 py-1.5 text-xs text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_8%,transparent)] rounded transition-colors"
               >
                 🔄 {t('theme.resetDefault')}
               </button>

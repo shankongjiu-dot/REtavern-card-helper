@@ -87,7 +87,7 @@ export function ChatPage() {
       {selectedCard && (
         <div
           className="flex-1 flex flex-col min-h-0 rounded-xl border"
-          style={{ borderColor, backgroundColor: 'rgba(15, 23, 42, 0.5)' }}
+          style={{ borderColor, backgroundColor: 'color-mix(in srgb, var(--color-surface-base) 50%, transparent)' }}
         >
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             {messages.length === 0 && (
@@ -96,11 +96,11 @@ export function ChatPage() {
               </div>
             )}
             {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={`${msg.timestamp}-${msg.role}-${i}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[80%] rounded-xl px-4 py-3 text-sm whitespace-pre-wrap ${
                     msg.role === 'user'
-                      ? 'bg-primary text-white'
+                      ? 'bg-primary text-inverse'
                       : 'border'
                   }`}
                   style={msg.role !== 'user' ? {
@@ -129,7 +129,11 @@ export function ChatPage() {
             )}
             {error && (
               <div className="flex justify-center">
-                <div className="bg-red-900/30 border border-red-700 rounded-lg px-4 py-2 text-sm text-red-300">
+                <div className="rounded-lg px-4 py-2 text-sm" style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-status-danger) 12%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--color-status-danger) 35%, transparent)',
+                  color: 'var(--color-status-danger)',
+                }}>
                   {t('chat.error', { message: error })}
                 </div>
               </div>

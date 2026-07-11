@@ -4,7 +4,7 @@
  */
 
 import type { GateMode, NarrativeMode, CategoryId } from '../types';
-import { FOCUS_OPTIONS, DEFAULT_STAGE_ORDER } from '../types';
+import { FOCUS_OPTIONS } from '../types';
 
 interface ConfigPanelProps {
   gateMode: GateMode;
@@ -14,6 +14,7 @@ interface ConfigPanelProps {
   focus: CategoryId[];
   stageOrder: string[];
   currentStage: string;
+  isGenerating?: boolean;
   onGateModeChange: (mode: GateMode) => void;
   onNarrativeModeChange: (mode: NarrativeMode) => void;
   onEntryBudgetChange: (budget: number) => void;
@@ -29,6 +30,9 @@ export function ConfigPanel({
   entryBudget,
   chunkCharLimit,
   focus,
+  stageOrder,
+  currentStage,
+  isGenerating,
   onGateModeChange,
   onNarrativeModeChange,
   onEntryBudgetChange,
@@ -143,11 +147,11 @@ export function ConfigPanel({
           <div className="novel-stage-preview">
             <div className="novel-stage-preview-head">
               <span>默认解锁路径</span>
-              <strong>公开 → 前期 → 中期 → 后期 → 终局</strong>
+              <strong>{stageOrder.join(' → ')}</strong>
             </div>
             <div className="novel-stage-preview-track">
-              {DEFAULT_STAGE_ORDER.map((stage) => (
-                <span key={stage}>{stage}</span>
+              {stageOrder.map((stage, i) => (
+                <span key={stage + i} className={stage === currentStage ? 'active' : ''}>{stage}</span>
               ))}
             </div>
           </div>
@@ -158,14 +162,16 @@ export function ConfigPanel({
               type="button"
               className="btn novel-primary-btn"
               onClick={onGenerate}
+              disabled={isGenerating}
             >
-              🧬 生成并注入小说世界书
+              {isGenerating ? '⏳ 生成中…' : '🧬 生成并注入小说世界书'}
             </button>
             <button
               id="btnNovelReset"
               type="button"
               className="btn novel-secondary-btn"
               onClick={onReset}
+              disabled={isGenerating}
             >
               重置工坊
             </button>

@@ -20,7 +20,7 @@
  */
 
 import type { LorebookEntry, LorebookPosition } from '../constants/defaults';
-import { createEmptyLorebookEntry, generateId } from '../constants/defaults';
+import { createEmptyLorebookEntry } from '../constants/defaults';
 
 /** 阶段轴变量类型 */
 export type StageAxisType = 'enum' | 'number';
@@ -147,15 +147,14 @@ export function buildDispatcherContent(config: StagedLorebookConfig): string {
   lines.push(`<%_ if (${valVar} === undefined) { _%>`);
   lines.push(`<!-- 错误：阶段轴变量"${axisPath}"未定义，无法加载分阶段内容。 -->`);
 
-  stages.forEach((stage, idx) => {
+  stages.forEach((stage) => {
     const cond = stage.condition || autoCondition(
       axisType,
       axisType === 'enum' ? stage.name : (stage as { threshold?: number }).threshold ?? 0,
       config.numericDirection,
     );
-    const keyword = idx === 0 ? 'if' : 'else if';
     const childComment = buildChildComment(dispatcherName, stage.name);
-    lines.push(`<%_ } ${keyword} (${valVar} ${cond}) { _%>`);
+    lines.push(`<%_ } else if (${valVar} ${cond}) { _%>`);
     lines.push(`<%= await getWorldInfo("${bookName}", "${childComment}") _%>`);
   });
 
@@ -282,9 +281,4 @@ export function sortStagesByDirection<T extends { condition?: string }>(
     return a.value - b.value;
   });
   return sorted.map((p) => p.stage);
-}
-
-/** 生成临时 id（供 React key 使用，不写入卡片） */
-export function tempId(): string {
-  return generateId();
 }

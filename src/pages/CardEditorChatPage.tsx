@@ -37,6 +37,9 @@ interface ChatMessage {
 const borderColor = 'var(--color-border-default)';
 const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
 const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
+const surfaceRaisedTransparent = 'color-mix(in srgb, var(--color-surface-raised) 80%, transparent)';
+const cardBgSemiTransparent = 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.4)';
+const cardBgDarkerSemiTransparent = 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.5)';
 
 export function CardEditorChatPage() {
   const { addToast } = useToast();
@@ -290,7 +293,7 @@ export function CardEditorChatPage() {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center h-[calc(100dvh-4rem)] px-4">
         <div className="text-center max-w-md">
-          <h1 className="text-2xl font-bold text-white mb-2">AI 卡片编辑室</h1>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-color)' }}>AI 卡片编辑室</h1>
           <p className="text-sm mb-6" style={{ color: mutedText }}>
             导入 JSON 或 PNG 角色卡，通过对话让 AI 帮你修改剧情、人设、世界书等内容。
           </p>
@@ -313,13 +316,13 @@ export function CardEditorChatPage() {
         <div className="min-w-0 flex items-center gap-3">
           <button
             onClick={() => { setDraft(null); setMessages([]); setImportedFileName(null); }}
-            className="text-xs px-2 py-1 rounded border hover:bg-slate-800 transition-colors"
+            className="text-xs px-2 py-1 rounded border transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
             style={{ borderColor, color: mutedText }}
           >
             重新导入
           </button>
           <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-semibold text-white truncate">
+            <h1 className="text-base sm:text-lg font-semibold truncate" style={{ color: 'var(--text-color)' }}>
               {draft.cardName || '未命名卡片'}
             </h1>
             <p className="text-xs truncate" style={{ color: faintText }}>
@@ -352,9 +355,20 @@ export function CardEditorChatPage() {
                   <button
                     key={hint}
                     onClick={() => { setInputValue(hint); textareaRef.current?.focus(); }}
-                    className="text-left text-sm px-3 py-2 rounded-lg border border-slate-700
-                      bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:border-slate-600
-                      transition-colors cursor-pointer"
+                    className="text-left text-sm px-3 py-2 rounded-lg border transition-colors cursor-pointer"
+                    style={{
+                      borderColor: 'var(--color-border-default)',
+                      backgroundColor: 'color-mix(in srgb, var(--color-surface-raised) 50%, transparent)',
+                      color: 'var(--color-text-muted)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--text-color)';
+                      e.currentTarget.style.borderColor = 'var(--color-text-secondary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--color-text-muted)';
+                      e.currentTarget.style.borderColor = 'var(--color-border-default)';
+                    }}
                   >
                     {hint}
                   </button>
@@ -367,9 +381,13 @@ export function CardEditorChatPage() {
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm whitespace-pre-wrap leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-primary text-white'
-                  : 'bg-slate-800 border border-slate-700 text-slate-200'
-              }`}>
+                  ? 'bg-primary text-inverse'
+                  : 'border'
+              }`}
+              style={msg.role === 'user' ? {} : {
+                backgroundColor: surfaceRaisedTransparent,
+                borderColor,
+              }}>
                 {msg.content}
               </div>
             </div>
@@ -377,8 +395,9 @@ export function CardEditorChatPage() {
 
           {isStreaming && (
             <div className="flex justify-start">
-              <div className="max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-slate-800 border border-slate-700 text-slate-200 whitespace-pre-wrap leading-relaxed">
-                {streamingText || <span className="text-slate-400 animate-pulse">思考中...</span>}
+              <div className="max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm border whitespace-pre-wrap leading-relaxed"
+                style={{ backgroundColor: surfaceRaisedTransparent, borderColor }}>
+                {streamingText || <span className="animate-pulse" style={{ color: mutedText }}>思考中...</span>}
               </div>
             </div>
           )}
@@ -387,13 +406,14 @@ export function CardEditorChatPage() {
         </div>
 
         {/* Input */}
-        <div className="shrink-0 border-t border-slate-700 px-3 sm:px-4 py-2.5 sm:py-3">
+        <div className="shrink-0 border-t px-3 sm:px-4 py-2.5 sm:py-3" style={{ borderColor }}>
           <div className="flex gap-2 items-end">
             <textarea
               ref={(el) => { textareaResizeRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
-              className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-slate-100
-                placeholder-slate-500 focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]
+              className="flex-1 rounded-lg border px-3 sm:px-4 py-2 sm:py-2.5 text-sm
+                focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]
                 resize-none min-h-[38px] sm:min-h-[42px] max-h-[160px]"
+              style={{ borderColor: 'var(--input-border)', backgroundColor: 'var(--input-bg)', color: 'var(--text-color)' }}
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -422,8 +442,8 @@ export function CardEditorChatPage() {
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="shrink-0 mx-auto sm:mx-0">
                 <div
-                  className="w-40 h-56 rounded-lg border flex items-center justify-center overflow-hidden bg-slate-900"
-                  style={{ borderColor }}
+                  className="w-40 h-56 rounded-lg border flex items-center justify-center overflow-hidden"
+                  style={{ borderColor, backgroundColor: 'var(--color-surface-base)' }}
                 >
                   {coverPreviewUrl ? (
                     <img src={coverPreviewUrl} alt="cover preview" className="w-full h-full object-cover" />
@@ -437,7 +457,7 @@ export function CardEditorChatPage() {
               </div>
 
               <div className="flex-1 space-y-3">
-                <div className="text-sm font-medium text-white">封面图片</div>
+                <div className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>封面图片</div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" size="sm" onClick={handleChooseCoverImage} className="gap-1">
                     <Upload size={14} />
@@ -482,26 +502,26 @@ export function CardEditorChatPage() {
               AI 提出了以下修改，请确认是否应用。应用后可以继续对话进一步修改。
             </p>
             {changeDiffs.length === 0 ? (
-              <p className="text-sm text-slate-400">没有检测到有效改动。</p>
+              <p className="text-sm" style={{ color: mutedText }}>没有检测到有效改动。</p>
             ) : (
               changeDiffs.map((diff, idx) => (
-                <div key={idx} className="rounded-lg border border-slate-700 bg-slate-900/40">
+                <div key={idx} className="rounded-lg border" style={{ borderColor, backgroundColor: cardBgSemiTransparent }}>
                   <div
                     className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
                     onClick={() => toggleDiff(idx)}
                   >
                     <div className="flex items-center gap-2">
                       {expandedDiffs.has(idx) ? <ChevronUp size={14} style={{ color: faintText }} /> : <ChevronDown size={14} style={{ color: faintText }} />}
-                      <span className="text-sm font-medium text-white">{fieldLabel(diff.change.field)}</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>{fieldLabel(diff.change.field)}</span>
                       {diff.hasChange ? (
-                        <span className="text-[10px] text-amber-400">有改动</span>
+                        <span className="text-[10px]" style={{ color: 'var(--color-status-warning)' }}>有改动</span>
                       ) : (
-                        <span className="text-[10px] text-slate-500">无变化</span>
+                        <span className="text-[10px]" style={{ color: faintText }}>无变化</span>
                       )}
                     </div>
                   </div>
                   {expandedDiffs.has(idx) && (
-                    <div className="px-3 pb-3 border-t border-slate-700/50 space-y-2">
+                    <div className="px-3 pb-3 border-t space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 50%, transparent)' }}>
                       <DiffValue label="修改前" value={diff.before} />
                       <DiffValue label="修改后" value={diff.after} />
                     </div>
@@ -510,7 +530,7 @@ export function CardEditorChatPage() {
               ))
             )}
           </div>
-          <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-slate-700">
+          <div className="flex justify-end gap-2 mt-4 pt-3 border-t" style={{ borderColor }}>
             <Button variant="ghost" onClick={discardChanges} className="gap-1">
               <X size={14} />
               放弃
@@ -531,7 +551,7 @@ function DiffValue({ label, value }: { label: string; value: unknown }) {
     return (
       <div>
         <div className="text-[10px] mb-1" style={{ color: faintText }}>{label}</div>
-        <div className="text-xs text-slate-500 italic">（无）</div>
+        <div className="text-xs italic" style={{ color: faintText }}>（无）</div>
       </div>
     );
   }
@@ -546,7 +566,8 @@ function DiffValue({ label, value }: { label: string; value: unknown }) {
   return (
     <div>
       <div className="text-[10px] mb-1" style={{ color: faintText }}>{label}</div>
-      <pre className="text-xs whitespace-pre-wrap break-words rounded bg-slate-950/50 p-2 border border-slate-800 text-slate-300 max-h-[200px] overflow-y-auto">
+      <pre className="text-xs whitespace-pre-wrap break-words rounded p-2 border max-h-[200px] overflow-y-auto"
+        style={{ backgroundColor: cardBgDarkerSemiTransparent, borderColor, color: 'var(--text-color)' }}>
         {text}
       </pre>
     </div>

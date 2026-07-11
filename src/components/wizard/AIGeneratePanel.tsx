@@ -9,6 +9,7 @@ import { Button } from '../shared/Button';
 import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPanel';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import { useTranslation } from '../../i18n/I18nContext';
+import { themeAlpha } from '../../constants/theme';
 
 interface AIGeneratePanelProps {
   topic: string;
@@ -135,6 +136,19 @@ export function AIGeneratePanel({
   }, []);
 
   const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
+  const C = {
+    text: 'var(--text-color)',
+    secondary: 'var(--color-text-secondary)',
+    muted: 'var(--color-text-muted)',
+    border: 'var(--color-border-default)',
+    surface: 'var(--color-surface-raised)',
+    inputBg: 'var(--input-bg)',
+    primary: 'var(--color-primary)',
+    info: 'var(--color-info)',
+    success: 'var(--color-status-success)',
+    warning: 'var(--color-status-warning)',
+    danger: 'var(--color-status-danger)',
+  } as const;
 
   return (
     <div className="mb-6 rounded-xl border border-primary-tint-light bg-primary-tint-light p-4 space-y-3">
@@ -147,7 +161,7 @@ export function AIGeneratePanel({
             onChange={(e) => onNsfwChange?.(e.target.checked)}
             className="sr-only peer"
           />
-          <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
+          <div className="w-9 h-5 bg-[var(--input-bg)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[var(--text-color)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--text-color)] after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--color-status-danger)]" />
         </label>
         <div className="flex items-center gap-1.5">
           <span className="text-xs" style={{ color: 'color-mix(in srgb, var(--text-color) 80%, transparent)' }}>{t('common.nsfw')}</span>
@@ -167,32 +181,32 @@ export function AIGeneratePanel({
       </div>
 
       {/* Skeleton mode */}
-      <div className="p-3 rounded-lg bg-emerald-900/20 border border-emerald-700/30 space-y-2">
+      <div className="p-3 rounded-lg border space-y-2" style={{ backgroundColor: themeAlpha('success', 20), borderColor: themeAlpha('success', 30) }}>
         <div className="flex items-center justify-between">
           <div>
-            <label className="text-sm font-medium text-emerald-300 flex items-center gap-2 cursor-pointer select-none">
+            <label className="text-sm font-medium flex items-center gap-2 cursor-pointer select-none" style={{ color: C.success }}>
               <input
                 type="checkbox"
                 checked={skeletonMode}
                 onChange={(e) => onSkeletonModeChange(e.target.checked)}
-                className="rounded border-emerald-600 bg-slate-800 text-emerald-500"
+                className="rounded" style={{ borderColor: C.success, backgroundColor: C.inputBg, color: C.success }}
               />
               &#x1F9B4; {t('aiPanel.skeletonMode')}
             </label>
-            <p className="text-[10px] text-emerald-400/60 mt-0.5 ml-6">
+            <p className="text-[10px] mt-0.5 ml-6" style={{ color: 'color-mix(in srgb, var(--color-status-success) 60%, transparent)' }}>
               {t('aiPanel.skeletonHint')}
             </p>
           </div>
           {skeletonMode && (
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-emerald-400/70">{t('aiPanel.countLabel')}</span>
+              <span className="text-xs" style={{ color: 'color-mix(in srgb, var(--color-status-success) 70%, transparent)' }}>{t('aiPanel.countLabel')}</span>
               <input
                 type="number"
                 value={skeletonCount}
                 min={3}
                 max={30}
                 onChange={(e) => onSkeletonCountChange(Math.max(3, parseInt(e.target.value) || 6))}
-                className="w-14 text-center rounded border border-emerald-600/40 bg-slate-800 px-2 py-1 text-sm font-semibold text-emerald-300"
+                className="w-14 text-center rounded border px-2 py-1 text-sm font-semibold" style={{ borderColor: themeAlpha('success', 40), backgroundColor: C.inputBg, color: C.success }}
               />
             </div>
           )}
@@ -205,8 +219,8 @@ export function AIGeneratePanel({
                 onClick={() => onSkeletonCountChange(n)}
                 className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                   skeletonCount === n
-                    ? 'border-emerald-500 bg-emerald-900/40 text-emerald-300'
-                    : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-emerald-600 hover:text-emerald-400'
+                    ? 'border-[var(--color-status-success)] bg-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)] text-[var(--color-status-success)]'
+                    : 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-status-success)] hover:text-[var(--color-status-success)]'
                 }`}
               >
                 {n}{t('common.countUnit')}
@@ -226,7 +240,8 @@ export function AIGeneratePanel({
             min={3}
             max={20}
             onChange={(e) => onBatchCountChange(Math.max(3, Math.min(20, parseInt(e.target.value) || 8)))}
-            className="w-14 text-center rounded border border-primary-tint-light bg-slate-800 px-2 py-1 text-sm font-semibold text-primary-bright"
+            className="w-14 text-center rounded border border-primary-tint-light px-2 py-1 text-sm font-semibold text-primary-bright"
+            style={{ backgroundColor: C.inputBg }}
           />
           <div className="flex gap-1.5">
             {[4, 8, 12, 16].map((n) => (
@@ -236,7 +251,7 @@ export function AIGeneratePanel({
                 className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                   batchCount === n
                     ? 'border-primary-tint bg-primary-tint text-primary-bright'
-                    : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-primary-tint hover:text-primary-muted'
+                    : 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-primary-muted'
                 }`}
               >
                 {n}{t('common.countUnit')}
@@ -302,8 +317,8 @@ export function AIGeneratePanel({
           onClick={onGenerate}
           disabled={generating}
           className="inline-flex items-center justify-center gap-2 rounded-lg font-medium px-5 py-2 text-sm
-            bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500
-            text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40
+            bg-gradient-success
+            text-[var(--text-color)] shadow-lg shadow-[0_10px_15px_-3px_color-mix(in_srgb,var(--color-status-success)_25%,transparent),0_4px_6px_-4px_color-mix(in_srgb,var(--color-status-success)_25%,transparent)] hover:shadow-[0_10px_15px_-3px_color-mix(in_srgb,var(--color-status-success)_40%,transparent),0_4px_6px_-4px_color-mix(in_srgb,var(--color-status-success)_40%,transparent)]
             transition-all duration-200 hover:scale-105 active:scale-95
             disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
         >

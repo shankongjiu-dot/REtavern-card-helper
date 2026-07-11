@@ -10,9 +10,8 @@
  *   - Returns pure JSON (no code fences).
  */
 import type { WizardDraft, LorebookEntry, MvuSchemaSection } from '../constants/defaults';
-import { MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import { parseAIJson } from '../constants/prompts';
-import { findStagedLorebookEntryIndices } from './card-exporter';
+import { findStagedLorebookEntryIndices, isProtectedLorebookEntry, editableLorebookEntries } from './card-exporter';
 
 export type OptimizeFieldKey =
   | 'cardName'
@@ -67,24 +66,6 @@ export interface FieldDiff {
   after: unknown;
   /** Only for lorebookEntries — per-entry diffs matched by comment. */
   entryDiffs?: EntryDiff[];
-}
-
-function isProtectedLorebookEntry(entry: LorebookEntry, idx: number, stagedIndices: Set<number>): boolean {
-  const name = (entry.name || '').trim();
-  const comment = (entry.comment || '').trim();
-  return MVU_LOREBOOK_ENTRY_NAMES.includes(name) || MVU_LOREBOOK_ENTRY_NAMES.includes(comment) || stagedIndices.has(idx);
-}
-
-function editableLorebookEntries(draft: WizardDraft): LorebookEntry[] {
-  let stagedIndices = new Set<number>();
-  if (draft.stagedMode?.enabled) {
-    try {
-      stagedIndices = findStagedLorebookEntryIndices(draft.lorebookEntries || []);
-    } catch {
-      stagedIndices = new Set();
-    }
-  }
-  return (draft.lorebookEntries || []).filter((entry, idx) => !isProtectedLorebookEntry(entry, idx, stagedIndices));
 }
 
 /** Build a concise snapshot of selected fields for the AI prompt. */
@@ -253,41 +234,43 @@ function diffLorebook(
 ): EntryDiff[] {
   const diffs: EntryDiff[] = [];
   for (const opt of optimized) {
-    const match = current.find((e) => e.comment === opt.comment);
-    if (!match) continue;
+    const matches = current.filter((e) => e.comment === opt.comment);
+    if (matches.length === 0) continue;
 
-    const before: EntryDiff['before'] = {};
-    const after: EntryDiff['after'] = {};
+    for (const match of matches) {
+      const before: EntryDiff['before'] = {};
+      const after: EntryDiff['after'] = {};
 
-    if (opt.content !== undefined && opt.content !== match.content) {
-      before.content = match.content || '';
-      after.content = opt.content;
-    }
-    if (opt.keys !== undefined && !sameStringArray(opt.keys, match.keys)) {
-      before.keys = match.keys || [];
-      after.keys = opt.keys;
-    }
-    if (opt.secondary_keys !== undefined && !sameStringArray(opt.secondary_keys, match.secondary_keys)) {
-      before.secondary_keys = match.secondary_keys || [];
-      after.secondary_keys = opt.secondary_keys;
-    }
-    if (opt.selective !== undefined && opt.selective !== match.selective) {
-      before.selective = match.selective;
-      after.selective = opt.selective;
-    }
-    if (opt.constant !== undefined && opt.constant !== match.constant) {
-      before.constant = match.constant;
-      after.constant = opt.constant;
-    }
+      if (opt.content !== undefined && opt.content !== match.content) {
+        before.content = match.content || '';
+        after.content = opt.content;
+      }
+      if (opt.keys !== undefined && !sameStringArray(opt.keys, match.keys)) {
+        before.keys = match.keys || [];
+        after.keys = opt.keys;
+      }
+      if (opt.secondary_keys !== undefined && !sameStringArray(opt.secondary_keys, match.secondary_keys)) {
+        before.secondary_keys = match.secondary_keys || [];
+        after.secondary_keys = opt.secondary_keys;
+      }
+      if (opt.selective !== undefined && opt.selective !== match.selective) {
+        before.selective = match.selective;
+        after.selective = opt.selective;
+      }
+      if (opt.constant !== undefined && opt.constant !== match.constant) {
+        before.constant = match.constant;
+        after.constant = opt.constant;
+      }
 
-    if (Object.keys(after).length > 0) {
-      diffs.push({
-        comment: opt.comment,
-        before,
-        after,
-        isNew: false,
-        hasChange: true,
-      });
+      if (Object.keys(after).length > 0) {
+        diffs.push({
+          comment: opt.comment,
+          before,
+          after,
+          isNew: false,
+          hasChange: true,
+        });
+      }
     }
   }
   return diffs;
@@ -384,9 +367,8 @@ export function buildApplyPatch(
     );
     for (const opt of result.lorebookEntries) {
       if (!editableComments.has(opt.comment)) continue;
-      const idx = current.findIndex((e) => e.comment === opt.comment);
-      if (idx >= 0) {
-        const existing = current[idx];
+      current.forEach((existing, idx) => {
+        if (existing.comment !== opt.comment) return;
         current[idx] = {
           ...existing,
           ...(opt.content !== undefined ? { content: opt.content } : {}),
@@ -396,7 +378,7 @@ export function buildApplyPatch(
           ...(opt.constant !== undefined ? { constant: opt.constant } : {}),
           ...(opt.name ? { name: opt.name } : {}),
         };
-      }
+      });
     }
     return { lorebookEntries: current };
   }

@@ -8,10 +8,9 @@
  * AI deep diagnosis (diagnoseCard) is intentionally NOT here — it's async,
  * costs tokens, and is invoked separately from the UI panel.
  */
-import type { WizardDraft, LorebookEntry } from '../constants/defaults';
-import { MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
+import type { WizardDraft } from '../constants/defaults';
 import { validateCard } from './card-validator';
-import { assembleCard, findStagedLorebookEntryIndices } from './card-exporter';
+import { assembleCard, findStagedLorebookEntryIndices, isProtectedLorebookEntry } from './card-exporter';
 
 export type CheckCategory =
   | 'basic'
@@ -66,27 +65,12 @@ interface CheckItem {
 const DEFAULT_CARD_NAMES = new Set(['新卡片', '新建卡片', '未命名', 'Untitled', '']);
 
 /**
- * Identify special-format system entries that must be excluded from normal
- * lorebook quality checks:
- *   - MVU system entries ([InitVar], 变量列表, EJS预处理, etc.) — identified
- *     by name/comment matching MVU_LOREBOOK_ENTRY_NAMES. These carry YAML/EJS
- *     payloads, are always constant, and never use trigger keys.
- *   - Staged-mode dispatcher + child entries — identified by
- *     findStagedLorebookEntryIndices. These use EJS-driven activation, not
- *     normal keyword triggers.
- *
+ * Special-format system entries (MVU + staged) are excluded from normal
+ * lorebook quality checks via the shared `isProtectedLorebookEntry` helper.
  * Excluding these prevents false positives like "空内容条目" on an [InitVar]
  * that's intentionally empty during setup, or "缺少触发词" on a staged child
  * entry that's activated by the dispatcher's EJS logic.
  */
-function isSystemEntry(entry: LorebookEntry, idx: number, stagedIndices: Set<number>): boolean {
-  const name = (entry.name || '').trim();
-  const comment = (entry.comment || '').trim();
-  if (MVU_LOREBOOK_ENTRY_NAMES.includes(name) || MVU_LOREBOOK_ENTRY_NAMES.includes(comment)) {
-    return true;
-  }
-  return stagedIndices.has(idx);
-}
 
 /** Build the set of staged-mode entry indices (only when staged mode is on). */
 function getStagedIndices(draft: WizardDraft): Set<number> {
@@ -188,7 +172,7 @@ const CHECK_ITEMS: CheckItem[] = [
     check: (d) => {
       const stagedIndices = getStagedIndices(d);
       const count = (d.lorebookEntries || []).filter(
-        (e, idx) => e.enabled && !isSystemEntry(e, idx, stagedIndices),
+        (e, idx) => e.enabled && !isProtectedLorebookEntry(e, idx, stagedIndices),
       ).length;
       return {
         passed: count >= 5,
@@ -210,7 +194,7 @@ const CHECK_ITEMS: CheckItem[] = [
     check: (d) => {
       const stagedIndices = getStagedIndices(d);
       const empty = (d.lorebookEntries || []).filter(
-        (e, idx) => e.enabled && !isSystemEntry(e, idx, stagedIndices) && !(e.content || '').trim(),
+        (e, idx) => e.enabled && !isProtectedLorebookEntry(e, idx, stagedIndices) && !(e.content || '').trim(),
       );
       return {
         passed: empty.length === 0,
@@ -233,7 +217,7 @@ const CHECK_ITEMS: CheckItem[] = [
       const stagedIndices = getStagedIndices(d);
       const noKeys = (d.lorebookEntries || []).filter(
         (e, idx) =>
-          e.enabled && !isSystemEntry(e, idx, stagedIndices) && !e.constant && (e.keys || []).length === 0,
+          e.enabled && !isProtectedLorebookEntry(e, idx, stagedIndices) && !e.constant && (e.keys || []).length === 0,
       );
       return {
         passed: noKeys.length === 0,
@@ -363,7 +347,7 @@ const CHECK_ITEMS: CheckItem[] = [
   {
     id: 'specErrors',
     category: 'spec',
-    label: 'V2 规范错误',
+    label: '卡片规范错误',
     weight: 16,
     severity: 'critical',
     optimizeFields: ['cardName', 'firstMessage'],
@@ -386,7 +370,7 @@ const CHECK_ITEMS: CheckItem[] = [
         return {
           passed: false,
           actual: '校验异常',
-          fixHint: '卡片数据异常，无法完成 V2 规范校验，请检查各步骤数据完整性',
+          fixHint: '卡片数据异常，无法完成卡片规范校验，请检查各步骤数据完整性',
         };
       }
     },

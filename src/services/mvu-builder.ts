@@ -50,18 +50,17 @@ export function parseRangeString(raw: unknown): { min: number; max: number } | u
 }
 
 /**
- * 从 zodType 字符串中提取 enumValues。
- * 例如 `z.enum(["a", "b"])` → `["a", "b"]`
+ * 将任意值转义为可安全嵌入单引号 JS 字符串字面量的内容。
+ * 处理反斜杠、单引号、换行符等，避免多行/含特殊字符的初始值破坏生成的脚本语法。
  */
-export function extractEnumValues(zodType: string): string[] | undefined {
-  if (!zodType) return undefined;
-  const m = zodType.match(/z\.enum\(\s*\[([\s\S]*)\]\s*\)/);
-  if (!m) return undefined;
-  // 拆分并清理引号
-  return m[1]
-    .split(',')
-    .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
-    .filter(Boolean);
+function escapeJsString(s: unknown): string {
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 interface SchemaNode {
@@ -153,11 +152,11 @@ function buildLeafZod(v: MvuVariable): { expr: string; defLit: string } {
     if (enumMatch) {
       const values = enumMatch[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
       defVal = typeof initialValue === 'string' && values.includes(initialValue)
-        ? `'${initialValue}'`
-        : (values.length > 0 ? `'${values[0]}'` : "''");
-      enumExpr = `z.enum([${values.map(vv => `'${vv}'`).join(', ')}])`;
+        ? `'${escapeJsString(initialValue)}'`
+        : (values.length > 0 ? `'${escapeJsString(values[0])}'` : "''");
+      enumExpr = `z.enum([${values.map(vv => `'${escapeJsString(vv)}'`).join(', ')}])`;
     } else {
-      defVal = typeof initialValue === 'string' ? `'${initialValue}'` : "''";
+      defVal = typeof initialValue === 'string' ? `'${escapeJsString(initialValue)}'` : "''";
     }
     return { expr: `${enumExpr}.prefault(${defVal})`, defLit: defVal };
   }
@@ -175,16 +174,18 @@ function buildLeafZod(v: MvuVariable): { expr: string; defLit: string } {
       const entries = Object.entries(initialValue as Record<string, unknown>);
       if (entries.length > 0) {
         defLit = `{ ${entries.map(([k, val]) => {
+          const ek = escapeJsString(k);
           if (val !== null && typeof val === 'object') {
             const subEntries = Object.entries(val as Record<string, unknown>);
-            return `'${k}': { ${subEntries.map(([sk, sv]) => {
-              if (typeof sv === 'string') return `${sk}: '${sv}'`;
-              if (typeof sv === 'boolean') return `${sk}: ${sv}`;
-              return `${sk}: ${sv}`;
+            return `'${ek}': { ${subEntries.map(([sk, sv]) => {
+              const esk = escapeJsString(sk);
+              if (typeof sv === 'string') return `'${esk}': '${escapeJsString(sv)}'`;
+              if (typeof sv === 'boolean') return `'${esk}': ${sv}`;
+              return `'${esk}': ${sv}`;
             }).join(', ')} }`;
           }
-          if (typeof val === 'string') return `'${k}': '${val}'`;
-          return `'${k}': ${val}`;
+          if (typeof val === 'string') return `'${ek}': '${escapeJsString(val)}'`;
+          return `'${ek}': ${val}`;
         }).join(', ')} }`;
       }
     }
@@ -192,7 +193,7 @@ function buildLeafZod(v: MvuVariable): { expr: string; defLit: string } {
   }
 
   // Default: z.string()
-  const strDef = typeof initialValue === 'string' ? `'${initialValue.replace(/'/g, "\\'")}'` : "''";
+  const strDef = typeof initialValue === 'string' ? `'${escapeJsString(initialValue)}'` : "''";
   return { expr: `z.string().prefault(${strDef})`, defLit: strDef };
 }
 
@@ -414,7 +415,7 @@ function getDefaultForDefine(path: string, sections: MvuSchemaSection[]): string
           const match = v.zodType.match(/z\.enum\(\[(.+)\]\)/);
           if (match) {
             const first = match[1].split(',').map(s => s.trim().replace(/['"]/g, ''))[0];
-            return `'${first}'`;
+            return `'${escapeJsString(first)}'`;
           }
         }
         return "''";

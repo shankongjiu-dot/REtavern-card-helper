@@ -1,9 +1,11 @@
 /**
  * HomePage - Landing page with quick-action cards.
  */
+import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wand2, BookOpen, MessageCircle, PenTool, Bot } from 'lucide-react';
 import { useTranslation } from '../i18n/I18nContext';
+import { themeAlpha } from '../constants/theme';
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -15,40 +17,35 @@ export function HomePage() {
       title: t('home.actionCreateTitle'),
       description: t('home.actionCreateDesc'),
       action: () => navigate('/wizard'),
-      gradient: 'from-indigo-500 to-purple-500',
-      glow: 'group-hover:shadow-primary-glow',
+      token: 'primary' as const,
     },
     {
       icon: BookOpen,
       title: t('home.actionLibraryTitle'),
       description: t('home.actionLibraryDesc'),
       action: () => navigate('/library'),
-      gradient: 'from-emerald-500 to-teal-500',
-      glow: 'group-hover:shadow-emerald-500/20',
+      token: 'info' as const,
     },
     {
       icon: MessageCircle,
       title: t('home.actionChatTitle'),
       description: t('home.actionChatDesc'),
       action: () => navigate('/chat'),
-      gradient: 'from-amber-500 to-orange-500',
-      glow: 'group-hover:shadow-amber-500/20',
+      token: 'success' as const,
     },
     {
       icon: Bot,
       title: t('home.actionCardEditorChatTitle'),
       description: t('home.actionCardEditorChatDesc'),
       action: () => navigate('/card-editor-chat'),
-      gradient: 'from-blue-500 to-indigo-500',
-      glow: 'group-hover:shadow-blue-500/20',
+      token: 'warning' as const,
     },
     {
       icon: PenTool,
       title: t('home.actionDialogueTitle'),
       description: t('home.actionDialogueDesc'),
       action: () => navigate('/dialogue'),
-      gradient: 'from-rose-500 to-pink-500',
-      glow: 'group-hover:shadow-rose-500/20',
+      token: 'danger' as const,
     },
   ];
 
@@ -68,18 +65,19 @@ export function HomePage() {
           <button
             key={item.title}
             onClick={item.action}
-            className={`group text-left rounded-2xl border p-4 sm:p-6
+            className="group text-left rounded-2xl border p-4 sm:p-6
               hover:-translate-y-0.5
               transition-all duration-300 ease-out cursor-pointer
-              shadow-lg hover:shadow-xl ${item.glow}`}
+              shadow-lg hover:shadow-xl hover:shadow-[0_4px_14px_var(--glow-color)]"
             style={{
               borderColor: 'var(--color-border-subtle)',
               backgroundColor: 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.4)',
-            }}
+              '--glow-color': themeAlpha(item.token, 25),
+            } as CSSProperties}
           >
             <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl
-              bg-gradient-to-br ${item.gradient} text-white mb-5
-              shadow-lg shadow-black/20 group-hover:scale-105 transition-transform duration-300`}>
+              ${item.token === 'primary' ? 'bg-gradient-primary' : `bg-gradient-${item.token}`} text-inverse mb-5
+              shadow-[0_4px_10px_color-mix(in_srgb,var(--color-surface-base)_40%,transparent)] group-hover:scale-105 transition-transform duration-300`}>
               <item.icon size={22} strokeWidth={1.8} />
             </div>
             <h3 className="text-base font-semibold transition-colors duration-200 group-hover:text-primary-bright" style={{ color: 'var(--text-color)' }}>

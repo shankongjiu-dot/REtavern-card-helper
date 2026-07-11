@@ -43,8 +43,8 @@ describe('Staged Lorebook Builder - 调度条目兼容性', () => {
   it('所有阶段判断都应使用 __stagedVal', () => {
     const content = buildDispatcherContent(makeConfig());
     expect(content).toContain('if (__stagedVal_傅雪分阶段人设 === undefined)');
-    // 第一阶段用 } if，后续阶段用 } else if
-    expect(content).toContain('} if (__stagedVal_傅雪分阶段人设 <= -100) {');
+    // 所有阶段都用 } else if（第一阶段接在 undefined 检查后）
+    expect(content).toContain('} else if (__stagedVal_傅雪分阶段人设 <= -100) {');
     expect(content).toContain('} else if (__stagedVal_傅雪分阶段人设 <= -80) {');
     expect(content).toContain('} else if (__stagedVal_傅雪分阶段人设 >= 100) {');
     // 不应再出现直接 getvar(...) 作为判断条件
@@ -190,7 +190,7 @@ describe('Staged Lorebook Builder - 调度条目兼容性', () => {
     });
     const content = buildDispatcherContent(cfg);
     expect(content).toContain("const __stagedRaw_林雅宁分阶段人设 = getvar('stat_data.林雅宁.情感天平');");
-    expect(content).toContain('} if (__stagedVal_林雅宁分阶段人设 >= 80) {');
+    expect(content).toContain('} else if (__stagedVal_林雅宁分阶段人设 >= 80) {');
     expect(content).toContain('} else if (__stagedVal_林雅宁分阶段人设 >= -20) {');
     expect(content).toContain('} else if (__stagedVal_林雅宁分阶段人设 >= -50) {');
 

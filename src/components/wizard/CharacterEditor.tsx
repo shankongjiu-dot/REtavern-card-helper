@@ -8,6 +8,7 @@ import { TextArea } from '../shared/TextArea';
 import { Button } from '../shared/Button';
 import { CHARACTER_ALIGNMENTS } from '../../constants/defaults';
 import { useTranslation } from '../../i18n/I18nContext';
+import { themeAlpha } from '../../constants/theme';
 import type { WizardCharacter } from '../../constants/defaults';
 import type { CharacterVersion } from '../../pages/WizardPage';
 import type { MutableRefObject } from 'react';
@@ -27,8 +28,14 @@ interface CharacterEditorProps {
   onSelectVersion: (versionId: string) => void;
   onDeleteVersion: (versionId: string) => void;
   onSaveVersion: (content: string) => void;
-  streamingChunkCallbackRef: MutableRefObject<((chunk: string, fullText: string) => void) | null>;
+  streamingChunkCallbackRef: StreamingChunkMap;
 }
+
+/** Map of character index → streaming chunk callback.
+ *  Each CharacterEditor registers its own callback (keyed by index) so that both
+ *  single generation (via wrappedOnGenerate) and batch generation (which bypasses
+ *  it) can route streaming chunks to the correct editor's preview. */
+export type StreamingChunkMap = MutableRefObject<Map<number, (chunk: string, fullText: string) => void>>;
 
 function formatTime(timestamp: number): string {
   const d = new Date(timestamp);
@@ -71,26 +78,34 @@ export function CharacterEditor({
     rafPendingRef.current = false;
   }, []);
 
-  const wrappedOnGenerate = useCallback(() => {
-    pendingChunkRef.current = '';
-    setStreamingText('');
-    streamingChunkCallbackRef.current = (_chunk: string, fullText: string) => {
+  // Register this editor's chunk handler into the shared map (keyed by index).
+  // Both single and batch generation look up the map by index, so batch
+  // generation no longer needs to go through wrappedOnGenerate to wire preview.
+  useEffect(() => {
+    const map = streamingChunkCallbackRef.current;
+    map.set(index, (_chunk: string, fullText: string) => {
       pendingChunkRef.current = fullText;
       if (!rafPendingRef.current) {
         rafPendingRef.current = true;
         requestAnimationFrame(flushChunks);
       }
-    };
-    onGenerate(index);
-  }, [onGenerate, index, flushChunks, streamingChunkCallbackRef]);
+    });
+    return () => { map.delete(index); };
+  }, [index, flushChunks, streamingChunkCallbackRef]);
 
+  const wrappedOnGenerate = useCallback(() => {
+    pendingChunkRef.current = '';
+    setStreamingText('');
+    onGenerate(index);
+  }, [onGenerate, index]);
+
+  // Reset the preview buffer whenever this editor's generation state changes
+  // (covers single generation via wrappedOnGenerate AND batch generation
+  //  which sets generatingIndex without invoking wrappedOnGenerate).
   useEffect(() => {
-    if (!isGenerating) {
-      streamingChunkCallbackRef.current = null;
-      setStreamingText('');
-      pendingChunkRef.current = '';
-    }
-  }, [isGenerating, streamingChunkCallbackRef]);
+    pendingChunkRef.current = '';
+    setStreamingText('');
+  }, [isGenerating]);
 
   useEffect(() => {
     if (streamingText && streamPreviewRef.current) {
@@ -154,6 +169,20 @@ export function CharacterEditor({
   const surfaceBg = 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.5)';
   const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
   const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
+  const C = {
+    text: 'var(--text-color)',
+    secondary: 'var(--color-text-secondary)',
+    muted: 'var(--color-text-muted)',
+    border: borderColor,
+    surface: 'var(--color-surface-raised)',
+    inputBg: 'var(--input-bg)',
+    primary: 'var(--color-primary)',
+    info: 'var(--color-info)',
+    success: 'var(--color-status-success)',
+    warning: 'var(--color-status-warning)',
+    danger: 'var(--color-status-danger)',
+  } as const;
+  const surfaceA = (n: number) => `color-mix(in srgb, ${C.surface} ${n}%, transparent)`;
 
   return (
     <div className="rounded-xl border p-5 space-y-4" style={{ borderColor, backgroundColor: surfaceBg }}>
@@ -163,8 +192,8 @@ export function CharacterEditor({
           {t('characters.characterIndex', { index: String(index + 1) })}{localName ? `: ${localName}` : ''}
         </h3>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <label className="inline-flex items-center gap-2 rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-xs cursor-pointer" title={character.nsfw ? t('characterEditor.nsfwAllowed') : t('characterEditor.nsfwDisabled')}>
-            <span className="text-rose-200">{t('characterEditor.nsfwContent')}</span>
+          <label className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs cursor-pointer" style={{ borderColor: themeAlpha('danger', 25), backgroundColor: themeAlpha('danger', 10) }} title={character.nsfw ? t('characterEditor.nsfwAllowed') : t('characterEditor.nsfwDisabled')}>
+            <span style={{ color: C.danger }}>{t('characterEditor.nsfwContent')}</span>
             <span className="relative inline-flex items-center">
               <input
                 type="checkbox"
@@ -172,7 +201,7 @@ export function CharacterEditor({
                 onChange={(e) => onUpdate({ nsfw: e.target.checked })}
                 className="sr-only peer"
               />
-              <span className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-600" />
+              <span className="w-8 h-4 bg-[var(--input-bg)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[var(--text-color)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--text-color)] after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[var(--color-status-danger)]" />
             </span>
           </label>
           {hasName && (
@@ -199,7 +228,7 @@ export function CharacterEditor({
 
       {/* Alignment selector */}
       <details className="group">
-        <summary className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium mb-1.5 transition-colors hover:text-slate-300" style={{ color: mutedText }}>
+        <summary className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium mb-1.5 transition-colors hover:text-[var(--text-color)]" style={{ color: mutedText }}>
           <span className="transition-transform group-open:rotate-90">&#x25B6;</span>
           {t('characterEditor.alignment')}
           <span style={{ color: faintText }}>{t('characterEditor.alignmentHint')}</span>
@@ -214,8 +243,8 @@ export function CharacterEditor({
             onClick={() => onUpdate({ alignment: undefined })}
             className={`text-[11px] py-1.5 px-2 rounded border transition-colors ${
               !character.alignment
-                ? 'border-slate-500 bg-slate-700/60 text-slate-200'
-                : 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                ? 'border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_60%,transparent)] text-[var(--text-color)]'
+                : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[color-mix(in_srgb,var(--color-border-default)_80%,transparent)] hover:text-[var(--color-text-secondary)]'
             }`}
           >
             {t('characterEditor.noAlignment')}
@@ -228,7 +257,7 @@ export function CharacterEditor({
               className={`text-[11px] py-1.5 px-2 rounded border transition-colors ${
                 character.alignment === a.value
                   ? 'border-primary-tint bg-primary-tint text-primary-bright'
-                  : 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                  : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[color-mix(in_srgb,var(--color-border-default)_80%,transparent)] hover:text-[var(--color-text-secondary)]'
               }`}
             >
               {a.label}
@@ -252,19 +281,20 @@ export function CharacterEditor({
         {/* Selected text indicator */}
         {selection && hasDescription && (
           <div className="mt-1.5 flex items-center gap-2">
-            <span className="text-[10px] text-amber-400 bg-amber-900/20 px-2 py-0.5 rounded border border-amber-700/30">
+            <span className="text-[10px] px-2 py-0.5 rounded border" style={{ color: C.warning, backgroundColor: themeAlpha('warning', 20), borderColor: themeAlpha('warning', 30) }}>
               {t('characterEditor.selectedChars', { count: String(selection.text.length) })}
             </span>
             <button
               onClick={handlePolishSelection}
               disabled={isModifying}
-              className="text-[10px] px-2 py-0.5 rounded bg-amber-800/30 text-amber-300 hover:bg-amber-700/40 transition-colors disabled:opacity-40"
+              className="text-[10px] px-2 py-0.5 rounded transition-colors disabled:opacity-40 hover:bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)]"
+              style={{ backgroundColor: themeAlpha('warning', 30), color: C.warning }}
             >
               {isModifying ? t('characterEditor.polishing') : t('characterEditor.polishSelected')}
             </button>
             <button
               onClick={() => setSelection(null)}
-              className="text-[10px] hover:text-slate-300 transition-colors"
+              className="text-[10px] hover:text-[var(--text-color)] transition-colors"
               style={{ color: faintText }}
             >
               {t('characterEditor.cancelSelection')}
@@ -275,11 +305,11 @@ export function CharacterEditor({
 
       {/* AI Streaming Preview */}
       {(isGenerating || streamingText) && (
-        <div className="rounded-lg border border-purple-700/40 bg-purple-950/10 p-3">
+        <div className="rounded-lg border p-3" style={{ borderColor: themeAlpha('info', 40), backgroundColor: themeAlpha('info', 10) }}>
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-semibold text-purple-300 flex items-center gap-2">
+            <h4 className="text-xs font-semibold flex items-center gap-2" style={{ color: C.info }}>
               {isGenerating && (
-                <span className="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
+                <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: C.info }} />
               )}
               {t('characterEditor.streamingOutputTitle')}
             </h4>
@@ -287,11 +317,11 @@ export function CharacterEditor({
           </div>
           <div
             ref={streamPreviewRef}
-            className="max-h-[300px] overflow-y-auto rounded p-3 border border-slate-800"
-            style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)', willChange: 'contents' }}
+            className="max-h-[300px] overflow-y-auto rounded p-3 border"
+            style={{ borderColor: C.border, backgroundColor: surfaceA(60), willChange: 'contents' }}
           >
             {streamingText ? (
-              <pre className="text-[11px] text-purple-200/80 font-mono whitespace-pre-wrap leading-relaxed">
+              <pre className="text-[11px] font-mono whitespace-pre-wrap leading-relaxed" style={{ color: 'color-mix(in srgb, var(--color-info) 80%, transparent)' }}>
                 {streamingText}
               </pre>
             ) : (
@@ -307,7 +337,7 @@ export function CharacterEditor({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleSaveCurrentAsVersion}
-            className="text-[11px] px-2.5 py-1 rounded border transition-colors hover:text-slate-200 hover:border-slate-500"
+            className="text-[11px] px-2.5 py-1 rounded border transition-colors hover:text-[var(--text-color)] hover:border-[var(--color-border-default)]"
             style={{ borderColor, color: mutedText }}
           >
             {t('characterEditor.saveAsVersion')}
@@ -316,8 +346,8 @@ export function CharacterEditor({
             onClick={() => setShowModifyPanel(!showModifyPanel)}
             className={`text-[11px] px-2.5 py-1 rounded border transition-colors ${
               showModifyPanel
-                ? 'border-cyan-500/50 text-cyan-300 bg-cyan-900/20'
-                : 'border-cyan-600/30 text-cyan-400 hover:text-cyan-300 hover:border-cyan-500/50'
+                ? 'border-[color-mix(in_srgb,var(--color-info)_50%,transparent)] text-[var(--color-info)] bg-[color-mix(in_srgb,var(--color-info)_20%,transparent)]'
+                : 'border-[color-mix(in_srgb,var(--color-info)_30%,transparent)] text-[var(--color-info)] hover:text-[var(--color-info)] hover:border-[color-mix(in_srgb,var(--color-info)_50%,transparent)]'
             }`}
           >
             {showModifyPanel ? t('characterEditor.collapseModify') : t('characterEditor.modifyPanel')}
@@ -335,16 +365,16 @@ export function CharacterEditor({
 
       {/* AI Partial Modification Panel */}
       {showModifyPanel && hasDescription && (
-        <div className="rounded-lg border border-cyan-700/40 bg-cyan-950/15 p-3 space-y-2.5">
+        <div className="rounded-lg border p-3 space-y-2.5" style={{ borderColor: themeAlpha('info', 40), backgroundColor: themeAlpha('info', 15) }}>
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-cyan-300">{t('characterEditor.modifyTitle')}</h4>
+            <h4 className="text-xs font-semibold" style={{ color: C.info }}>{t('characterEditor.modifyTitle')}</h4>
             <span className="text-[10px]" style={{ color: faintText }}>{t('characterEditor.modifyHint')}</span>
           </div>
           <textarea
             value={modifyInstruction}
             onChange={(e) => setModifyInstruction(e.target.value)}
             placeholder={t('characterEditor.modifyPlaceholder')}
-            className="w-full h-16 rounded-lg border px-3 py-2 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            className="w-full h-16 rounded-lg border px-3 py-2 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-[var(--color-info)]"
             style={{
               borderColor,
               backgroundColor: 'var(--input-bg)',
@@ -369,7 +399,7 @@ export function CharacterEditor({
 
       {/* Version History Panel */}
       {showHistory && hasHistory && (
-        <div className="rounded-lg border p-3 space-y-2" style={{ borderColor, backgroundColor: 'rgba(15, 23, 42, 0.5)' }}>
+        <div className="rounded-lg border p-3 space-y-2" style={{ borderColor, backgroundColor: surfaceA(50) }}>
           <div className="flex items-center justify-between mb-1">
             <h4 className="text-xs font-semibold" style={{ color: 'color-mix(in srgb, var(--text-color) 80%, transparent)' }}>
               {t('characterEditor.versionHistory')}
@@ -387,7 +417,7 @@ export function CharacterEditor({
                   className={`rounded-lg border transition-all ${
                     isActive
                       ? 'border-primary-tint bg-primary-tint-light'
-                      : 'border-slate-700/50 bg-slate-800/30 hover:border-slate-600/50'
+                      : 'border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] hover:border-[color-mix(in_srgb,var(--color-border-default)_60%,transparent)]'
                   }`}
                 >
                   <div className="flex items-center gap-2 px-3 py-1.5">
@@ -397,12 +427,12 @@ export function CharacterEditor({
                     >
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${
                         version.isOriginal
-                          ? 'bg-emerald-800/40 text-emerald-300'
-                          : 'bg-violet-800/40 text-violet-300'
+                          ? 'bg-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)] text-[var(--color-status-success)]'
+                          : 'bg-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[var(--color-primary)]'
                       }`}>
                         {version.isOriginal ? t('characterEditor.original') : `v${vIndex}`}
                       </span>
-                      <span className={`text-xs truncate ${isActive ? 'text-primary-bright' : 'text-slate-400'}`}>
+                      <span className={`text-xs truncate ${isActive ? 'text-primary-bright' : 'text-[var(--color-text-secondary)]'}`}>
                         {version.content.slice(0, 60)}{version.content.length > 60 ? '...' : ''}
                       </span>
                       <span className="text-[10px] shrink-0 ml-auto" style={{ color: faintText }}>
@@ -411,7 +441,7 @@ export function CharacterEditor({
                     </button>
                     <button
                       onClick={() => setExpandedVersionId(isExpanded ? null : version.id)}
-                      className="text-[10px] shrink-0 px-1 hover:text-slate-300 transition-colors"
+                      className="text-[10px] shrink-0 px-1 hover:text-[var(--text-color)] transition-colors"
                       style={{ color: faintText }}
                       title={t('characterEditor.expandPreview')}
                     >
@@ -420,7 +450,8 @@ export function CharacterEditor({
                     {!version.isOriginal && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onDeleteVersion(version.id); }}
-                        className="text-[10px] text-red-400/60 hover:text-red-400 shrink-0 px-1"
+                        className="text-[10px] shrink-0 px-1 hover:text-[var(--color-status-danger)]"
+                        style={{ color: 'color-mix(in srgb, var(--color-status-danger) 60%, transparent)' }}
                         title={t('common.delete')}
                       >
                         x
@@ -430,8 +461,8 @@ export function CharacterEditor({
 
                   {isExpanded && (
                     <div className="px-3 pb-2">
-                      <div className="max-h-[200px] overflow-y-auto rounded p-2 border border-slate-800" style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)' }}>
-                        <pre className="text-[11px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">
+                      <div className="max-h-[200px] overflow-y-auto rounded p-2 border" style={{ borderColor: C.border, backgroundColor: surfaceA(50) }}>
+                        <pre className="text-[11px] font-mono whitespace-pre-wrap leading-relaxed" style={{ color: C.secondary }}>
                           {version.content}
                         </pre>
                       </div>

@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch, Bot, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Home, Settings, Wand2, BookOpen, MessageCircle, PenTool, X, ScrollText, FileSearch, Bot, ChevronLeft, ChevronRight, FileText, BookMarked } from 'lucide-react';
 import { BackgroundChanger } from '../shared/BackgroundChanger';
 import { ThemeSettings } from '../shared/ThemeSettings';
 import { ThemeSkinPicker } from '../shared/ThemeSkinPicker';
@@ -28,12 +28,13 @@ const navItems = (t: (key: string) => string) => [
   { to: '/card-editor-chat', label: t('sidebar.cardEditorChat'), icon: Bot },
   { to: '/dialogue', label: t('sidebar.dialogueCreator'), icon: PenTool },
   { to: '/novel-analysis', label: t('sidebar.novelAnalysis'), icon: FileSearch },
+  { to: '/novel-workshop', label: t('sidebar.novelWorkshop'), icon: BookMarked },
   { to: '/settings', label: t('sidebar.settings'), icon: Settings },
 ];
 
 export function Sidebar({ isOpen, isCollapsed, onClose, onToggleCollapsed }: SidebarProps) {
   const { t } = useTranslation();
-  const borderColor = 'rgba(255, 255, 255, 0.05)';
+  const borderColor = 'color-mix(in srgb, var(--text-color) 5%, transparent)';
   const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -100,15 +101,15 @@ export function Sidebar({ isOpen, isCollapsed, onClose, onToggleCollapsed }: Sid
         </div>
         <button
           onClick={onToggleCollapsed}
-          className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          aria-label={isCollapsed ? '展开侧边栏' : '收起侧边栏'}
-          title={isCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          className="hidden md:flex p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)] transition-colors"
+          aria-label={isCollapsed ? t('sidebar.expandSidebar') : t('sidebar.collapseSidebar')}
+          title={isCollapsed ? t('sidebar.expandSidebar') : t('sidebar.collapseSidebar')}
         >
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
         <button
           onClick={onClose}
-          className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="md:hidden p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)] transition-colors"
           aria-label={t('common.close')}
         >
           <X size={20} />
@@ -129,14 +130,14 @@ export function Sidebar({ isOpen, isCollapsed, onClose, onToggleCollapsed }: Sid
               ${isCollapsed ? 'md:justify-center md:px-0 gap-3 px-3' : 'gap-3 px-3'}
               ${isActive
                 ? 'text-themed'
-                : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                : 'hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)] hover:text-[var(--text-color)]'
               }`
             }
             style={({ isActive }) => isActive ? {
               backgroundColor: 'color-mix(in srgb, var(--color-primary) 15%, transparent)',
               color: 'var(--color-primary)',
               textShadow: 'var(--text-shadow)',
-            } : undefined}
+            } : { color: 'var(--color-text-muted)' }}
           >
             <item.icon size={18} strokeWidth={1.8} className="shrink-0" />
             <span className={`md:transition-opacity md:duration-200 md:whitespace-nowrap ${isCollapsed ? 'md:opacity-0 md:w-0 md:overflow-hidden' : 'md:opacity-100 md:w-auto'}`}>{item.label}</span>

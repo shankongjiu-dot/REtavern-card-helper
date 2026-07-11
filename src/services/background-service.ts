@@ -16,9 +16,13 @@ export function applyBackground(imageUrl: string | null) {
   const bgImage = imageUrl || DEFAULT_BG;
   const theme = getThemeSettings();
   const overlayOpacity = theme.bgOverlayOpacity / 100;
-  
+  const overlayColor = theme.cardBgColor;
+
   document.body.style.backgroundImage = `
-    linear-gradient(rgba(15, 23, 42, ${overlayOpacity}), rgba(15, 23, 42, ${overlayOpacity + 0.05})),
+    linear-gradient(
+      color-mix(in srgb, ${overlayColor} ${overlayOpacity * 100}%, transparent),
+      color-mix(in srgb, ${overlayColor} ${(overlayOpacity + 0.05) * 100}%, transparent)
+    ),
     url('${bgImage}')
   `;
   document.body.style.backgroundSize = 'cover';

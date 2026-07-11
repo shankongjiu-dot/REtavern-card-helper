@@ -12,7 +12,7 @@ import { TextInput } from '../components/shared/TextInput';
 import { Modal } from '../components/shared/Modal';
 import { useTranslation } from '../i18n/I18nContext';
 import { WIZARD_DRAFT_VERSION } from '../constants/defaults';
-import { cardToDraft, exportAsJson, exportAsPng, importFromPng } from '../services/card-exporter';
+import { cardToDraft, assembleCard, exportAsJson, exportAsPng, importFromPng } from '../services/card-exporter';
 import { resizeImageToPngBuffer } from '../services/image-processing';
 
 export function LibraryPage() {
@@ -151,16 +151,19 @@ export function LibraryPage() {
           const text = await file.text();
           cardData = JSON.parse(text);
         }
-        const { id: _discardId, ...cardWithoutId } = cardData;
-        const card = {
-          ...cardWithoutId,
-          name: (cardData.data as Record<string, unknown>)?.name || cardData.name || t('library.importedCardName'),
+        // 通过 cardToDraft + assembleCard 规范化数据：清理失效 _meta entryIds、
+        // 重建角色设定条目、统一卡片结构，避免导入后重复或残留旧条目。
+        const draft = cardToDraft(cardData);
+        const card = assembleCard(draft);
+        const cardToSave = {
+          ...card,
+          name: card.data.name || card.name || t('library.importedCardName'),
           createdAt: new Date(),
           updatedAt: new Date(),
         };
-        await db.cards.add(card as Record<string, unknown>);
+        await db.cards.add(cardToSave as Record<string, unknown>);
         await loadCards();
-        addToast('success', t('library.importSuccess', { name: String(card.name) }));
+        addToast('success', t('library.importSuccess', { name: String(cardToSave.name) }));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : t('common.unknownError');
         addToast('error', t('library.importError', { message: msg }));
@@ -241,7 +244,7 @@ export function LibraryPage() {
               <div
                 key={card.id}
                 className="rounded-xl border p-5 opacity-70"
-                style={{ borderColor: 'rgba(51, 65, 85, 0.5)', backgroundColor: surfaceBg }}
+                style={{ borderColor, backgroundColor: surfaceBg }}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -348,7 +351,7 @@ export function LibraryPage() {
                           key={i}
                           className="px-1.5 py-0.5 text-[10px] rounded"
                           style={{
-                            backgroundColor: 'rgba(51, 65, 85, 0.8)',
+                            backgroundColor: 'color-mix(in srgb, var(--color-text-secondary) 16%, transparent)',
                             color: mutedText,
                           }}
                         >
@@ -383,21 +386,21 @@ export function LibraryPage() {
                         style={{ borderColor, backgroundColor: 'var(--color-surface-raised)' }}
                       >
                         <button
-                          className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-white/5"
+                          className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
                           style={{ color: 'var(--text-color)' }}
                           onClick={() => handleExportJson(card as unknown as Record<string, unknown>)}
                         >
                           📄 {t('library.exportJson')}
                         </button>
                         <button
-                          className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-white/5"
+                          className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
                           style={{ color: 'var(--text-color)' }}
                           onClick={() => handleExportPng(card as unknown as Record<string, unknown>)}
                         >
                           🖼️ {t('library.exportPngAuto')}
                         </button>
                         <button
-                          className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-white/5"
+                          className="w-full text-left px-3 py-2 text-sm transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
                           style={{ color: 'var(--text-color)' }}
                           onClick={() => handleExportPngWithImage(card as unknown as Record<string, unknown>)}
                         >
@@ -431,7 +434,7 @@ export function LibraryPage() {
 
       {/* Permanent delete confirmation modal */}
       <Modal isOpen={permanentDeleteConfirm !== null} onClose={() => setPermanentDeleteConfirm(null)} title={t('library.permanentDeleteTitle')}>
-        <p className="mb-4 text-red-300">
+        <p className="mb-4" style={{ color: 'var(--color-status-danger)' }}>
           {t('library.permanentDeleteConfirm')}
         </p>
         <div className="flex justify-end gap-2">

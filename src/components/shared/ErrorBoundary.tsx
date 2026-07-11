@@ -81,10 +81,10 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             {this.state.error && (
               <div className="text-left">
-                <p className="text-sm font-semibold text-red-300 mb-1">{this.state.error.message}</p>
+                <p className="text-sm font-semibold text-[var(--color-status-danger)] mb-1">{this.state.error.message}</p>
                 <pre
-                  className="text-[11px] text-red-400/70 p-3 rounded-lg overflow-auto max-h-48 whitespace-pre-wrap break-all"
-                  style={{ backgroundColor: 'var(--color-surface-raised)' }}
+                  className="text-[11px] p-3 rounded-lg overflow-auto max-h-48 whitespace-pre-wrap break-all"
+                  style={{ backgroundColor: 'var(--color-surface-raised)', color: 'color-mix(in srgb, var(--color-status-danger) 70%, transparent)' }}
                 >
                   {this.state.error.stack}
                 </pre>
@@ -93,13 +93,13 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={this.handleManualRetry}
-                className="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-hover transition-colors"
+                className="px-4 py-2 bg-primary text-[var(--color-text-inverse)] text-sm rounded-lg hover:bg-primary-hover transition-colors"
               >
                 {this.context.t('errorBoundary.retry')}
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 text-white text-sm rounded-lg hover:bg-slate-600 transition-colors"
+                className="px-4 py-2 text-[var(--text-color)] text-sm rounded-lg hover:bg-[color-mix(in_srgb,var(--text-color)_10%,transparent)] transition-colors"
                 style={{ backgroundColor: 'var(--color-surface-elevated)' }}
               >
                 {this.context.t('errorBoundary.reload')}

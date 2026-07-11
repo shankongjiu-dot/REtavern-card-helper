@@ -7,6 +7,7 @@ import { WIZARD_STEPS } from '../../constants/defaults';
 import { Button } from '../shared/Button';
 import { Check } from 'lucide-react';
 import { useTranslation } from '../../i18n/I18nContext';
+import { themeAlpha } from '../../constants/theme';
 
 interface WizardShellProps {
   currentStep: number;
@@ -28,7 +29,7 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
   const isFirst = currentStep === 1;
   const isLast = currentStep === WIZARD_STEPS.length;
   const stepKeys = ['wizard.stepName','wizard.stepCharacters','wizard.stepWorldBook','wizard.stepMvu','wizard.stepStagedMode','wizard.stepFirstMessage','wizard.stepExport'];
-  const borderColor = 'rgba(255, 255, 255, 0.05)';
+  const borderColor = 'color-mix(in srgb, var(--text-color) 5%, transparent)';
 
   return (
     <div>
@@ -46,25 +47,26 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
                     <div
                       className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold transition-all duration-300
                         ${isCurrent
-                          ? 'bg-gradient-to-b from-indigo-400 to-indigo-600 text-white shadow-lg shadow-primary-glow scale-110'
+                          ? 'bg-gradient-primary text-inverse shadow-lg shadow-primary-glow scale-110'
                           : isCompleted
-                            ? 'bg-emerald-500/90 text-white shadow-md shadow-emerald-500/20'
-                            : 'bg-slate-700/60 text-slate-500'
+                            ? 'bg-gradient-success text-inverse shadow-md'
+                            : 'text-[var(--color-text-muted)]'
                         }`}
+                      style={!isCurrent && !isCompleted ? { backgroundColor: 'color-mix(in srgb, var(--color-surface-elevated) 60%, transparent)' } : undefined}
                     >
                       {isCompleted ? <Check size={12} strokeWidth={3} /> : step.id}
                     </div>
                     <span
-                      className={`mt-1 sm:mt-1.5 text-[10px] sm:text-[11px] font-medium whitespace-nowrap transition-colors duration-200
-                        ${isCurrent ? 'text-primary-bright' : isCompleted ? 'text-emerald-400/70' : 'text-slate-600'}`}
+                      className={`mt-1 sm:mt-1.5 text-[10px] sm:text-[11px] font-medium whitespace-nowrap transition-colors duration-200 ${isCurrent ? 'text-primary-bright' : ''}`}
+                      style={{ color: isCurrent ? undefined : isCompleted ? 'color-mix(in srgb, var(--color-status-success) 70%, transparent)' : 'var(--color-text-muted)' }}
                     >
                       {t(stepKeys[step.id - 1])}
                     </span>
                   </div>
                   {i < WIZARD_STEPS.length - 1 && (
                     <div
-                      className={`flex-1 h-[2px] mx-1.5 sm:mx-2 min-w-[12px] sm:min-w-[16px] rounded-full transition-colors duration-500
-                        ${isCompleted ? 'bg-emerald-500/50' : 'bg-slate-700/40'}`}
+                      className="flex-1 h-[2px] mx-1.5 sm:mx-2 min-w-[12px] sm:min-w-[16px] rounded-full transition-colors duration-500"
+                      style={{ backgroundColor: isCompleted ? themeAlpha('success', 50) : 'color-mix(in srgb, var(--color-border-default) 40%, transparent)' }}
                     />
                   )}
                 </div>
@@ -85,7 +87,8 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
       {/* Error display */}
       {stepError && (
         <div
-          className="mt-3 rounded-lg bg-red-900/20 border border-red-500/30 px-4 py-2.5 text-sm text-red-300 animate-scale-in"
+          className="mt-3 rounded-lg px-4 py-2.5 text-sm animate-scale-in"
+          style={{ backgroundColor: themeAlpha('danger', 20), border: `1px solid ${themeAlpha('danger', 30)}`, color: 'var(--color-status-danger)' }}
         >
           {stepError}
         </div>

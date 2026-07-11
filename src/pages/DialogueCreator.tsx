@@ -24,6 +24,12 @@ interface ChatMessage {
   content: string;
 }
 
+const borderColor = 'var(--color-border-default)';
+const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
+const faintText = 'color-mix(in srgb, var(--text-color) 40%, transparent)';
+const surfaceRaisedTransparent = 'color-mix(in srgb, var(--color-surface-raised) 80%, transparent)';
+const cardBgSemiTransparent = 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.6)';
+
 const SYSTEM_PROMPT = `你是一位经验丰富的 SillyTavern 角色卡创作助手。你的工作是帮助创作者完成以下任务：
 
 1. **灵感激发**：根据创作者的模糊想法，提出具体的角色设定、世界观、剧情走向建议
@@ -129,7 +135,7 @@ export function DialogueCreator() {
       });
       setCurrentChatId(newId ?? null);
     }
-  }, []);
+  }, [t]);
 
   // ── New conversation ──────────────────────────────────────────────────────
   const handleNewChat = useCallback(() => {
@@ -284,7 +290,8 @@ export function DialogueCreator() {
       {/* ── Mobile history overlay ─────────────────────────────────────────── */}
       {historyOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          className="fixed inset-0 z-30 md:hidden"
+          style={{ backgroundColor: 'var(--color-surface-overlay)' }}
           onClick={() => setHistoryOpen(false)}
         />
       )}
@@ -292,46 +299,49 @@ export function DialogueCreator() {
       {/* ── Sidebar: History ────────────────────────────────────────────────── */}
       <aside
         className={`
-          w-64 shrink-0 border-r border-slate-700 flex flex-col bg-slate-900/60
+          w-64 shrink-0 border-r flex flex-col
           max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40
           max-md:transition-transform max-md:duration-300 max-md:ease-in-out
           ${historyOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'}
           md:translate-x-0 md:relative
         `}
+        style={{ borderColor, backgroundColor: cardBgSemiTransparent }}
       >
-        <div className="p-3 border-b border-slate-700 flex items-center justify-between gap-2">
+        <div className="p-3 border-b flex items-center justify-between gap-2" style={{ borderColor }}>
           <Button variant="primary" size="sm" className="flex-1" onClick={handleNewChat}>
             + {t('dialogue.newChat')}
           </Button>
           <button
             onClick={() => setHistoryOpen(false)}
-            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="md:hidden p-1.5 rounded-lg transition-colors text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
           >
             <X size={18} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {allChats.length === 0 && (
-            <p className="text-xs text-slate-500 text-center py-4">{t('dialogue.noHistory')}</p>
+            <p className="text-xs text-center py-4" style={{ color: faintText }}>{t('dialogue.noHistory')}</p>
           )}
           {allChats.map((chat) => (
             <div
               key={chat.id}
-              className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors
+              className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors border
                 ${currentChatId === chat.id
-                  ? 'bg-primary-tint-light border border-primary-tint-light'
-                  : 'hover:bg-slate-800/50 border border-transparent'
+                  ? 'bg-primary-tint-light border-primary-tint-light'
+                  : 'border-transparent hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]'
                 }`}
               onClick={() => loadChat(chat.id!)}
             >
               <span className={`flex-1 text-sm truncate ${
-                currentChatId === chat.id ? 'text-primary-bright' : 'text-slate-400'
-              }`}>
+                currentChatId === chat.id ? 'text-primary-bright' : ''
+              }`}
+              style={{ color: currentChatId === chat.id ? undefined : mutedText }}>
                 {chat.title}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDeleteChat(chat.id!); }}
-                className="opacity-0 group-hover:opacity-100 max-md:opacity-60 text-red-400 hover:text-red-300 text-xs transition-opacity"
+                className="opacity-0 group-hover:opacity-100 max-md:opacity-60 text-xs transition-opacity"
+                style={{ color: 'var(--color-status-danger)' }}
                 title={t('dialogue.delete')}
               >
                 ×
@@ -340,10 +350,11 @@ export function DialogueCreator() {
           ))}
         </div>
         {allChats.length > 0 && (
-          <div className="p-2 border-t border-slate-700">
+          <div className="p-2 border-t" style={{ borderColor }}>
             <button
               onClick={handleClearAll}
-              className="w-full text-xs text-red-400 hover:text-red-300 py-1.5 rounded hover:bg-red-900/20 transition-colors"
+              className="w-full text-xs py-1.5 rounded transition-colors hover:bg-[color-mix(in_srgb,var(--color-status-danger)_12%,transparent)]"
+              style={{ color: 'var(--color-status-danger)' }}
             >
               {t('dialogue.clearAll')}
             </button>
@@ -353,20 +364,20 @@ export function DialogueCreator() {
 
       {/* ── Main: Chat ──────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="shrink-0 px-4 sm:px-6 py-3 border-b border-slate-700 flex items-center gap-3">
+        <div className="shrink-0 px-4 sm:px-6 py-3 border-b flex items-center gap-3" style={{ borderColor }}>
           {/* Mobile: history toggle */}
           <button
             onClick={() => setHistoryOpen(true)}
-            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="md:hidden p-1.5 rounded-lg transition-colors text-[var(--color-text-muted)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
             title={t('dialogue.historyTitle')}
           >
             <History size={18} />
           </button>
           <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-semibold text-white truncate">
+            <h1 className="text-base sm:text-lg font-semibold truncate" style={{ color: 'var(--text-color)' }}>
               {currentChatId ? allChats.find(c => c.id === currentChatId)?.title || t('dialogue.untitled') : t('dialogue.title')}
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
+            <p className="text-xs mt-0.5 hidden sm:block" style={{ color: faintText }}>
               {t('dialogue.subtitle')}
             </p>
           </div>
@@ -377,15 +388,26 @@ export function DialogueCreator() {
           <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
             {messages.length === 0 && !isStreaming && (
               <div className="text-center py-12 sm:py-16">
-                <p className="text-slate-500 text-sm mb-4 sm:mb-6">{t('dialogue.emptyPrompt')}</p>
+                <p className="text-sm mb-4 sm:mb-6" style={{ color: mutedText }}>{t('dialogue.emptyPrompt')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg mx-auto px-2">
                   {quickPrompts.map((hint) => (
                     <button
                       key={hint}
                       onClick={() => { setInputValue(hint); inputRef.current?.focus(); }}
-                      className="text-left text-sm px-3 py-2 rounded-lg border border-slate-700
-                        bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:border-slate-600
-                        transition-colors cursor-pointer"
+                      className="text-left text-sm px-3 py-2 rounded-lg border transition-colors cursor-pointer"
+                      style={{
+                        borderColor: 'var(--color-border-default)',
+                        backgroundColor: 'color-mix(in srgb, var(--color-surface-raised) 50%, transparent)',
+                        color: 'var(--color-text-muted)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--text-color)';
+                        e.currentTarget.style.borderColor = 'var(--color-text-secondary)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--color-text-muted)';
+                        e.currentTarget.style.borderColor = 'var(--color-border-default)';
+                      }}
                     >
                       {hint}
                     </button>
@@ -400,16 +422,17 @@ export function DialogueCreator() {
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm whitespace-pre-wrap leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-primary text-white'
-                      : 'bg-slate-800 border border-slate-700 text-slate-200'
-                  }`}>
+                      ? 'bg-primary text-inverse'
+                      : 'border'
+                  }`}
+                  style={msg.role === 'user' ? {} : { backgroundColor: surfaceRaisedTransparent, borderColor }}>
                     {msg.content}
                     {/* Regenerate button on the last assistant message */}
                     {isLastAssistant && !isStreaming && messages.length >= 2 && (
-                      <div className="mt-2 pt-2 border-t border-slate-700/50 flex items-center gap-2">
+                      <div className="mt-2 pt-2 border-t flex items-center gap-2" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 50%, transparent)' }}>
                         <button
                           onClick={handleRegenerate}
-                          className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-primary-muted transition-colors"
+                          className="flex items-center gap-1 text-[11px] transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
                           title={t('dialogue.regenerate')}
                         >
                           <RefreshCw size={12} />
@@ -424,9 +447,9 @@ export function DialogueCreator() {
 
             {isStreaming && (
               <div className="flex justify-start">
-                <div className="max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-slate-800 border border-slate-700 text-slate-200 whitespace-pre-wrap leading-relaxed" style={{ willChange: 'contents' }}>
-                  {streamingText || <span className="text-slate-400 animate-pulse">{t('dialogue.thinking')}</span>}
-                </div>
+                <div className="max-w-[90%] sm:max-w-[85%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm border whitespace-pre-wrap leading-relaxed" style={{ willChange: 'contents', backgroundColor: surfaceRaisedTransparent, borderColor }}>
+                {streamingText || <span className="animate-pulse" style={{ color: mutedText }}>{t('dialogue.thinking')}</span>}
+              </div>
               </div>
             )}
 
@@ -434,13 +457,14 @@ export function DialogueCreator() {
           </div>
 
           {/* Input */}
-          <div className="shrink-0 border-t border-slate-700 px-3 sm:px-4 py-2.5 sm:py-3">
+          <div className="shrink-0 border-t px-3 sm:px-4 py-2.5 sm:py-3" style={{ borderColor }}>
             <div className="flex gap-2 items-end">
               <textarea
                 ref={(el) => { textareaRef(el); (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
-                className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-slate-100
-                  placeholder-slate-500 focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]
+                className="flex-1 rounded-lg border px-3 sm:px-4 py-2 sm:py-2.5 text-sm
+                  focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]
                   resize-none min-h-[38px] sm:min-h-[42px] max-h-[160px]"
+                style={{ borderColor: 'var(--input-border)', backgroundColor: 'var(--input-bg)', color: 'var(--text-color)' }}
                 value={inputValue}
                 onChange={(e) => {
                   setInputValue(e.target.value);

@@ -15,11 +15,11 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Button } from '../shared/Button';
 import { useToast } from '../shared/Toast';
-import { exportAsJson, exportAsPng, assembleCard, findStagedLorebookEntryIndices } from '../../services/card-exporter';
+import { exportAsJson, exportAsPng, assembleCard, findStagedLorebookEntryIndices, isProtectedLorebookEntry } from '../../services/card-exporter';
 import { validateCard } from '../../services/card-validator';
 import { validateMvuConsistency } from '../../services/mvu-builder';
 import { autoFixEntries } from '../../services/card-fixers';
-import { createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../constants/defaults';
+import { createEmptyLorebookEntry } from '../../constants/defaults';
 import type { WizardDraft, LorebookEntry } from '../../constants/defaults';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import type { MvuConsistencyIssue } from '../../services/mvu-builder';
@@ -28,12 +28,6 @@ import { Upload, Image as ImageIcon, Check, Trash2 } from 'lucide-react';
 import { QualityCheckPanel } from './QualityCheckPanel';
 import { OptimizeCompareModal } from './OptimizeCompareModal';
 import type { OptimizeFieldKey } from '../../services/card-optimizer';
-
-function isSpecialLorebookEntry(entry: LorebookEntry, idx: number, stagedIndices: Set<number>): boolean {
-  const name = (entry.name || '').trim();
-  const comment = (entry.comment || '').trim();
-  return MVU_LOREBOOK_ENTRY_NAMES.includes(name) || MVU_LOREBOOK_ENTRY_NAMES.includes(comment) || stagedIndices.has(idx);
-}
 
 interface StepPolishExportProps {
   draft: WizardDraft;
@@ -196,7 +190,7 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
     }
 
     // 5. World book entry checks
-    const userEntries = draft.lorebookEntries.filter((entry, idx) => !isSpecialLorebookEntry(entry, idx, stagedIndices));
+    const userEntries = draft.lorebookEntries.filter((entry, idx) => !isProtectedLorebookEntry(entry, idx, stagedIndices));
 
     const emptyContentEntries = userEntries.filter(e => e.enabled && !e.content?.trim());
     if (emptyContentEntries.length > 0) {
@@ -377,19 +371,19 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-white">美化 & 导出</h2>
+          <h2 className="text-xl font-bold text-[var(--text-color)]">美化 & 导出</h2>
         </div>
       </div>
 
       {/* ── Export Section ────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-4 mb-4">
+      <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-emerald-300">📦 导出卡片</h3>
+          <h3 className="text-sm font-bold text-[var(--color-status-success)]">📦 导出卡片</h3>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-[220px_minmax(0,1fr)] items-stretch">
           <div
-            className="relative group min-h-[320px] aspect-[2/3] w-full max-w-[240px] mx-auto sm:mx-0 overflow-hidden rounded-2xl border border-emerald-500/30 bg-slate-950/50 cursor-pointer"
+            className="relative group min-h-[320px] aspect-[2/3] w-full max-w-[240px] mx-auto sm:mx-0 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-surface-base)_50%,transparent)] cursor-pointer"
             onClick={() => document.getElementById('step-polish-cover-input')?.click()}
             title="点击上传或更换封面"
           >
@@ -400,70 +394,73 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
                   alt="封面预览"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-transparent" />
-                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-sm text-white">
+                <div className="absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--color-surface-base)_75%,transparent)] via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-surface-base)_45%,transparent)] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-sm text-[var(--text-color)]">
                   <Upload size={16} />
                   更换封面
                 </div>
-                <span className="absolute right-3 top-3 w-6 h-6 rounded-full bg-emerald-500 border border-white/30 flex items-center justify-center shadow-lg">
-                  <Check size={13} className="text-white" />
+                <span className="absolute right-3 top-3 w-6 h-6 rounded-full bg-[var(--color-status-success)] border border-[color-mix(in_srgb,var(--text-color)_30%,transparent)] flex items-center justify-center shadow-lg">
+                  <Check size={13} className="text-[var(--text-color)]" />
                 </span>
               </>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[radial-gradient(circle_at_top,rgba(16,185,129,.18),transparent_45%),linear-gradient(135deg,rgba(15,23,42,.95),rgba(30,41,59,.82))]">
-                <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 flex items-center justify-center">
-                  <ImageIcon size={24} className="text-emerald-300" />
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3"
+                style={{ background: 'radial-gradient(circle at top, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 45%), linear-gradient(135deg, color-mix(in srgb, var(--color-surface-base) 95%, transparent), color-mix(in srgb, var(--color-surface-raised) 82%, transparent))' }}
+              >
+                <div className="h-12 w-12 rounded-2xl bg-[color-mix(in_srgb,var(--color-status-success)_10%,transparent)] border border-[color-mix(in_srgb,var(--color-status-success)_25%,transparent)] flex items-center justify-center">
+                  <ImageIcon size={24} className="text-[var(--color-status-success)]" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-slate-200">卡片封面</p>
-                  <p className="text-xs text-slate-500 mt-1">点击上传长图封面</p>
+                  <p className="text-sm font-medium text-[var(--text-color)]">卡片封面</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">点击上传长图封面</p>
                 </div>
               </div>
             )}
             <div className="absolute inset-x-0 bottom-8 flex justify-center px-4 pointer-events-none">
-              <div className="rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[11px] text-slate-300 shadow-lg backdrop-blur">
+              <div className="rounded-full border border-[color-mix(in_srgb,var(--text-color)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-surface-base)_75%,transparent)] px-3 py-1 text-[11px] text-[var(--color-text-secondary)] shadow-lg backdrop-blur">
                 导入封面
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-950/35 p-4 flex flex-col justify-between gap-4">
-            <div className="rounded-xl border border-emerald-500/20 bg-slate-900/60 p-3">
-              <p className="text-[10px] text-slate-500 mb-1">作品名</p>
-              <p className="text-sm font-semibold text-slate-100 truncate" title={cardName || '未命名卡片'}>{cardName || '未命名卡片'}</p>
+          <div className="rounded-2xl border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-surface-base)_35%,transparent)] p-4 flex flex-col justify-between gap-4">
+            <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_60%,transparent)] p-3">
+              <p className="text-[10px] text-[var(--color-text-muted)] mb-1">作品名</p>
+              <p className="text-sm font-semibold text-[var(--text-color)] truncate" title={cardName || '未命名卡片'}>{cardName || '未命名卡片'}</p>
               <div className="mt-2 flex items-center gap-2 min-w-0">
-                <span className="shrink-0 text-[10px] text-slate-500">卡片标签</span>
-                <span className="min-w-0 truncate rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300" title={cardTagLabel}>
+                <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">卡片标签</span>
+                <span className="min-w-0 truncate rounded-full border border-[color-mix(in_srgb,var(--color-status-success)_25%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_10%,transparent)] px-2 py-0.5 text-[10px] text-[var(--color-status-success)]" title={cardTagLabel}>
                   {cardTagLabel}
                 </span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
-                <p className="text-lg font-bold text-emerald-300 leading-none">{stats.entryCount}</p>
-                <p className="text-[10px] text-slate-500 mt-1">世界书</p>
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_60%,transparent)] p-3">
+                <p className="text-lg font-bold text-[var(--color-status-success)] leading-none">{stats.entryCount}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1">世界书</p>
               </div>
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
-                <p className="text-lg font-bold text-sky-300 leading-none">{stats.constantCount}</p>
-                <p className="text-[10px] text-slate-500 mt-1">蓝灯</p>
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_60%,transparent)] p-3">
+                <p className="text-lg font-bold text-[var(--color-info)] leading-none">{stats.constantCount}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1">蓝灯</p>
               </div>
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
-                <p className="text-lg font-bold text-amber-300 leading-none">{stats.mvuVarCount}</p>
-                <p className="text-[10px] text-slate-500 mt-1">变量</p>
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_60%,transparent)] p-3">
+                <p className="text-lg font-bold text-[var(--color-status-warning)] leading-none">{stats.mvuVarCount}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1">变量</p>
               </div>
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3">
-                <p className="text-lg font-bold text-purple-300 leading-none">{stats.estimatedTokens}</p>
-                <p className="text-[10px] text-slate-500 mt-1">Token</p>
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_60%,transparent)] p-3">
+                <p className="text-lg font-bold text-[var(--color-primary)] leading-none">{stats.estimatedTokens}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Token</p>
               </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 flex items-center justify-between gap-3">
+            <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] px-3 py-2 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-200">封面状态</p>
-                <p className="text-[11px] text-slate-500 truncate">{coverPreviewUrl ? '已选择 PNG 封面图片' : '未上传封面，PNG 会使用默认图'}</p>
+                <p className="text-xs font-medium text-[var(--text-color)]">封面状态</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] truncate">{coverPreviewUrl ? '已选择 PNG 封面图片' : '未上传封面，PNG 会使用默认图'}</p>
               </div>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${coverPreviewUrl ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/60 text-slate-400'}`}>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${coverPreviewUrl ? 'bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] text-[var(--color-status-success)]' : 'bg-[color-mix(in_srgb,var(--color-surface-raised)_60%,transparent)] text-[var(--color-text-secondary)]'}`}>
                 {coverPreviewUrl ? '已就绪' : '可选'}
               </span>
             </div>
@@ -484,7 +481,7 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
                     variant="ghost"
                     size="sm"
                     onClick={() => onPngFileSelect?.(null)}
-                    className="text-slate-400"
+                    className="text-[var(--color-text-secondary)]"
                   >
                     <Trash2 size={13} />
                     移除
@@ -524,14 +521,14 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
         </div>
 
         {showExportPreview && cardPreview && (
-          <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+          <div className="rounded-lg border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--input-bg)_50%,transparent)] p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">导出预览</span>
+              <span className="text-xs text-[var(--color-text-secondary)]">导出预览</span>
               <Button variant="ghost" size="sm" onClick={() => setShowExportPreview(false)}>
                 关闭
               </Button>
             </div>
-            <pre className="text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">
+            <pre className="text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">
               {cardPreview}
             </pre>
           </div>
@@ -540,21 +537,21 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
 
       {/* ── Stats Grid ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="rounded-xl bg-primary-tint-light border border-primary-tint-light p-3 text-center">
-          <p className="text-2xl font-bold text-primary-bright">{stats.entryCount}</p>
-          <p className="text-[10px] text-primary-muted">世界书条目</p>
+        <div className="rounded-xl bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] border border-[color-mix(in_srgb,var(--color-primary)_25%,transparent)] p-3 text-center">
+          <p className="text-2xl font-bold text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]">{stats.entryCount}</p>
+          <p className="text-[10px] text-[color-mix(in_srgb,var(--color-primary)_60%,var(--text-color))]">世界书条目</p>
         </div>
-        <div className="rounded-xl bg-emerald-900/20 border border-emerald-700/40 p-3 text-center">
-          <p className="text-2xl font-bold text-emerald-300">{stats.constantCount}</p>
-          <p className="text-[10px] text-emerald-400/60">蓝灯条目</p>
+        <div className="rounded-xl bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] border border-[color-mix(in_srgb,var(--color-status-success)_40%,transparent)] p-3 text-center">
+          <p className="text-2xl font-bold text-[var(--color-status-success)]">{stats.constantCount}</p>
+          <p className="text-[10px] text-[var(--color-status-success)]">蓝灯条目</p>
         </div>
-        <div className="rounded-xl bg-amber-900/20 border border-amber-700/40 p-3 text-center">
-          <p className="text-2xl font-bold text-amber-300">{stats.mvuVarCount}</p>
-          <p className="text-[10px] text-amber-400/60">MVU 变量</p>
+        <div className="rounded-xl bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] p-3 text-center">
+          <p className="text-2xl font-bold text-[var(--color-status-warning)]">{stats.mvuVarCount}</p>
+          <p className="text-[10px] text-[var(--color-status-warning)]">MVU 变量</p>
         </div>
-        <div className="rounded-xl bg-purple-900/20 border border-purple-700/40 p-3 text-center">
-          <p className="text-2xl font-bold text-purple-300">{stats.estimatedTokens}</p>
-          <p className="text-[10px] text-purple-400/60">预估 Token</p>
+        <div className="rounded-xl bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] border border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] p-3 text-center">
+          <p className="text-2xl font-bold text-[var(--color-primary)]">{stats.estimatedTokens}</p>
+          <p className="text-[10px] text-[var(--color-primary)]">预估 Token</p>
         </div>
       </div>
 
@@ -568,11 +565,11 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
       </div>
 
       {/* ── Validation Section ────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4 mb-4">
+      <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-bold text-amber-300">🔍 一致性校验</h3>
-            <p className="text-[11px] text-amber-400/60">
+            <h3 className="text-sm font-bold text-[var(--color-status-warning)]">🔍 一致性校验</h3>
+            <p className="text-[11px] text-[var(--color-status-warning)]">
               检查 MVU 变量、EJS 配置、世界书条目、开场白之间的逻辑一致性
             </p>
           </div>
@@ -590,10 +587,10 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
 
         {/* Applied fixes display */}
         {appliedFixes.length > 0 && (
-          <div className="mb-3 p-2 rounded-lg bg-emerald-900/20 border border-emerald-700/30 max-h-[120px] overflow-y-auto">
-            <p className="text-[10px] text-emerald-400 font-medium mb-1">✅ 已应用的修复：</p>
+          <div className="mb-3 p-2 rounded-lg bg-[color-mix(in_srgb,var(--color-status-success)_20%,transparent)] border border-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] max-h-[120px] overflow-y-auto">
+            <p className="text-[10px] text-[var(--color-status-success)] font-medium mb-1">✅ 已应用的修复：</p>
             {appliedFixes.map((fix, i) => (
-              <p key={i} className="text-[11px] text-emerald-300/80 pl-2">• {fix}</p>
+              <p key={i} className="text-[11px] text-[var(--color-status-success)] pl-2">• {fix}</p>
             ))}
           </div>
         )}
@@ -605,8 +602,8 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
                 key={i}
                 className={`flex items-start justify-between gap-2 text-xs px-3 py-2 rounded-lg ${
                   issue.type === 'error'
-                    ? 'bg-red-900/20 border border-red-700/30 text-red-300'
-                    : 'bg-amber-900/20 border border-amber-700/30 text-amber-300'
+                    ? 'bg-[color-mix(in_srgb,var(--color-status-danger)_20%,transparent)] border border-[color-mix(in_srgb,var(--color-status-danger)_30%,transparent)] text-[var(--color-status-danger)]'
+                    : 'bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] border border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)] text-[var(--color-status-warning)]'
                 }`}
               >
                 <div className="flex items-start gap-2 min-w-0">
@@ -633,11 +630,11 @@ export function StepPolishExport({ draft, cardName, characterDescriptions, world
         )}
 
         {issues.length > 0 && (
-          <div className="flex items-center gap-3 mt-3 pt-2 border-t border-amber-700/30">
-            <span className="text-xs text-red-300">❌ {errorCount} 错误</span>
-            <span className="text-xs text-amber-300">⚠️ {warningCount} 警告</span>
+          <div className="flex items-center gap-3 mt-3 pt-2 border-t border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)]">
+            <span className="text-xs text-[var(--color-status-danger)]">❌ {errorCount} 错误</span>
+            <span className="text-xs text-[var(--color-status-warning)]">⚠️ {warningCount} 警告</span>
             {errorCount === 0 && (
-              <span className="text-xs text-emerald-400 ml-auto">✅ 可以导出</span>
+              <span className="text-xs text-[var(--color-status-success)] ml-auto">✅ 可以导出</span>
             )}
           </div>
         )}

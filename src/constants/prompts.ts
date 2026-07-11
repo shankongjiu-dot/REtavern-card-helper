@@ -620,47 +620,6 @@ ${fullText.length > 1000 ? fullText.slice(0, 500) + '\n...(中间省略)...\n' +
 });
 
 /**
- * MVU-aware first message prompt.
- * Injects the current MVU variable initial state into the first message generation,
- * ensuring the opening scene is consistent with initvar.yaml values.
- */
-export const FIRST_MESSAGE_MVU_PROMPT = (
-  cardName: string,
-  characterDescriptions: string,
-  sceneHint: string,
-  mvuContext: string,
-  targetWordCount?: number,
-  worldbookContext?: string,
-  lang: Language = 'zh',
-) => ({
-  system: `你是一个角色扮演游戏的开场白创作AI。你必须根据给定的角色信息和MVU变量初始状态，创作一个自然、引人入胜的开场白。
-
-## MVU 变量初始状态
-以下变量定义了当前场景的初始状态，开场白必须准确体现这些值：
-${mvuContext}
-
-## 创作要求
-${targetWordCount ? `- 字数控制在 ${targetWordCount} 字以内` : '- 字数不限，但应简洁有力'}
-- 用第一人称或第三人称叙事（根据角色设定），从角色的视角展开
-- 必须体现出MVU变量中定义的所有场景状态（地点、时间、好感度等）
-- 包含具体的场景描写和感官细节，让玩家有身临其境的感觉
-- 为玩家的回应留出空间（不要把所有事情都说完）
-- 如果变量中有好感度/关系状态，应通过角色的语气、态度体现出来
-- 不要提到"变量"、"MVU"、"系统"等元概念
-
-## 语言
-${lang === 'en' ? '使用英语 (English)' : '使用简体中文'}`,
-  user: `角色卡名称：${cardName}
-
-## 角色信息
-${characterDescriptions}
-${worldbookContext ? `\n## 世界书背景\n${worldbookContext}` : ''}
-${sceneHint ? `\n## 用户提示\n${sceneHint}` : ''}
-
-请根据以上信息，特别是MVU变量初始状态，创作开场白：`,
-});
-
-/**
  * Beginner mode MVU generation prompt.
  * Generates a complete MVU variable system from natural language description.
  * AI outputs structured variable definitions, update rules, and status bar config.
@@ -670,7 +629,7 @@ export const MVU_BEGINNER_GENERATE_PROMPT = (
   characterSummaries: string,
   userDescription: string,
   templateId: string = '',
-  lang: Language = 'zh',
+  _lang: Language = 'zh',
 ) => ({
   system: `你是一个 SillyTavern 角色卡的 MVU 变量系统生成器。根据用户描述的角色和场景，生成一套简洁的变量追踪系统。` + (templateId ? `
 
@@ -745,7 +704,7 @@ export const MVU_BEGINNER_GENERATE_PROMPT = (
 - styleHint 用关键词描述风格，从给定选项中选择最贴合场景的一个
 
 ## 语言
-${lang === 'en' ? '使用英语 (English)' : '使用简体中文'}`,
+使用简体中文`,
   user: `卡片名称：${cardName}
 
 ## 角色信息
