@@ -49,32 +49,32 @@ export function ConfigPanel({
   };
 
   const narrativeHint = narrativeMode === 'lore_only'
-    ? '只做世界观：尽量去掉剧情时间线，不强调先后推进，优先保留稳定设定。'
-    : '按剧情推进：允许保留阶段性关系变化、关键事件后果和阅读顺序。';
+    ? '只整理设定（不按剧情顺序）：尽量去掉剧情时间线，不强调先后顺序，优先保留稳定不变的设定。'
+    : '按剧情顺序整理：允许保留随剧情发展的关系变化、关键事件后果和阅读顺序。';
 
   return (
     <div className="novel-grid">
       <section className="novel-card novel-config-card">
         <div className="novel-card-head">
-          <strong>门控设计</strong>
-          <span>世界书 + 变量联动</span>
+          <strong>解锁方式设置</strong>
+          <span>控制世界书内容何时出现</span>
         </div>
         <div className="novel-card-body">
           <div className="grid-2" style={{ marginBottom: 12 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>门控模式</label>
+              <label>解锁方式</label>
               <select
                 id="novelGateMode"
                 value={gateMode}
                 onChange={(e) => onGateModeChange(e.target.value as GateMode)}
               >
-                <option value="stage_flags">阶段 + 揭露标记</option>
-                <option value="stage_only">仅剧情阶段</option>
-                <option value="public_only">仅公开资料</option>
+                <option value="stage_flags">剧情阶段 + 剧情开关</option>
+                <option value="stage_only">只按剧情阶段</option>
+                <option value="public_only">只做公开信息</option>
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>条目预算</label>
+              <label>每个片段最多生成几条</label>
               <input
                 id="novelEntryBudget"
                 type="number"
@@ -87,18 +87,18 @@ export function ConfigPanel({
 
           <div className="grid-2" style={{ marginBottom: 12 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>整理模式</label>
+              <label>整理方式</label>
               <select
                 id="novelNarrativeMode"
                 value={narrativeMode}
                 onChange={(e) => onNarrativeModeChange(e.target.value as NarrativeMode)}
               >
-                <option value="story">按剧情推进</option>
-                <option value="lore_only">只做世界观</option>
+                <option value="story">按剧情顺序整理</option>
+                <option value="lore_only">只整理设定（不按剧情顺序）</option>
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>模式说明</label>
+              <label>说明</label>
               <div id="novelNarrativeHint" className="novel-inline-note">
                 {narrativeHint}
               </div>
@@ -107,7 +107,7 @@ export function ConfigPanel({
 
           <div className="grid-2" style={{ marginBottom: 12 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>单次分片字数</label>
+              <label>每次处理多少字</label>
               <select
                 id="novelChunkSize"
                 value={chunkCharLimit}
@@ -121,15 +121,15 @@ export function ConfigPanel({
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>上下文提醒</label>
+              <label>提示</label>
               <div className="novel-inline-note">
-                模型限制按 token 算，不按字数算。这里是经验字数上限，用来做稳妥分片。
+                AI 一次能处理的文字有上限。这里设的是每段大约多少字，用来把长文本分成几段分别处理。
               </div>
             </div>
           </div>
 
           <div className="novel-focus-wrap">
-            <label className="novel-focus-label">抽取重点</label>
+            <label className="novel-focus-label">重点提取哪些内容</label>
             <div id="novelFocusTags" className="novel-focus-tags">
               {FOCUS_OPTIONS.map((option) => (
                 <button
@@ -146,7 +146,7 @@ export function ConfigPanel({
 
           <div className="novel-stage-preview">
             <div className="novel-stage-preview-head">
-              <span>默认解锁路径</span>
+              <span>剧情阶段顺序</span>
               <strong>{stageOrder.join(' → ')}</strong>
             </div>
             <div className="novel-stage-preview-track">
@@ -164,7 +164,7 @@ export function ConfigPanel({
               onClick={onGenerate}
               disabled={isGenerating}
             >
-              {isGenerating ? '⏳ 生成中…' : '🧬 生成并注入小说世界书'}
+              {isGenerating ? '⏳ 生成中…' : '🧬 生成并导出到创建向导'}
             </button>
             <button
               id="btnNovelReset"

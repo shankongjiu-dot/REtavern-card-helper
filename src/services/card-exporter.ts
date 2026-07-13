@@ -908,16 +908,21 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
   // Reconstruct characters from _meta, description, or generated character entries
   let characters: WizardDraft['characters'] = [];
   if (meta.characters && Array.isArray(meta.characters) && (meta.characters as unknown[]).length > 0) {
-    characters = (meta.characters as unknown[]).map((c: unknown) => {
-      const ch = c as Record<string, unknown>;
-      return {
-        id: String(ch.id ?? '') || generateId(),
-        name: (ch.name as string) || '',
-        description: (ch.description as string) || '',
-        entryIds: ((ch.entryIds as Array<string | number>) || []).map((id) => String(id ?? '')),
-      };
-    }) as WizardDraft['characters'];
-  } else if (data.description) {
+    // Only keep characters with a non-empty name; empty-name entries from _meta
+    // would otherwise block worldbook-based reconstruction and get step 2 stuck.
+    characters = (meta.characters as unknown[])
+      .map((c: unknown) => {
+        const ch = c as Record<string, unknown>;
+        return {
+          id: String(ch.id ?? '') || generateId(),
+          name: (ch.name as string) || '',
+          description: (ch.description as string) || '',
+          entryIds: ((ch.entryIds as Array<string | number>) || []).map((id) => String(id ?? '')),
+        };
+      })
+      .filter((c) => (c.name || '').trim()) as WizardDraft['characters'];
+  }
+  if (characters.length === 0 && data.description) {
     // Fallback: single character from description
     characters = [{
       id: generateId(),

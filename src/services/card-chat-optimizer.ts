@@ -72,6 +72,23 @@ export function fieldLabel(field: CardChatEditableField): string {
   return FIELD_LABELS[field] || field;
 }
 
+/**
+ * Derive a human-readable display name for a diff, identifying the specific
+ * entry/character affected rather than just showing the generic field label.
+ */
+export function diffDisplayName(diff: ChangeDiff): string {
+  const { change, before } = diff;
+  if (change.field === 'lorebookEntries') {
+    const comment = change.comment || (before as { comment?: string } | null)?.comment || '';
+    return comment || '未命名条目';
+  }
+  if (change.field === 'characters') {
+    const name = change.name || (before as { name?: string } | null)?.name || '';
+    return name || '未命名角色';
+  }
+  return fieldLabel(change.field);
+}
+
 function truncate(str: string, max: number): string {
   if (str.length <= max) return str;
   return str.slice(0, max) + '\n...[truncated]';
@@ -299,6 +316,11 @@ export function computeCardChatDiffs(draft: WizardDraft, proposals: CardChatProp
   }
 
   return diffs;
+}
+
+/** Apply a single proposed change to a draft (returns a new draft). */
+export function applySingleChange(draft: WizardDraft, change: ProposedChange): WizardDraft {
+  return applyCardChatPatch(draft, { proposedChanges: [change] });
 }
 
 export function applyCardChatPatch(draft: WizardDraft, proposals: CardChatProposals): WizardDraft {

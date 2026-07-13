@@ -101,7 +101,7 @@ export function categoryLabel(category: string): string {
 }
 
 export function narrativeModeLabel(mode: NarrativeMode): string {
-  return mode === 'lore_only' ? '只做世界观' : '按剧情推进';
+  return mode === 'lore_only' ? '只整理设定' : '按剧情顺序';
 }
 
 export function getStageIndex(stageOrder: string[], stage: string): number {
@@ -200,14 +200,14 @@ export function buildCallEstimate(source: string, chunkCharLimit: number): CallE
 }
 
 export function renderCallRisk(estimate: CallEstimate): string {
-  if (!estimate.totalCalls) return '先导入文件或补一段摘录，这里才会给出调用预估。';
+  if (!estimate.totalCalls) return '先导入文件或粘贴一段文字，这里才会显示预计调用次数。';
   if (estimate.totalCalls > MAX_WORKFLOW_CALLS) {
-    return '预计调用次数过高，发布版会阻止直接运行。建议按卷/章节分批导入，或提高单次分片字数。';
+    return '预计调用次数太多，会阻止运行。建议按卷/章节分批导入，或调大"每次处理多少字"。';
   }
   if (estimate.totalCalls > 40) {
-    return '调用次数偏高，建议先用较小范围试跑，确认模型质量后再处理完整文本。';
+    return '调用次数偏多，建议先用一小段文字试跑，确认效果满意后再处理完整文本。';
   }
-  return '调用量处于可控范围，可以生成。';
+  return '调用次数在可控范围内，可以开始生成。';
 }
 
 // ── Model Helpers ──────────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ export function assertWorkflowAffordable(estimate: CallEstimate): void {
   if (!estimate || !estimate.totalCalls) return;
   if (estimate.totalCalls > MAX_WORKFLOW_CALLS) {
     throw new Error(
-      `当前预计需要 ${formatNumber(estimate.totalCalls)} 次调用，超过发布版安全上限 ${MAX_WORKFLOW_CALLS} 次。请提高"单次分片字数"、减少原文范围，或先按卷/章节分批生成。`
+      `当前预计需要 ${formatNumber(estimate.totalCalls)} 次调用，超过安全上限 ${MAX_WORKFLOW_CALLS} 次。请调大"每次处理多少字"、减少原文范围，或先按卷/章节分批生成。`
     );
   }
 }
@@ -243,7 +243,7 @@ export function normalizeApiErrorMessage(status: number, message: string): strin
   if (status === 400 && lower.indexOf('safety') >= 0) {
     return '模型安全策略拒绝了本次请求。建议先缩小导入范围，删去高风险描写，或换用其他模型。';
   }
-  if (status === 429) return '接口限流或额度不足，请稍后再试，或降低分片并发/调用频率。';
+  if (status === 429) return '接口限流或额度不足，请稍后再试，或减少每次处理的字数来降低调用频率。';
   return text;
 }
 

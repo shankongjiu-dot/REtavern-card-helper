@@ -4,6 +4,7 @@ import { createEmptyLorebookEntry } from '../constants/defaults';
 import type { LorebookEntry } from '../constants/defaults';
 
 export const NOVEL_LOREBOOK_IMPORT_KEY = 'novel-analysis-lorebook-import';
+export const NOVEL_ANALYSIS_PARTIAL_KEY = 'novelAnalysisPartial';
 
 export interface NovelChunk {
   id: number;
@@ -157,7 +158,7 @@ export async function analyzeNovelText(title: string, chunks: NovelChunk[], outp
   const sample = buildNovelSample(chunks);
   if (!sample) throw new Error('请先输入或上传小说文本');
 
-  const system = `你是“小说文本 → SillyTavern 世界书”的结构化拆书专家。你的目标不是写普通读后感，而是直接生成可导入世界书的素材库。
+  const system = `你是“小说文本 → SillyTavern 世界书”的结构化拆书专家。你的目标不是写普通读后感，而是直接生成可导入世界书、帮助 AI 进行角色扮演的素材库。
 
 核心方向：
 - 按世界书结构拆分，不要混成一大段：人物归人物，人物外貌归人物外貌，人物不同场景着装归着装，人物关系归关系，人物逻辑枢纽归逻辑枢纽，事件归事件，地点归地点，势力归势力，特殊设定归特殊设定，文风归文风。
@@ -170,7 +171,48 @@ export async function analyzeNovelText(title: string, chunks: NovelChunk[], outp
 - lorebookEntries 是最终产物，数量可以多，宁可拆细，也不要塞成一个大条目。
 - 每个 lorebookEntries.content 使用清晰字段、列表、短段落，适合世界书注入，不写散文鉴赏。
 - keys 至少 2 个字符，包含人名/别名/关系名/地点名/设定名，不要单字触发词。
-- 只输出 JSON，不要 markdown 代码块。`;
+
+角色扮演导向（RP-first）：
+- 记住：这些素材最终注入 SillyTavern，用于 AI 实时扮演角色。拆书时要思考“这个信息如何帮助 AI 在对话中演好角色”。
+- 人物条目必须提炼可执行的行为指令：说话方式、情绪触发点、对陌生玩家/熟悉玩家的不同反应、习惯性动作或语气。
+- 关系条目必须说明：当玩家介入这段关系时，角色会产生什么反应、情绪变化或行为变化。
+- 文风条目必须转化为可直接指导 AI 写作的指令，而不仅是风格描述。
+- 避免“该角色表现为…”“该设定说明…”等第三人称机械判断句，改用“当…时，角色会…”“角色习惯…”“玩家若…则…”等可注入 AI 行为的表述。
+
+写作方法论（借鉴成熟制卡流程）：
+1. 行为展现性格：不写“她很高冷”，写“她回应时常常只给一两个字，眼睛却不自觉观察对方的反应”。用具体动作、选择、习惯代替抽象标签。
+2. 一句一意：写完一个事实就停，不补述同一件事。
+3. 四问过滤：每句话都过四问——(1) 删了这句 AI 会错吗？不会则删；(2) 是信息还是装饰？装饰则删；(3) 列表能替代吗？能则改列表；(4) 不看原文能理解吗？不能则补关键信息。
+4. 剧情作为前置知识库，而非既定叙事：
+   - 主线剧情、角色背景、世界历史可以写入世界书，但目的是让 AI 理解“已经发生了什么、现在处于什么状态、有哪些约束”。
+   - 写法上应是概括性、知识性的说明（时间、原因、结果、影响），不要写成小说式场景、对话或未来必定发生的情节。
+   - 不写“一定会”“只能”“必然”等绝对断言；给后续扮演留空间。
+5. 多元化与可变性：世界和角色不是铁板一块。多用“通常”“往往”“可能”“在某些情境下”“常见”“罕见”“并非绝对”。对同一设定可给出 2-3 种变体或例外，让 AI 在扮演时有发挥空间。
+6. 信息密度：人物与关系条目的 content 要覆盖充分细节；每条信息都要说明它对 AI 扮演的实际影响。
+7. 人物条目建议结构（作为 content 字段）：
+   - 核心身份与动机
+   - 心理动态：用具体念头、身体感受表现，不写结论句
+   - 行为模式：3-5 条可直接复现的动作/习惯/反应
+   - 对话风格：整体语气 + 3-5 句典型台词（用引号）
+   - 对他人态度：对主角/对手/陌生人的差异，用行为体现
+   - 触发/消退条件：什么情境下更容易出现某种状态
+   - 身体/环境细节：习惯性动作、表情、姿态、穿着、环境线索
+   - 记忆/闪回：容易被什么触发、会想起什么
+8. 关系条目建议结构：
+   - 关系类型与情感动力
+   - 双方日常互动模式
+   - 玩家介入时可能引发的情绪变化或行为变化
+   - 关系中的张力点与底线
+9. 禁词与禁用表达：
+   - 模糊词：似乎、几乎、仿佛、如同、宛如、某种
+   - 机械判断：该阶段角色表现为… / 在此阶段… / 该设定说明…
+   - 空泛形容词：极度、非常、特别、巨大的、深刻的
+   - 廉价比喻：像小兽、心湖泛起涟漪、投石入湖
+   - 模板微表情：嘴角上扬、眼里闪过光芒、指尖泛白、咬紧下唇
+   - 八股句式：不是…而是… / 虽然…但是… / 在…的同时
+   - 价值升华：最终明白了、终于懂得了、这一刻她意识到
+
+只输出 JSON，不要 markdown 代码块。`;
 
   const user = `小说标题：${title || '未命名小说'}
 总切块数：${chunks.length}
@@ -222,7 +264,7 @@ ${sample}
     {
       "name": "条目名（精简准确，2-6字），例如：A核心设定 / A外貌 / A场景着装 / A与B关系 / 某事件因果 / 文风对白",
       "keys": ["触发词"],
-      "content": "世界书正文，字段化、可直接注入。包含：定位/触发条件/关键事实/写作注意。",
+      "content": "世界书正文，字段化、可直接注入。RP-first：不要只写设定，要写 AI 如何表现。人物条目尽量覆盖：核心身份与动机、心理动态、行为模式、对话风格（含典型台词）、对他人态度、触发/消退条件、身体/环境细节、记忆/闪回。关系条目覆盖：关系类型与动力、日常互动、玩家介入时的反应、张力点与底线。地点/势力/规则条目覆盖：触发场景、AI 应营造的氛围、对角色行为的约束或推动。包含：触发条件/关键事实/角色反应/可表现的对白或动作/写作注意。",
       "category": "人物/人物外貌/人物着装/人物关系/人物逻辑/事件/地点/势力/特殊设定/文风/清洗",
       "parent": "所属人物/地点/事件/设定，可为空",
       "purpose": "该条目在世界书中的用途"
@@ -236,12 +278,18 @@ ${sample}
 - 重要关系单独生成“人物关系”世界书，不要只塞进人物条目。
 - 重要事件单独生成“事件”世界书，写清起因、经过、结果、影响。
 - 特殊设定必须说明“为什么不是通用模板”。
-- 文风必须单独生成至少 1 条世界书，用于后续创作保持风格。`;
+- 文风必须单独生成至少 1 条世界书，用于后续创作保持风格。
+- 人物与关系条目尽量包含“玩家介入时”的反应变化：陌生玩家如何被对待、玩家挑衅/亲近时角色的情绪和行为差异。
+- 人物条目按“行为展现性格”原则写作：用具体动作、选择、习惯代替抽象标签；每句过四问；用“通常”“可能”“往往”等开放词替代绝对断言。
+- 所有条目避免写成小说式场景、未来固定剧本或第三人称评论。`;
 
   const safeOutputMaxTokens = Math.min(Math.max(Math.floor(outputMaxTokens || DEFAULT_NOVEL_OUTPUT_MAX_TOKENS), 4000), 300000);
   const text = await callAIWithPrompt(system, user, { temperature: 0.7, max_tokens: safeOutputMaxTokens, presetMode: 'none' });
   const parsed = parseAIJson(text) as NovelAnalysisResult | null;
-  if (!parsed) throw new Error('AI 返回内容无法解析为 JSON，请重试或减少文本长度');
+  if (!parsed) {
+    try { sessionStorage.setItem(NOVEL_ANALYSIS_PARTIAL_KEY, text); } catch {}
+    throw new Error('AI 返回内容无法解析为 JSON，请重试或减少文本长度');
+  }
 
   return normalizeAnalysis(parsed);
 }
@@ -261,7 +309,7 @@ export async function analyzeNovelTextStreaming(
   const sample = buildNovelSample(chunks);
   if (!sample) throw new Error('请先输入或上传小说文本');
 
-  const system = `你是"小说文本 → SillyTavern 世界书"的结构化拆书专家。你的目标不是写普通读后感，而是直接生成可导入世界书的素材库。
+  const system = `你是"小说文本 → SillyTavern 世界书"的结构化拆书专家。你的目标不是写普通读后感，而是直接生成可导入世界书、帮助 AI 进行角色扮演的素材库。
 
 核心方向：
 - 按世界书结构拆分，不要混成一大段：人物归人物，人物外貌归人物外貌，人物不同场景着装归着装，人物关系归关系，人物逻辑枢纽归逻辑枢纽，事件归事件，地点归地点，势力归势力，特殊设定归特殊设定，文风归文风。
@@ -274,7 +322,48 @@ export async function analyzeNovelTextStreaming(
 - lorebookEntries 是最终产物，数量可以多，宁可拆细，也不要塞成一个大条目。
 - 每个 lorebookEntries.content 使用清晰字段、列表、短段落，适合世界书注入，不写散文鉴赏。
 - keys 至少 2 个字符，包含人名/别名/关系名/地点名/设定名，不要单字触发词。
-- 只输出 JSON，不要 markdown 代码块。`;
+
+角色扮演导向（RP-first）：
+- 记住：这些素材最终注入 SillyTavern，用于 AI 实时扮演角色。拆书时要思考"这个信息如何帮助 AI 在对话中演好角色"。
+- 人物条目必须提炼可执行的行为指令：说话方式、情绪触发点、对陌生玩家/熟悉玩家的不同反应、习惯性动作或语气。
+- 关系条目必须说明：当玩家介入这段关系时，角色会产生什么反应、情绪变化或行为变化。
+- 文风条目必须转化为可直接指导 AI 写作的指令，而不仅是风格描述。
+- 避免"该角色表现为…""该设定说明…"等第三人称机械判断句，改用"当…时，角色会…""角色习惯…""玩家若…则…"等可注入 AI 行为的表述。
+
+写作方法论（借鉴成熟制卡流程）：
+1. 行为展现性格：不写"她很高冷"，写"她回应时常常只给一两个字，眼睛却不自觉观察对方的反应"。用具体动作、选择、习惯代替抽象标签。
+2. 一句一意：写完一个事实就停，不补述同一件事。
+3. 四问过滤：每句话都过四问——(1) 删了这句 AI 会错吗？不会则删；(2) 是信息还是装饰？装饰则删；(3) 列表能替代吗？能则改列表；(4) 不看原文能理解吗？不能则补关键信息。
+4. 剧情作为前置知识库，而非既定叙事：
+   - 主线剧情、角色背景、世界历史可以写入世界书，但目的是让 AI 理解"已经发生了什么、现在处于什么状态、有哪些约束"。
+   - 写法上应是概括性、知识性的说明（时间、原因、结果、影响），不要写成小说式场景、对话或未来必定发生的情节。
+   - 不写"一定会""只能""必然"等绝对断言；给后续扮演留空间。
+5. 多元化与可变性：世界和角色不是铁板一块。多用"通常""往往""可能""在某些情境下""常见""罕见""并非绝对"。对同一设定可给出 2-3 种变体或例外，让 AI 在扮演时有发挥空间。
+6. 信息密度：人物与关系条目的 content 要覆盖充分细节；每条信息都要说明它对 AI 扮演的实际影响。
+7. 人物条目建议结构（作为 content 字段）：
+   - 核心身份与动机
+   - 心理动态：用具体念头、身体感受表现，不写结论句
+   - 行为模式：3-5 条可直接复现的动作/习惯/反应
+   - 对话风格：整体语气 + 3-5 句典型台词（用引号）
+   - 对他人态度：对主角/对手/陌生人的差异，用行为体现
+   - 触发/消退条件：什么情境下更容易出现某种状态
+   - 身体/环境细节：习惯性动作、表情、姿态、穿着、环境线索
+   - 记忆/闪回：容易被什么触发、会想起什么
+8. 关系条目建议结构：
+   - 关系类型与情感动力
+   - 双方日常互动模式
+   - 玩家介入时可能引发的情绪变化或行为变化
+   - 关系中的张力点与底线
+9. 禁词与禁用表达：
+   - 模糊词：似乎、几乎、仿佛、如同、宛如、某种
+   - 机械判断：该阶段角色表现为… / 在此阶段… / 该设定说明…
+   - 空泛形容词：极度、非常、特别、巨大的、深刻的
+   - 廉价比喻：像小兽、心湖泛起涟漪、投石入湖
+   - 模板微表情：嘴角上扬、眼里闪过光芒、指尖泛白、咬紧下唇
+   - 八股句式：不是…而是… / 虽然…但是… / 在…的同时
+   - 价值升华：最终明白了、终于懂得了、这一刻她意识到
+
+只输出 JSON，不要 markdown 代码块。`;
 
   const user = `小说标题：${title || '未命名小说'}
 总切块数：${chunks.length}
@@ -326,7 +415,7 @@ ${sample}
     {
       "name": "条目名（精简准确，2-6字），例如：A核心设定 / A外貌 / A场景着装 / A与B关系 / 某事件因果 / 文风对白",
       "keys": ["触发词"],
-      "content": "世界书正文，字段化、可直接注入。包含：定位/触发条件/关键事实/写作注意。",
+      "content": "世界书正文，字段化、可直接注入。RP-first：不要只写设定，要写 AI 如何表现。人物条目尽量覆盖：核心身份与动机、心理动态、行为模式、对话风格（含典型台词）、对他人态度、触发/消退条件、身体/环境细节、记忆/闪回。关系条目覆盖：关系类型与动力、日常互动、玩家介入时的反应、张力点与底线。地点/势力/规则条目覆盖：触发场景、AI 应营造的氛围、对角色行为的约束或推动。包含：触发条件/关键事实/角色反应/可表现的对白或动作/写作注意。",
       "category": "人物/人物外貌/人物着装/人物关系/人物逻辑/事件/地点/势力/特殊设定/文风/清洗",
       "parent": "所属人物/地点/事件/设定，可为空",
       "purpose": "该条目在世界书中的用途"
@@ -345,7 +434,10 @@ ${sample}
   const safeOutputMaxTokens = Math.min(Math.max(Math.floor(outputMaxTokens || DEFAULT_NOVEL_OUTPUT_MAX_TOKENS), 4000), 300000);
   const text = await callAIWithPromptStreaming(system, user, onChunk, { temperature: 0.7, max_tokens: safeOutputMaxTokens, presetMode: 'none' });
   const parsed = parseAIJson(text) as NovelAnalysisResult | null;
-  if (!parsed) throw new Error('AI 返回内容无法解析为 JSON，请重试或减少文本长度');
+  if (!parsed) {
+    try { sessionStorage.setItem(NOVEL_ANALYSIS_PARTIAL_KEY, text); } catch {}
+    throw new Error('AI 返回内容无法解析为 JSON，请重试或减少文本长度');
+  }
 
   return normalizeAnalysis(parsed);
 }
@@ -439,20 +531,24 @@ function categoryPriority(category: string): number {
 
 export function saveAnalysisLorebookImport(title: string, analysis: NovelAnalysisResult): LorebookEntry[] {
   const entries = analysisToLorebookEntries(analysis);
-  sessionStorage.setItem(NOVEL_LOREBOOK_IMPORT_KEY, JSON.stringify({
-    title,
-    entries,
-    createdAt: new Date().toISOString(),
-  }));
+  try {
+    sessionStorage.setItem(NOVEL_LOREBOOK_IMPORT_KEY, JSON.stringify({
+      title,
+      entries,
+      createdAt: new Date().toISOString(),
+    }));
+  } catch {
+    throw new Error('浏览器存储空间不足，无法导出分析结果。请关闭其他标签页或清理缓存后重试。');
+  }
   return entries;
 }
 
 export function consumeAnalysisLorebookImport(): { title: string; entries: LorebookEntry[] } | null {
-  const raw = sessionStorage.getItem(NOVEL_LOREBOOK_IMPORT_KEY);
-  if (!raw) return null;
-  sessionStorage.removeItem(NOVEL_LOREBOOK_IMPORT_KEY);
-
   try {
+    const raw = sessionStorage.getItem(NOVEL_LOREBOOK_IMPORT_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(NOVEL_LOREBOOK_IMPORT_KEY);
+
     const parsed = JSON.parse(raw) as { title?: string; entries?: LorebookEntry[] };
     if (!Array.isArray(parsed.entries)) return null;
     return {

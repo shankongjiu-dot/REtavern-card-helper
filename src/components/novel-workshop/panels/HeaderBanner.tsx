@@ -20,10 +20,10 @@ export function HeaderBanner({
   generatedVariables,
 }: HeaderBannerProps) {
   const chips: string[] = [];
-  if (generatedEntries.length) chips.push(`📖 条目 ${generatedEntries.length}`);
-  if (entityIndex.length) chips.push(`🧬 实体 ${entityIndex.length}`);
-  if (flags.length) chips.push(`🔐 标记 ${flags.length}`);
-  if (generatedVariables.length) chips.push(`🧠 AI 变量蓝图 ${generatedVariables.length}`);
+  if (generatedEntries.length) chips.push(`📖 世界书条目 ${generatedEntries.length}`);
+  if (entityIndex.length) chips.push(`🧬 角色/设定 ${entityIndex.length}`);
+  if (flags.length) chips.push(`🔐 剧情开关 ${flags.length}`);
+  if (generatedVariables.length) chips.push(`🧠 记忆变量 ${generatedVariables.length}`);
   if (!chips.length) chips.push('等待导入文本');
 
   return (
@@ -32,7 +32,7 @@ export function HeaderBanner({
       <div className="novel-header-main">
         <div className="novel-header-copy">
           <h2>📚 小说世界书工坊</h2>
-          <p>把长篇小说整理成可控的世界书包，同时生成真正用于管理解锁状态的 MVU 变量。</p>
+          <p>把长篇小说整理成世界书资料，同时生成用于控制剧情解锁的 AI 记忆变量。</p>
         </div>
         <div className="novel-header-orbit">
           <span className="novel-orbit-ring" />

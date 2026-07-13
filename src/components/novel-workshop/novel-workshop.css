@@ -794,8 +794,606 @@
   font-size: 0.72rem;
 }
 
+.novel-stage-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 24%, transparent);
+  color: var(--text-color);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+.novel-stage-btn.active .novel-stage-count {
+  background: color-mix(in srgb, var(--text-color) 22%, transparent);
+  color: var(--text-color);
+}
+
+.novel-entry-preview {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.novel-entry-card {
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 68%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface-raised) 66%, transparent), color-mix(in srgb, var(--color-surface-base) 44%, transparent));
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.novel-entry-card:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface-raised) 72%, transparent), color-mix(in srgb, var(--color-surface-base) 52%, transparent));
+}
+
+.novel-entry-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.novel-entry-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.novel-entry-main strong {
+  color: var(--text-color);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.novel-entry-aspect {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.novel-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.novel-entry-toggle,
+.novel-entry-delete {
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 74%, transparent);
+  background: color-mix(in srgb, var(--color-surface-raised) 60%, transparent);
+  color: color-mix(in srgb, var(--text-color) 72%, transparent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.novel-entry-toggle:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 34%, transparent);
+  color: var(--text-color);
+}
+
+.novel-entry-delete {
+  border-color: color-mix(in srgb, var(--color-danger) 24%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: color-mix(in srgb, var(--color-danger) 78%, white);
+}
+
+.novel-entry-delete:hover {
+  background: color-mix(in srgb, var(--color-danger) 24%, transparent);
+  color: color-mix(in srgb, var(--color-danger) 92%, white);
+}
+
+.novel-entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.novel-entry-key {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: color-mix(in srgb, var(--text-color) 80%, transparent);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.novel-entry-strategy {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 18%, transparent);
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  color: var(--color-warning);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+.novel-entry-strategy.constant {
+  border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+}
+
+.novel-entry-priority {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 70%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 30%, transparent);
+  color: var(--color-text-muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.novel-entry-content {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 60%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 42%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.novel-entry-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.novel-entry-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 50%, transparent);
+  color: var(--text-color);
+  font-size: 0.74rem;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.novel-entry-search::placeholder {
+  color: var(--color-text-muted);
+}
+
+.novel-entry-search:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 70%, transparent);
+}
+
+.novel-entry-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.novel-bulk-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface-raised) 56%, transparent);
+  color: color-mix(in srgb, var(--text-color) 76%, transparent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.novel-bulk-btn:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 32%, transparent);
+  color: var(--text-color);
+}
+
+.novel-bulk-btn.danger {
+  border-color: color-mix(in srgb, var(--color-danger) 22%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: color-mix(in srgb, var(--color-danger) 82%, white);
+}
+
+.novel-bulk-btn.danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+  color: color-mix(in srgb, var(--color-danger) 94%, white);
+}
+
+.novel-entry-categories {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-default) 52%, transparent);
+}
+
+.novel-entry-categories-label {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.novel-entry-category {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface-raised) 52%, transparent);
+  color: color-mix(in srgb, var(--text-color) 72%, transparent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.novel-entry-category:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  color: var(--text-color);
+}
+
+.novel-entry-category.active {
+  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 60%, transparent), color-mix(in srgb, var(--color-primary) 22%, transparent));
+  color: var(--text-color);
+}
+
+.novel-entry-clear-filter {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--color-text-muted) 40%, transparent);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.novel-entry-clear-filter:hover {
+  border-color: color-mix(in srgb, var(--color-danger) 34%, transparent);
+  color: color-mix(in srgb, var(--color-danger) 80%, white);
+}
+
+.novel-search-highlight {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-warning) 55%, transparent);
+  color: var(--text-color);
+}
+
+.novel-entry-card.selected {
+  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 14%, transparent), color-mix(in srgb, var(--color-surface-base) 44%, transparent));
+}
+
+.novel-entry-select-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.novel-entry-select-wrap input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.novel-entry-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 12%, transparent), color-mix(in srgb, var(--color-surface-base) 34%, transparent));
+}
+
+.novel-selection-count {
+  color: var(--text-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.novel-entry-select {
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface-raised) 56%, transparent);
+  color: var(--text-color);
+  font-size: 0.68rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.novel-entry-select:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.novel-entry-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.novel-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.novel-entry-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.novel-entry-editor label span {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.novel-entry-editor input,
+.novel-entry-editor select,
+.novel-entry-editor textarea {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 60%, transparent);
+  color: var(--text-color);
+  font-size: 0.72rem;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.novel-entry-editor input:focus,
+.novel-entry-editor select:focus,
+.novel-entry-editor textarea:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 76%, transparent);
+}
+
+.novel-entry-editor textarea {
+  min-height: 60px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.novel-editor-full {
+  grid-column: 1 / -1;
+}
+
+.novel-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.novel-bulk-btn.primary {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 60%, transparent), color-mix(in srgb, var(--color-primary) 28%, transparent));
+  color: var(--text-color);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.novel-bulk-btn.primary:hover {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 70%, transparent), color-mix(in srgb, var(--color-primary) 36%, transparent));
+}
+
+.novel-bulk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.novel-editor-error {
+  color: color-mix(in srgb, var(--color-danger) 88%, white);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.novel-entry-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 70%, transparent);
+  background: color-mix(in srgb, var(--color-surface-base) 40%, transparent);
+}
+
+.novel-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface-raised) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 60%, transparent);
+}
+
+.novel-stat-value {
+  color: var(--text-color);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.novel-stat-label {
+  color: var(--color-text-muted);
+  font-size: 0.6rem;
+  margin-top: 2px;
+}
+
+.novel-stat-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.novel-stat-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--color-border-default) 50%, transparent);
+  background: color-mix(in srgb, var(--color-surface-raised) 50%, transparent);
+  color: var(--text-color);
+}
+
+.novel-stat-badge.category-character {
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.novel-stat-badge.category-location {
+  background: color-mix(in srgb, var(--color-info) 20%, transparent);
+}
+
+.novel-stat-badge.category-faction {
+  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+}
+
+.novel-stat-badge.category-rule {
+  background: color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+.novel-stat-badge.category-item {
+  background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
+
+.novel-stat-badge.category-event {
+  background: color-mix(in srgb, var(--color-purple, #9b59b6) 20%, transparent);
+}
+
+.novel-stat-badge.strategy-constant {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.novel-undo-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-info) 30%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-info) 12%, transparent), color-mix(in srgb, var(--color-surface-base) 34%, transparent));
+  color: var(--text-color);
+  font-size: 0.72rem;
+}
+
+.novel-undo-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--color-info) 50%, transparent);
+  background: color-mix(in srgb, var(--color-info) 20%, transparent);
+  color: var(--text-color);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.novel-undo-btn:hover {
+  background: color-mix(in srgb, var(--color-info) 30%, transparent);
+}
+
+.novel-entry-card.dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.novel-entry-card.drag-over {
+  border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.novel-entry-empty-content {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-warning) 25%, transparent);
+  color: color-mix(in srgb, var(--color-warning) 90%, black);
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.novel-entry-drag-hint {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  cursor: grab;
+  font-size: 0.8rem;
+  user-select: none;
+}
+
+.novel-entry-card.dragging .novel-entry-drag-hint {
+  cursor: grabbing;
+}
+
 @media (max-width: 1180px) {
   .novel-manager-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .novel-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .novel-editor-grid {
     grid-template-columns: 1fr;
   }
 }

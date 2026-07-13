@@ -49,7 +49,7 @@ export function ImportPanel({
     <section className="novel-card novel-import-dock">
       <div className="novel-card-head">
         <strong>原始资料</strong>
-        <span>先导入小说，再配置门控</span>
+        <span>先导入小说，再设置解锁方式</span>
       </div>
       <div className="novel-card-body">
         <label
@@ -118,7 +118,7 @@ export function ImportPanel({
             <textarea
               id="novelSourceText"
               className="novel-textarea novel-source-text"
-              placeholder="贴入章节原文、人物设定表、卷纲摘要，或已经切片过的知识抽取结果。"
+              placeholder="贴入章节原文、人物设定表、卷纲摘要，或之前整理过的设定资料。"
               value={sourceText}
               onChange={(e) => onSourceTextChange(e.target.value)}
             />
@@ -127,7 +127,7 @@ export function ImportPanel({
           <div className="novel-editor-block">
             <div className="novel-editor-head">
               <label htmlFor="novelContextText">补充说明</label>
-              <span>告诉 AI 这次抽取应该避开什么、重点抓什么</span>
+              <span>告诉 AI 这次整理应该避开什么、重点抓什么</span>
             </div>
             <textarea
               id="novelContextText"

@@ -21,7 +21,9 @@ import {
   parseCardChatEdits,
   computeCardChatDiffs,
   applyCardChatPatch,
+  applySingleChange,
   fieldLabel,
+  diffDisplayName,
   type CardChatProposals,
   type ChangeDiff,
 } from '../services/card-chat-optimizer';
@@ -52,6 +54,7 @@ export function CardEditorChatPage() {
   const [streamingText, setStreamingText] = useState('');
   const [pendingProposals, setPendingProposals] = useState<CardChatProposals | null>(null);
   const [changeDiffs, setChangeDiffs] = useState<ChangeDiff[]>([]);
+  const [diffStatuses, setDiffStatuses] = useState<Array<'pending' | 'applied' | 'discarded'>>([]);
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
@@ -118,6 +121,7 @@ export function CardEditorChatPage() {
         setInputValue('');
         setPendingProposals(null);
         setChangeDiffs([]);
+        setDiffStatuses([]);
         setShowDiffModal(false);
         addToast('success', '卡片导入成功，开始和 AI 对话修改吧');
       } catch (err) {
@@ -163,6 +167,7 @@ export function CardEditorChatPage() {
         setPendingProposals(proposals);
         const diffs = computeCardChatDiffs(draft, proposals);
         setChangeDiffs(diffs);
+        setDiffStatuses(diffs.map(() => 'pending' as const));
         setExpandedDiffs(new Set(diffs.map((_, i) => i)));
         setShowDiffModal(true);
       }
@@ -190,22 +195,94 @@ export function CardEditorChatPage() {
     }
   }, []);
 
-  const applyChanges = useCallback(() => {
-    if (!draft || !pendingProposals) return;
-    const nextDraft = applyCardChatPatch(draft, pendingProposals);
-    setDraft(nextDraft);
+  const closeDiffModal = useCallback(() => {
     setPendingProposals(null);
     setChangeDiffs([]);
+    setDiffStatuses([]);
     setShowDiffModal(false);
-    addToast('success', '修改已应用');
-  }, [draft, pendingProposals, addToast]);
+  }, []);
 
-  const discardChanges = useCallback(() => {
-    setPendingProposals(null);
-    setChangeDiffs([]);
-    setShowDiffModal(false);
-    addToast('info', '已放弃本次修改');
-  }, [addToast]);
+  const applySingleDiff = useCallback((idx: number) => {
+    if (!draft) return;
+    const diff = changeDiffs[idx];
+    if (!diff) return;
+    const nextDraft = applySingleChange(draft, diff.change);
+    setDraft(nextDraft);
+    setDiffStatuses((prev) => {
+      const next = [...prev];
+      next[idx] = 'applied';
+      // Auto-close when no pending diffs remain
+      if (!next.some((s) => s === 'pending')) {
+        setTimeout(() => {
+          setPendingProposals(null);
+          setChangeDiffs([]);
+          setDiffStatuses([]);
+          setShowDiffModal(false);
+        }, 0);
+      }
+      return next;
+    });
+    const name = diffDisplayName(diff);
+    addToast('success', `已应用：${name}`);
+  }, [draft, changeDiffs, addToast]);
+
+  const discardSingleDiff = useCallback((idx: number) => {
+    setDiffStatuses((prev) => {
+      const next = [...prev];
+      next[idx] = 'discarded';
+      // Auto-close when no pending diffs remain
+      if (!next.some((s) => s === 'pending')) {
+        setTimeout(() => {
+          setPendingProposals(null);
+          setChangeDiffs([]);
+          setDiffStatuses([]);
+          setShowDiffModal(false);
+        }, 0);
+      }
+      return next;
+    });
+    const diff = changeDiffs[idx];
+    const name = diff ? diffDisplayName(diff) : '';
+    addToast('info', `已舍弃：${name}`);
+  }, [changeDiffs, addToast]);
+
+  const applyAllPending = useCallback(() => {
+    if (!draft || !pendingProposals) return;
+    const pendingDiffs = changeDiffs
+      .map((d, i) => ({ diff: d, idx: i }))
+      .filter(({ idx }) => diffStatuses[idx] === 'pending');
+    if (pendingDiffs.length === 0) return;
+    // Apply all pending changes in one pass via the original proposals object,
+    // filtered to only pending changes. This preserves the batch apply semantics.
+    const pendingChanges = pendingDiffs.map(({ diff }) => diff.change);
+    const nextDraft = applyCardChatPatch(draft, { proposedChanges: pendingChanges });
+    setDraft(nextDraft);
+    setDiffStatuses(changeDiffs.map(() => 'applied' as const));
+    addToast('success', `已应用 ${pendingDiffs.length} 项修改`);
+    setTimeout(() => {
+      setPendingProposals(null);
+      setChangeDiffs([]);
+      setDiffStatuses([]);
+      setShowDiffModal(false);
+    }, 0);
+  }, [draft, pendingProposals, changeDiffs, diffStatuses, addToast]);
+
+  const discardAllPending = useCallback(() => {
+    const cnt = diffStatuses.filter((s) => s === 'pending').length;
+    setDiffStatuses((prev) => prev.map((s) => s === 'pending' ? 'discarded' as const : s));
+    if (cnt > 0) {
+      addToast('info', `已舍弃 ${cnt} 项修改`);
+    }
+    setTimeout(() => {
+      setPendingProposals(null);
+      setChangeDiffs([]);
+      setDiffStatuses([]);
+      setShowDiffModal(false);
+    }, 0);
+  }, [diffStatuses, addToast]);
+
+  const pendingCount = diffStatuses.filter((s) => s === 'pending').length;
+  const appliedCount = diffStatuses.filter((s) => s === 'applied').length;
 
   const handleSaveToLibrary = useCallback(async () => {
     if (!draft) return;
@@ -496,49 +573,94 @@ export function CardEditorChatPage() {
 
       {/* Diff Modal */}
       {showDiffModal && (
-        <Modal isOpen={showDiffModal} onClose={discardChanges} title="AI 修改建议" maxWidth="max-w-4xl">
+        <Modal isOpen={showDiffModal} onClose={closeDiffModal} title="AI 修改建议" maxWidth="max-w-4xl">
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             <p className="text-xs" style={{ color: mutedText }}>
-              AI 提出了以下修改，请确认是否应用。应用后可以继续对话进一步修改。
+              AI 提出了 {changeDiffs.length} 项修改，可逐条应用或舍弃。已应用 {appliedCount} 项，待处理 {pendingCount} 项。
             </p>
             {changeDiffs.length === 0 ? (
               <p className="text-sm" style={{ color: mutedText }}>没有检测到有效改动。</p>
             ) : (
-              changeDiffs.map((diff, idx) => (
-                <div key={idx} className="rounded-lg border" style={{ borderColor, backgroundColor: cardBgSemiTransparent }}>
-                  <div
-                    className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
-                    onClick={() => toggleDiff(idx)}
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandedDiffs.has(idx) ? <ChevronUp size={14} style={{ color: faintText }} /> : <ChevronDown size={14} style={{ color: faintText }} />}
-                      <span className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>{fieldLabel(diff.change.field)}</span>
-                      {diff.hasChange ? (
-                        <span className="text-[10px]" style={{ color: 'var(--color-status-warning)' }}>有改动</span>
-                      ) : (
-                        <span className="text-[10px]" style={{ color: faintText }}>无变化</span>
+              changeDiffs.map((diff, idx) => {
+                const status = diffStatuses[idx] || 'pending';
+                const isPending = status === 'pending';
+                return (
+                  <div key={idx} className="rounded-lg border" style={{
+                    borderColor,
+                    backgroundColor: status === 'discarded' ? 'color-mix(in srgb, var(--color-surface-base) 60%, transparent)' : cardBgSemiTransparent,
+                    opacity: status === 'discarded' ? 0.55 : 1,
+                  }}>
+                    <div
+                      className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
+                      onClick={() => toggleDiff(idx)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {expandedDiffs.has(idx) ? <ChevronUp size={14} style={{ color: faintText }} /> : <ChevronDown size={14} style={{ color: faintText }} />}
+                        <span className="text-sm font-medium truncate" style={{ color: 'var(--text-color)' }}>
+                          {diffDisplayName(diff)}
+                        </span>
+                        <span className="text-[10px] shrink-0" style={{ color: faintText }}>{fieldLabel(diff.change.field)}</span>
+                        {diff.hasChange ? (
+                          <span className="text-[10px] shrink-0" style={{ color: 'var(--color-status-warning)' }}>有改动</span>
+                        ) : (
+                          <span className="text-[10px] shrink-0" style={{ color: faintText }}>无变化</span>
+                        )}
+                        {status === 'applied' && (
+                          <span className="text-[10px] shrink-0 rounded px-1.5 py-0.5" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-success) 20%, transparent)', color: 'var(--color-status-success)' }}>已应用</span>
+                        )}
+                        {status === 'discarded' && (
+                          <span className="text-[10px] shrink-0 rounded px-1.5 py-0.5" style={{ backgroundColor: 'color-mix(in srgb, var(--color-text-muted) 20%, transparent)', color: 'var(--color-text-muted)' }}>已舍弃</span>
+                        )}
+                      </div>
+                      {isPending && (
+                        <div className="flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => discardSingleDiff(idx)}
+                            className="text-[11px] px-2 py-1 rounded border transition-colors hover:bg-[color-mix(in_srgb,var(--text-color)_8%,transparent)]"
+                            style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 70%, transparent)', color: mutedText }}
+                          >
+                            舍弃
+                          </button>
+                          <button
+                            onClick={() => applySingleDiff(idx)}
+                            disabled={!diff.hasChange}
+                            className="text-[11px] px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text-inverse)' }}
+                          >
+                            应用
+                          </button>
+                        </div>
                       )}
                     </div>
+                    {expandedDiffs.has(idx) && (
+                      <div className="px-3 pb-3 border-t space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 50%, transparent)' }}>
+                        <DiffValue label="修改前" value={diff.before} />
+                        <DiffValue label="修改后" value={diff.after} />
+                      </div>
+                    )}
                   </div>
-                  {expandedDiffs.has(idx) && (
-                    <div className="px-3 pb-3 border-t space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 50%, transparent)' }}>
-                      <DiffValue label="修改前" value={diff.before} />
-                      <DiffValue label="修改后" value={diff.after} />
-                    </div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
-          <div className="flex justify-end gap-2 mt-4 pt-3 border-t" style={{ borderColor }}>
-            <Button variant="ghost" onClick={discardChanges} className="gap-1">
+          <div className="flex justify-between items-center mt-4 pt-3 border-t" style={{ borderColor }}>
+            <Button variant="ghost" size="sm" onClick={closeDiffModal} className="gap-1">
               <X size={14} />
-              放弃
+              关闭
             </Button>
-            <Button variant="primary" onClick={applyChanges} disabled={changeDiffs.every((d) => !d.hasChange)} className="gap-1">
-              <Check size={14} />
-              应用修改
-            </Button>
+            <div className="flex gap-2">
+              {pendingCount > 0 && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={discardAllPending}>
+                    全部舍弃
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={applyAllPending} className="gap-1">
+                    <Check size={14} />
+                    全部应用（{pendingCount}）
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </Modal>
       )}

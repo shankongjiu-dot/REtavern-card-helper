@@ -6,6 +6,9 @@
  * is passed verbatim so the Workshop can split/chunk it independently.
  */
 import type { NovelAnalysisResult } from './novel-analysis-service';
+import type { LorebookEntry, MvuSchemaSection, MvuVariable } from '../constants/defaults';
+import { createEmptyLorebookEntry } from '../constants/defaults';
+import type { GeneratedEntry, VariableBlueprint } from '../components/novel-workshop/types';
 
 export const NOVEL_WORKSHOP_BRIDGE_KEY = 'novel-workshop-analysis-bridge';
 
@@ -128,14 +131,17 @@ export function pushAnalysisToWorkshop(
   try {
     sessionStorage.setItem(NOVEL_WORKSHOP_BRIDGE_KEY, JSON.stringify(payload));
   } catch {
-    // If the text is too large for sessionStorage, fall back to context-only.
-    sessionStorage.setItem(
-      NOVEL_WORKSHOP_BRIDGE_KEY,
-      JSON.stringify({
-        ...payload,
-        sourceText: '',
-      }),
-    );
+    try {
+      sessionStorage.setItem(
+        NOVEL_WORKSHOP_BRIDGE_KEY,
+        JSON.stringify({
+          ...payload,
+          sourceText: '',
+        }),
+      );
+    } catch {
+      throw new Error('浏览器存储空间不足，无法推送小说分析。请关闭其他标签页或清理缓存后重试。');
+    }
   }
 }
 
@@ -158,4 +164,168 @@ export function consumeWorkshopBridge(): NovelWorkshopBridgePayload | null {
   } catch {
     return null;
   }
+}
+
+// ── Workshop → Wizard lorebook bridge ─────────────────────────────────────
+
+export const WORKSHOP_LOREBOOK_IMPORT_KEY = 'novel-workshop-lorebook-import';
+
+export interface WorkshopLorebookImportPayload {
+  title: string;
+  entries: LorebookEntry[];
+  variableBlueprints: VariableBlueprint[];
+  summary: string;
+  createdAt: string;
+}
+
+const WORKSHOP_CATEGORY_ORDER_BASE: Record<string, number> = {
+  rule: 100,
+  character: 300,
+  location: 450,
+  faction: 500,
+  item: 550,
+  event: 650,
+};
+
+const WORKSHOP_CATEGORY_PRIORITY: Record<string, number> = {
+  rule: 90,
+  character: 85,
+  faction: 75,
+  location: 60,
+  item: 60,
+  event: 70,
+};
+
+const WORKSHOP_CATEGORY_LABEL: Record<string, string> = {
+  character: '人物',
+  location: '地点',
+  faction: '势力',
+  rule: '规则',
+  item: '物品',
+  event: '事件',
+};
+
+function workshopCategoryOrder(category: string, index: number): number {
+  const base = WORKSHOP_CATEGORY_ORDER_BASE[category] ?? 550;
+  return base + index;
+}
+
+function workshopCategoryPriority(category: string): number {
+  return WORKSHOP_CATEGORY_PRIORITY[category] ?? 50;
+}
+
+/** Convert GeneratedEntry[] from Novel Workshop into LorebookEntry[] for the card wizard. */
+export function workshopEntriesToLorebookEntries(
+  entries: GeneratedEntry[],
+  _stageOrder: string[],
+): LorebookEntry[] {
+  return entries.map((entry, index) => {
+    const lore = createEmptyLorebookEntry();
+    const categoryLabel = WORKSHOP_CATEGORY_LABEL[entry.category] || entry.category;
+    lore.name = entry.name || `工坊条目 ${index + 1}`;
+    lore.comment = `[工坊/${categoryLabel}]${entry.aspect ? ` ${entry.aspect}` : ''}${entry.stage ? ` · ${entry.stage}` : ''}`;
+    lore.keys = (entry.keys || []).map((k) => k.trim()).filter((k) => k.length >= 2);
+    lore.content = entry.content || '';
+    lore.enabled = true;
+    lore.constant = entry.strategy === 'constant';
+    lore.selective = entry.strategy === 'selective';
+    lore.position = entry.strategy === 'constant' ? 'before_char' : 'after_char';
+    lore.insertion_order = workshopCategoryOrder(entry.category, index);
+    lore.priority = entry.priority || workshopCategoryPriority(entry.category);
+    lore.prevent_recursion = true;
+    lore.match_whole_words = true;
+    return lore;
+  }).filter((entry) => entry.content.trim());
+}
+
+/** Save workshop-generated entries to sessionStorage for WizardPage to consume. */
+export function saveWorkshopLorebookImport(
+  title: string,
+  entries: GeneratedEntry[],
+  variables: VariableBlueprint[],
+  summary: string,
+  stageOrder: string[],
+): LorebookEntry[] {
+  const lorebookEntries = workshopEntriesToLorebookEntries(entries, stageOrder);
+  const payload: WorkshopLorebookImportPayload = {
+    title,
+    entries: lorebookEntries,
+    variableBlueprints: variables,
+    summary,
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    sessionStorage.setItem(WORKSHOP_LOREBOOK_IMPORT_KEY, JSON.stringify(payload));
+  } catch {
+    try {
+      sessionStorage.setItem(WORKSHOP_LOREBOOK_IMPORT_KEY, JSON.stringify({
+        ...payload,
+        variableBlueprints: [],
+      }));
+    } catch {
+      throw new Error('浏览器存储空间不足，无法导出条目。请关闭其他标签页或清理缓存后重试。');
+    }
+  }
+  return lorebookEntries;
+}
+
+/** Read and remove the workshop lorebook import payload. Should be called once on WizardPage mount. */
+export function consumeWorkshopLorebookImport(): WorkshopLorebookImportPayload | null {
+  try {
+    const raw = sessionStorage.getItem(WORKSHOP_LOREBOOK_IMPORT_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(WORKSHOP_LOREBOOK_IMPORT_KEY);
+    const parsed = JSON.parse(raw) as Partial<WorkshopLorebookImportPayload>;
+    if (!Array.isArray(parsed.entries)) return null;
+    return {
+      title: parsed.title || '',
+      entries: parsed.entries,
+      variableBlueprints: Array.isArray(parsed.variableBlueprints) ? parsed.variableBlueprints : [],
+      summary: parsed.summary || '',
+      createdAt: parsed.createdAt || new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Convert VariableBlueprint[] from Novel Workshop into MvuSchemaSection[] for the card wizard. */
+export function variableBlueprintsToMvuSections(
+  blueprints: VariableBlueprint[],
+): MvuSchemaSection[] {
+  if (!blueprints.length) return [];
+
+  const seenPaths = new Set<string>();
+  const groups = new Map<string, MvuVariable[]>();
+  for (const bp of blueprints) {
+    if (!bp.path || seenPaths.has(bp.path)) continue;
+    seenPaths.add(bp.path);
+
+    const sectionName = bp.path.split('.')[0] || '变量';
+    if (!groups.has(sectionName)) groups.set(sectionName, []);
+    const group = groups.get(sectionName)!;
+
+    let zodType: string;
+    switch (bp.type) {
+      case 'number': zodType = 'z.coerce.number()'; break;
+      case 'boolean': zodType = 'z.boolean()'; break;
+      case 'enum': zodType = `z.enum(${JSON.stringify(bp.options || [])})`; break;
+      default: zodType = 'z.string()'; break;
+    }
+
+    group.push({
+      path: bp.path,
+      zodType,
+      description: bp.description || bp.path,
+      prefix: '',
+      initialValue: bp.default ?? (bp.type === 'number' ? 0 : bp.type === 'boolean' ? false : ''),
+      ...(bp.type === 'enum' && bp.options ? { enumValues: bp.options } : {}),
+      ...(bp.type === 'number' && bp.min != null && bp.max != null ? { range: { min: bp.min, max: bp.max } } : {}),
+    });
+  }
+
+  return Array.from(groups.entries()).map(([name, variables]) => ({
+    name,
+    variables,
+  }));
 }

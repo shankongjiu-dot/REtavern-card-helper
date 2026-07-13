@@ -82,6 +82,8 @@ export interface WorkflowRunState {
   extractionTotal: number;
   mergeDone: number;
   mergeTotal: number;
+  failedChunks: number[];
+  mergeFallbacks: number;
 }
 
 export interface CallEstimate {

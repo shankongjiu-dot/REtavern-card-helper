@@ -7,9 +7,11 @@ import { useTranslation } from '../i18n/I18nContext';
 import {
   DEFAULT_NOVEL_OUTPUT_MAX_TOKENS,
   analyzeNovelTextStreaming,
+  analyzeNovelText,
   exportAnalysisAsJson,
   saveAnalysisLorebookImport,
   splitNovelText,
+  NOVEL_ANALYSIS_PARTIAL_KEY,
   type NovelAnalysisResult,
   type NovelChunk,
 } from '../services/novel-analysis-service';
@@ -71,8 +73,19 @@ export function NovelAnalysisPage() {
   const [streamingText, setStreamingText] = useState('');
   const [progressPercent, setProgressPercent] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [stallWarning, setStallWarning] = useState(false);
+  const [stallCritical, setStallCritical] = useState(false);
+  const [showDownloadRaw, setShowDownloadRaw] = useState(false);
+  const [partialRawText, setPartialRawText] = useState<string | null>(null);
   const streamPanelRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastStreamUpdateRef = useRef<number>(Date.now());
+  const shouldAbortRef = useRef(false);
+  const streamingTextRef = useRef(streamingText);
+
+  useEffect(() => {
+    streamingTextRef.current = streamingText;
+  }, [streamingText]);
 
   // Auto-scroll streaming text to bottom
   useEffect(() => {
@@ -90,6 +103,24 @@ export function NovelAnalysisPage() {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [loading]);
+
+  // Stall detection: warn if no new content for 60s, critical at 120s
+  useEffect(() => {
+    if (!loading) {
+      setStallWarning(false);
+      setStallCritical(false);
+      return;
+    }
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - lastStreamUpdateRef.current;
+      if (elapsed > 120000) {
+        setStallCritical(true);
+      } else if (elapsed > 60000) {
+        setStallWarning(true);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
   }, [loading]);
 
   const totalChars = useMemo(() => text.trim().length, [text]);
@@ -115,6 +146,12 @@ export function NovelAnalysisPage() {
     setError('');
     setStreamingText('');
     setProgressPercent(0);
+    setShowDownloadRaw(false);
+    setPartialRawText(null);
+    setStallWarning(false);
+    setStallCritical(false);
+    shouldAbortRef.current = false;
+    lastStreamUpdateRef.current = Date.now();
     const nextChunks = chunks.length > 0 ? chunks : splitNovelText(text);
     setChunks(nextChunks);
     if (nextChunks.length === 0) {
@@ -123,15 +160,22 @@ export function NovelAnalysisPage() {
     }
 
     setLoading(true);
+    let streamingSucceeded = false;
     try {
       const result = await analyzeNovelTextStreaming(
         title,
         nextChunks,
         outputMaxTokens,
         (_chunk, fullText) => {
+          if (shouldAbortRef.current) {
+            throw new Error('用户中止了分析');
+          }
+          lastStreamUpdateRef.current = Date.now();
+          setStallWarning(false);
+          setStallCritical(false);
           setStreamingText(fullText);
-          // Estimate progress: roughly based on character count versus expected output
-          const estimatedChars = outputMaxTokens * 2; // rough: ~2 chars per token
+          streamingTextRef.current = fullText;
+          const estimatedChars = outputMaxTokens * 2;
           const pct = Math.min(Math.round((fullText.length / estimatedChars) * 100), 99);
           setProgressPercent(pct);
         },
@@ -139,11 +183,69 @@ export function NovelAnalysisPage() {
       setProgressPercent(100);
       setStreamingText('');
       setAnalysis(result);
+      streamingSucceeded = true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('novel.analysisFailed'));
+      const errMsg = err instanceof Error ? err.message : t('novel.analysisFailed');
+      const isAborted = errMsg.includes('用户中止');
+
+      // Save partial streaming text if available. Use a ref so we always read the
+      // latest accumulated text even when the error is thrown from an async callback
+      // that saw a stale React state snapshot.
+      const currentStreaming = streamingTextRef.current;
+      if (currentStreaming && currentStreaming.length > 100) {
+        try { sessionStorage.setItem(NOVEL_ANALYSIS_PARTIAL_KEY, currentStreaming); } catch {}
+        setPartialRawText(currentStreaming);
+      }
+
+      if (isAborted) {
+        setError('已中止分析。' + (currentStreaming ? '已保存已接收的内容，可点击下方按钮下载。' : ''));
+        if (currentStreaming) setShowDownloadRaw(true);
+      } else if (errMsg.includes('无法解析为 JSON')) {
+        setError('AI 返回的内容格式不对，没法直接使用。你可以下载 AI 写的内容看看，或者重新分析一次。');
+        setShowDownloadRaw(true);
+      } else {
+        // Try non-streaming fallback
+        setError('AI 处理失败，正在换一种方式重试…');
+        try {
+          const fallbackResult = await analyzeNovelText(title, nextChunks, outputMaxTokens);
+          setAnalysis(fallbackResult);
+          setError('');
+          streamingSucceeded = true;
+        } catch (fallbackErr) {
+          const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : '未知错误';
+          const rawHint = currentStreaming ? '已保存部分内容，可点击下方按钮下载。' : '';
+          const jsonHint = fallbackMsg.includes('无法解析为 JSON') ? ' AI 写的内容已保存，可点击下方按钮下载。' : '';
+          if (fallbackMsg.includes('无法解析为 JSON') || currentStreaming) {
+            setShowDownloadRaw(true);
+          }
+          const userFriendlyMsg = fallbackMsg.includes('无法解析为 JSON')
+            ? 'AI 返回的内容格式不对'
+            : fallbackMsg;
+          setError(`分析失败：${userFriendlyMsg}${rawHint || jsonHint}`);
+        }
+      }
     } finally {
       setLoading(false);
+      if (streamingSucceeded) {
+        try { sessionStorage.removeItem(NOVEL_ANALYSIS_PARTIAL_KEY); } catch {}
+      }
     }
+  };
+
+  const handleAbort = () => {
+    shouldAbortRef.current = true;
+  };
+
+  const handleDownloadRaw = () => {
+    const rawText = partialRawText || sessionStorage.getItem(NOVEL_ANALYSIS_PARTIAL_KEY) || '';
+    if (!rawText) return;
+    const blob = new Blob([rawText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title || 'novel-analysis'}-raw.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleFile = async (file: File) => {
@@ -166,14 +268,22 @@ export function NovelAnalysisPage() {
 
   const handleImportToWizard = () => {
     if (!analysis) return;
-    saveAnalysisLorebookImport(title, analysis);
-    navigate('/wizard?fromNovelAnalysis=1');
+    try {
+      saveAnalysisLorebookImport(title, analysis);
+      navigate('/wizard?fromNovelAnalysis=1');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '导出到创建向导失败');
+    }
   };
 
   const handlePushToWorkshop = () => {
     if (!analysis) return;
-    pushAnalysisToWorkshop(title, text, analysis);
-    navigate('/novel-workshop');
+    try {
+      pushAnalysisToWorkshop(title, text, analysis);
+      navigate('/novel-workshop');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '推送到小说工坊失败');
+    }
   };
 
   return (
@@ -290,6 +400,14 @@ export function NovelAnalysisPage() {
             </div>
           )}
 
+          {showDownloadRaw && (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={handleDownloadRaw}>
+                <Download size={16} /> 下载 AI 写的内容
+              </Button>
+            </div>
+          )}
+
           {/* Streaming Monitoring Panel — “创作者无法介入” read-only dashboard */}
           {loading && (
             <div className="rounded-xl border-2 overflow-hidden animate-fade-in"
@@ -319,6 +437,28 @@ export function NovelAnalysisPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Stall warning */}
+              {stallWarning && !stallCritical && (
+                <div className="px-4 py-2 text-sm flex items-center gap-2" style={{ backgroundColor: themeAlpha('warning', 15), color: 'var(--color-status-warning)' }}>
+                  ⚠️ AI 已超过 60 秒没有新内容输出，可能卡住了。请耐心等待，或等到 120 秒后强制停止。
+                </div>
+              )}
+              {stallCritical && (
+                <div className="px-4 py-2 flex items-center justify-between gap-3" style={{ backgroundColor: themeAlpha('danger', 15) }}>
+                  <span className="text-sm" style={{ color: 'var(--color-status-danger)' }}>
+                    🔴 AI 已超过 120 秒没有新内容输出，建议强制停止以节省时间和费用。
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAbort}
+                    className="rounded-lg px-3 py-1.5 text-sm font-bold text-white"
+                    style={{ backgroundColor: 'var(--color-status-danger)' }}
+                  >
+                    强制停止
+                  </button>
+                </div>
+              )}
 
               {/* Progress bar */}
               <div className="px-4 pt-3">

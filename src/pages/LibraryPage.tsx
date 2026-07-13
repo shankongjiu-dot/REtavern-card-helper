@@ -79,7 +79,7 @@ export function LibraryPage() {
       await db.wizard_drafts.put({
         id: 'new',
         data: cardToDraft(card),
-        currentStep: 1,
+        currentStep: 3,
         version: WIZARD_DRAFT_VERSION,
         updatedAt: new Date(),
       });

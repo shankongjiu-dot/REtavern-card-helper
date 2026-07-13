@@ -22,6 +22,7 @@ import { StepPolishExport } from '../components/wizard/StepPolishExport';
 import { generateId, createEmptyDraft, createEmptyLorebookEntry, createEmptyMvuConfig, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import type { LorebookEntry, WizardCharacter, WizardDraft, StagedModeConfig } from '../constants/defaults';
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
+import { consumeWorkshopLorebookImport, variableBlueprintsToMvuSections } from '../services/novel-workshop-bridge';
 import { findStagedLorebookEntryIndices } from '../services/card-exporter';
 import { useTranslation } from '../i18n/I18nContext';
 import { logger } from '../services/logger';
@@ -84,19 +85,22 @@ function syncCharacterEntries(
     if (char.description?.trim()) {
       // Reuse existing entry ID if available; fallback to matching by name/comment
       // so manually deleted duplicates don't cause brand-new entries to be created.
+      // Name-based lookup uses existingEntries (not syncExistingEntries) so that
+      // role-setting entries filtered into roleEntryIdsToReplace are still found
+      // and their IDs/properties reused — preventing ID churn and duplicates on re-edit.
       const expectedName = t('wizard.roleSettingEntryName', { name: char.name });
       const expectedComment = t('wizard.roleSettingComment', { name: char.name });
       const existingById = char.entryIds?.find(id =>
-        syncExistingEntries.find(e => e.id === id)
+        existingEntries.find(e => e.id === id)
       );
       const existingByName = existingById
         ? undefined
-        : syncExistingEntries.find(
+        : existingEntries.find(
             e => e.name === expectedName || e.comment === expectedComment
           );
       const existingId = existingById || existingByName?.id;
       const entryId = existingId || generateId();
-      const existing = syncExistingEntries.find(e => e.id === entryId);
+      const existing = existingEntries.find(e => e.id === entryId);
 
       // Split long content (>2000 chars) into multiple entries for better token management
       const content = char.description.trim();
@@ -187,7 +191,6 @@ export function WizardPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const importedNovelRef = useRef(false);
   const parsedId = id ? parseInt(id) : undefined;
   const editId = parsedId !== undefined && !isNaN(parsedId) ? parsedId : undefined;
   const searchParams = new URLSearchParams(location.search);
@@ -276,21 +279,57 @@ export function WizardPage() {
   }, [addToCharacterHistory, addToast, t]);
 
   useEffect(() => {
-    if (loading || editId || importedNovelRef.current) return;
+    if (loading || editId) return;
     if (!location.search.includes('fromNovelAnalysis=1')) return;
 
     const payload = consumeAnalysisLorebookImport();
     if (!payload || payload.entries.length === 0) return;
 
-    importedNovelRef.current = true;
     updateDraft({
       cardName: draft.cardName || payload.title || t('wizard.cardNameFallback'),
       lorebookEntries: [...draft.lorebookEntries, ...payload.entries],
     });
     setCurrentStep(3);
     addToast('success', t('wizard.importedNovelSuccess', { count: String(payload.entries.length) }));
-    navigate('/wizard', { replace: true });
-  }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, updateDraft, setCurrentStep, addToast, navigate]);
+    // Use replaceState instead of navigate() to avoid triggering a React Router
+    // re-render in the same tick as updateDraft/setCurrentStep. A combined URL +
+    // state change can trigger a DOM reconciliation error that the ErrorBoundary
+    // catches, causing WizardPage to unmount and remount fresh (losing the draft
+    // update, since debounced auto-save hasn't flushed to IndexedDB yet).
+    window.history.replaceState({}, '', '/wizard');
+  }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, updateDraft, setCurrentStep, addToast, t]);
+
+  // ── Consume Workshop lorebook import on mount ──
+  useEffect(() => {
+    if (loading || editId) return;
+    if (!location.search.includes('fromWorkshop=1')) return;
+
+    const payload = consumeWorkshopLorebookImport();
+    if (!payload || payload.entries.length === 0) return;
+
+    const mergedEntries = [...draft.lorebookEntries, ...payload.entries];
+    const mvuSections = variableBlueprintsToMvuSections(payload.variableBlueprints);
+    const currentMvu = draft.mvu ?? createEmptyMvuConfig();
+    const existingSectionNames = new Set(currentMvu.schemaSections.map((s) => s.name));
+    const newSections = mvuSections.filter((s) => !existingSectionNames.has(s.name));
+    const mergedMvu = newSections.length > 0
+      ? { ...currentMvu, enabled: true, schemaSections: [...currentMvu.schemaSections, ...newSections] }
+      : currentMvu;
+
+    const wsParams = new URLSearchParams(location.search);
+    const targetStep = wsParams.get('step') ? parseInt(wsParams.get('step')!) : 3;
+
+    updateDraft({
+      cardName: draft.cardName || payload.title || t('wizard.cardNameFallback'),
+      lorebookEntries: mergedEntries,
+      mvu: mergedMvu,
+    });
+    setCurrentStep(targetStep);
+    addToast('success', t('wizard.importedWorkshopSuccess', { count: String(payload.entries.length) }));
+    // Use replaceState instead of navigate() — see comment in the novel-analysis effect above.
+    const targetStepParam = wsParams.get('step');
+    window.history.replaceState({}, '', targetStepParam ? `/wizard?step=${targetStepParam}` : '/wizard');
+  }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, draft.mvu, updateDraft, setCurrentStep, addToast, t]);
 
   // Clear draftId from URL once the draft has been loaded so that auto-save takes over on refresh.
   useEffect(() => {

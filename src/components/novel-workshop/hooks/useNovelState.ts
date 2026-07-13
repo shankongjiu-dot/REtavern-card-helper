@@ -59,13 +59,11 @@ function createDefaultState(): NovelWorkshopState {
 // ── Storage Helpers ────────────────────────────────────────────────────────
 
 function getRawStorageKey(): string {
-  const draftId = window.__getCurrentDraftId__ ? window.__getCurrentDraftId__() : '';
-  return RAW_STORAGE_PREFIX + (draftId || 'global');
+  return RAW_STORAGE_PREFIX + 'global';
 }
 
 function getCheckpointStorageKey(): string {
-  const draftId = window.__getCurrentDraftId__ ? window.__getCurrentDraftId__() : '';
-  return CHECKPOINT_PREFIX + (draftId || 'global');
+  return CHECKPOINT_PREFIX + 'global';
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -80,12 +78,14 @@ export function useNovelState() {
     extractionTotal: 0,
     mergeDone: 0,
     mergeTotal: 0,
+    failedChunks: [],
+    mergeFallbacks: 0,
   });
   const [statusText, setStatusText] = useState<string>('');
   const [statusColor, setStatusColor] = useState<string>('var(--color-status-success)');
 
-  const suppressReload = useRef(false);
   const rawSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fullSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Status Helper ─────────────────────────────────────────────────────
 
@@ -231,19 +231,23 @@ export function useNovelState() {
       extractionTotal: 0,
       mergeDone: 0,
       mergeTotal: 0,
+      failedChunks: [],
+      mergeFallbacks: 0,
     });
     clearRawState();
     clearCheckpoint();
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
     setStatus('已重置小说世界书工坊。', 'var(--color-text-muted)');
   }, [clearRawState, clearCheckpoint, setStatus]);
 
   // ── Load from Extension ──────────────────────────────────────────────
 
   const loadFromExtension = useCallback(() => {
-    if (suppressReload.current) return;
-    if (!window.__getCardExtension__) return;
-    const data = window.__getCardExtension__(STORAGE_KEY) as Record<string, unknown> | null;
-    if (data && typeof data === 'object') {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw) as Record<string, unknown>;
+      if (!data || typeof data !== 'object') return;
       setState(prev => {
         const next = { ...prev };
         next.summary = String(data.summary || '').trim();
@@ -256,34 +260,41 @@ export function useNovelState() {
         next.generatedAt = String(data.generatedAt || '').trim();
         return loadRawState(next);
       });
+    } catch {
+      // Corrupted storage entry; ignore
     }
   }, [loadRawState]);
 
-  // ── Persist to Extension ─────────────────────────────────────────────
-
-  const persistState = useCallback(() => {
-    if (!window.__setCardExtension__) return;
-    suppressReload.current = true;
-    window.__setCardExtension__(STORAGE_KEY, {
-      summary: state.summary,
-      stageOrder: state.stageOrder,
-      currentStage: state.currentStage,
-      flags: state.flags,
-      entityIndex: state.entityIndex,
-      generatedEntries: state.generatedEntries,
-      generatedVariables: state.generatedVariables,
-      generatedAt: state.generatedAt,
-    });
-    suppressReload.current = false;
-    saveRawState();
-  }, [state, saveRawState]);
+  // ── Auto-persist generated state (always uses latest state, no stale closure) ──
+  useEffect(() => {
+    if (!state.generatedEntries.length && !state.summary) return;
+    if (fullSaveTimer.current) clearTimeout(fullSaveTimer.current);
+    fullSaveTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          summary: state.summary,
+          stageOrder: state.stageOrder,
+          currentStage: state.currentStage,
+          flags: state.flags,
+          entityIndex: state.entityIndex,
+          generatedEntries: state.generatedEntries,
+          generatedVariables: state.generatedVariables,
+          generatedAt: state.generatedAt,
+        }));
+      } catch {
+        // localStorage may be full; ignore
+      }
+    }, 300);
+    return () => {
+      if (fullSaveTimer.current) clearTimeout(fullSaveTimer.current);
+    };
+  }, [state.summary, state.stageOrder, state.currentStage, state.flags, state.entityIndex, state.generatedEntries, state.generatedVariables, state.generatedAt]);
 
   // ── Initialize ───────────────────────────────────────────────────────
 
   useEffect(() => {
     const bridge = consumeWorkshopBridge();
     if (bridge) {
-      suppressReload.current = true;
       setImportedFileText(bridge.sourceText);
       if (bridge.sourceText) {
         setImportedFileMeta({
@@ -296,14 +307,9 @@ export function useNovelState() {
         contextText: bridge.contextText,
         lastFileName: bridge.title || '',
       }));
-      suppressReload.current = false;
       setStatus('已从小说分析导入原文与分析摘要，可直接生成。', 'var(--color-status-success)');
     }
     loadFromExtension();
-    window.addEventListener('card-builder-data-changed', loadFromExtension);
-    return () => {
-      window.removeEventListener('card-builder-data-changed', loadFromExtension);
-    };
   }, [loadFromExtension, setStatus]);
 
   return {
@@ -327,7 +333,6 @@ export function useNovelState() {
     getCombinedSourceText,
 
     // Persistence
-    persistState,
     saveCheckpoint,
     clearCheckpoint,
     loadCheckpoint,
@@ -350,7 +355,7 @@ function normalizeFlags(flags: any[], prevFlags: RevealFlag[]): RevealFlag[] {
       id,
       label: String(flag.label || flag.name || id).trim(),
       description: String(flag.description || flag.desc || '').trim(),
-      value: prev ? !!prev.value : flag.default === true,
+      value: prev ? !!prev.value : (flag.value !== undefined ? !!flag.value : flag.default === true),
     };
   }).filter((flag: RevealFlag, index: number, list: RevealFlag[]) =>
     list.findIndex((item) => item.id === flag.id) === index
@@ -404,9 +409,15 @@ function normalizeEntries(entries: any[], stageOrder: string[]): GeneratedEntry[
 }
 
 function normalizeVariables(vars: any[]): VariableBlueprint[] {
+  const seen = new Set<string>();
   return (vars || []).map((v: any) => {
     const copy = { ...(v || {}) };
     if (!copy.path) copy.path = copy.name || '';
     return copy;
-  }).filter((v: VariableBlueprint) => String(v.path || '').trim());
+  }).filter((v: VariableBlueprint) => {
+    const path = String(v.path || '').trim();
+    if (!path || seen.has(path)) return false;
+    seen.add(path);
+    return true;
+  });
 }
