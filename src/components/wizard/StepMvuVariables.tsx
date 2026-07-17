@@ -584,7 +584,18 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
   const updateVariable = (sectionIdx: number, varIdx: number, updates: Partial<MvuVariable>) => {
     const section = mvu.schemaSections[sectionIdx];
+    const oldPath = section.variables[varIdx].path;
+    const newPath = updates.path ?? oldPath;
     updateSection(sectionIdx, { variables: section.variables.map((v, i) => (i === varIdx ? { ...v, ...updates } : v)) });
+    // 同步更新展开状态 key，避免修改变量路径时卡片自动折叠
+    if (updates.path !== undefined && oldPath !== newPath && expandedVars.has(oldPath)) {
+      setExpandedVars((prev) => {
+        const next = new Set(prev);
+        next.delete(oldPath);
+        next.add(newPath);
+        return next;
+      });
+    }
   };
 
   const toggleExpanded = (path: string) => {
