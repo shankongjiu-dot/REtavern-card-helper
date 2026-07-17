@@ -203,9 +203,9 @@ export function AIGeneratePanel({
               <input
                 type="number"
                 value={skeletonCount}
-                min={3}
+                min={1}
                 max={30}
-                onChange={(e) => onSkeletonCountChange(Math.max(3, parseInt(e.target.value) || 6))}
+                onChange={(e) => onSkeletonCountChange(Math.max(1, parseInt(e.target.value) || 6))}
                 className="w-14 text-center rounded border px-2 py-1 text-sm font-semibold" style={{ borderColor: themeAlpha('success', 40), backgroundColor: C.inputBg, color: C.success }}
               />
             </div>
@@ -237,9 +237,9 @@ export function AIGeneratePanel({
           <input
             type="number"
             value={batchCount}
-            min={3}
+            min={1}
             max={20}
-            onChange={(e) => onBatchCountChange(Math.max(3, Math.min(20, parseInt(e.target.value) || 8)))}
+            onChange={(e) => onBatchCountChange(Math.max(1, Math.min(20, parseInt(e.target.value) || 8)))}
             className="w-14 text-center rounded border border-primary-tint-light px-2 py-1 text-sm font-semibold text-primary-bright"
             style={{ backgroundColor: C.inputBg }}
           />
