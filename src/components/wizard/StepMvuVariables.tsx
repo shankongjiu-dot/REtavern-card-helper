@@ -15,6 +15,7 @@ import { useToast } from '../shared/Toast';
 import { TextInput } from '../shared/TextInput';
 import { TextArea } from '../shared/TextArea';
 import { useTranslation } from '../../i18n/I18nContext';
+import { FileText, Check, Code2, Download, Upload, Trash2, Sparkles, Wand2, AlertTriangle, ChevronDown, ChevronUp, X, Settings, Eye, RefreshCw } from 'lucide-react';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import { MVU_BEGINNER_GENERATE_PROMPT } from '../../constants/prompts';
 import { MultiCharTemplateModal } from './MultiCharTemplateModal';
@@ -1606,6 +1607,9 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
   // ────────────────────────────────────────────────────────────────────────
   // Expert mode renderer
   // ────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────────────────
+  // Expert mode renderer (optimized UI & mobile-first responsive)
+  // ────────────────────────────────────────────────────────────────────────
   function renderExpertMode() {
     const section = mvu.schemaSections[selectedSection];
 
@@ -1627,460 +1631,840 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
       return typeof current === 'string' ? current : '';
     }
 
+    // 大神模式专用样式常量，统一输入框高度、卡片圆角、间距
+    const cardBase = 'rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 shadow-[var(--shadow-sm)] transition-all duration-200';
+    const cardHover = 'hover:border-[color-mix(in_srgb,var(--color-primary)_25%,transparent)] hover:shadow-md';
+    const inputBase = 'w-full rounded-lg border border-[var(--input-border)] bg-[var(--color-surface-raised)] px-3 py-2 text-sm text-[var(--text-color)] min-h-[44px] transition-colors focus:border-[var(--color-border-focus)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-primary)_18%,transparent)]';
+    const labelBase = 'text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block';
+    const badgeBase = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium';
+    const chipBase = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors select-none min-h-[44px]';
+    const sectionChip = 'group inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-all duration-200 select-none min-h-[44px]';
+    const iconBtn = 'inline-flex items-center justify-center rounded-md p-1.5 text-[var(--color-text-secondary)] hover:bg-[color-mix(in_srgb,var(--color-text-primary)_6%,transparent)] hover:text-[var(--text-color)] transition-colors min-h-[44px] min-w-[44px] disabled:opacity-30 disabled:cursor-not-allowed';
+    const emptyBox = 'flex flex-col items-center justify-center py-10 text-center animate-fade-in';
+
+    const tabs = [
+      { id: 'schema' as const, label: 'Schema', icon: FileText },
+      { id: 'updateRules' as const, label: '更新规则', icon: Check },
+      { id: 'ejs' as const, label: 'EJS', icon: Code2 },
+      { id: 'output' as const, label: '输出', icon: Download },
+    ];
+
     /** 根据变量类型渲染初始值输入控件 */
     function renderInitialValueInput(v: MvuVariable, sectionIdx: number, varIdx: number) {
       if (v.zodType === 'z.boolean()' || v.zodType === 'z.boolean') {
         return (
-          <select value={String(v.initialValue ?? false)} onChange={(e) => updateVariable(sectionIdx, varIdx, { initialValue: e.target.value === 'true' })} className={fieldCls}>
+          <select value={String(v.initialValue ?? false)} onChange={(e) => updateVariable(sectionIdx, varIdx, { initialValue: e.target.value === 'true' })} className={inputBase}>
             <option value="true">true</option>
             <option value="false">false</option>
           </select>
         );
       }
       if (v.zodType.startsWith('z.array(')) {
-        return <input value={JSON.stringify(v.initialValue ?? [])} onChange={(e) => { try { const parsed = JSON.parse(e.target.value); if (Array.isArray(parsed)) updateVariable(sectionIdx, varIdx, { initialValue: parsed }); } catch { /* ignore invalid JSON */ } }} placeholder='JSON 数组: ["a", "b"]' className={fieldCls} />;
+        return <input value={JSON.stringify(v.initialValue ?? [])} onChange={(e) => { try { const parsed = JSON.parse(e.target.value); if (Array.isArray(parsed)) updateVariable(sectionIdx, varIdx, { initialValue: parsed }); } catch { /* ignore invalid JSON */ } }} placeholder='JSON 数组: ["a", "b"]' className={inputBase} />;
       }
       if (v.zodType.startsWith('z.object(') || v.zodType.startsWith('z.record(')) {
-        return <input value={JSON.stringify(v.initialValue ?? {})} onChange={(e) => { try { const parsed = JSON.parse(e.target.value); if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) updateVariable(sectionIdx, varIdx, { initialValue: parsed }); } catch { /* ignore invalid JSON */ } }} placeholder='JSON 对象: {"key": "value"}' className={fieldCls} />;
+        return <input value={JSON.stringify(v.initialValue ?? {})} onChange={(e) => { try { const parsed = JSON.parse(e.target.value); if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) updateVariable(sectionIdx, varIdx, { initialValue: parsed }); } catch { /* ignore invalid JSON */ } }} placeholder='JSON 对象: {"key": "value"}' className={inputBase} />;
       }
       if (v.zodType.startsWith('z.union(')) {
-        return <input value={String(v.initialValue ?? '')} onChange={(e) => updateVariable(sectionIdx, varIdx, { initialValue: e.target.value })} placeholder="字符串或数字" className={fieldCls} />;
+        return <input value={String(v.initialValue ?? '')} onChange={(e) => updateVariable(sectionIdx, varIdx, { initialValue: e.target.value })} placeholder="字符串或数字" className={inputBase} />;
       }
-      return <input value={String(v.initialValue ?? '')} onChange={(e) => { let val: unknown = e.target.value; if (v.zodType === 'z.coerce.number()') { const parsed = e.target.value === '' ? 0 : Number(e.target.value); val = Number.isNaN(parsed) ? v.initialValue : parsed; } updateVariable(sectionIdx, varIdx, { initialValue: val }); }} placeholder="0" className={fieldCls} />;
+      return <input value={String(v.initialValue ?? '')} onChange={(e) => { let val: unknown = e.target.value; if (v.zodType === 'z.coerce.number()') { const parsed = e.target.value === '' ? 0 : Number(e.target.value); val = Number.isNaN(parsed) ? v.initialValue : parsed; } updateVariable(sectionIdx, varIdx, { initialValue: val }); }} placeholder="0" className={inputBase} />;
     }
 
     return (
-      <div>
-        <div className="flex items-center justify-between mb-4">
+      <div className="animate-fade-in space-y-4">
+        {/* 页面标题与全局操作 */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-[var(--text-color)]">MVU 变量系统</h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">schema.ts · initvar.yaml · 更新规则 · EJS 配置</p>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-1.5 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-tint px-2 py-0.5 text-xs text-primary">大神模式</span>
+              <span>schema.ts · initvar.yaml · 更新规则 · EJS 配置</span>
+            </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="sm" onClick={exportMvuConfig} title="导出当前 MVU 配置为 JSON">📤 导出配置</Button>
-            <label className="text-[11px] px-2 py-1 rounded border border-[var(--color-border-default)] hover:border-[var(--input-border)] text-[var(--color-text-secondary)] cursor-pointer transition-colors">
-              📥 导入配置
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={exportMvuConfig} title="导出当前 MVU 配置为 JSON">
+              <Download className="w-4 h-4" /> 导出配置
+            </Button>
+            <label className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md cursor-pointer transition-all duration-200 min-h-[44px]">
+              <Upload className="w-4 h-4" /> 导入配置
               <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) importMvuConfig(f); e.target.value = ''; }} />
             </label>
             <Button variant="ghost" size="sm" onClick={toggleMode} title="切换到小白模式">
-              🔧 切换到小白模式
+              <Settings className="w-4 h-4" /> 切换到小白模式
             </Button>
             <Button variant="ghost" size="sm" onClick={toggleMvu}>禁用 MVU</Button>
           </div>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex gap-1 mb-4 border-b border-[var(--color-border-default)]">
-          {(['schema', 'updateRules', 'ejs', 'output'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-[1px] ${
-                activeTab === tab ? 'border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
-              {{ schema: '📐 Schema', updateRules: '📋 更新规则', ejs: '⚡ EJS', output: '📤 输出' }[tab]}
-            </button>
-          ))}
+        {/* 桌面端 Tab 导航 */}
+        <div className="hidden sm:flex items-center gap-1 border-b border-[var(--color-border-default)]">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-[1px] transition-colors min-h-[44px] ${
+                  active
+                    ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                    : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--text-color)] hover:bg-[color-mix(in_srgb,var(--color-text-primary)_4%,transparent)]'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Schema Tab */}
-        {activeTab === 'schema' && (
-          <div className="space-y-4">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                {selectedVariables.size > 0 && (
-                  <>
-                    <span className="text-xs text-[var(--color-text-secondary)]">已选 {selectedVariables.size} 个变量</span>
-                    <Button variant="danger" size="sm" onClick={batchDeleteVariables}>批量删除</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedVariables(new Set())}>取消选择</Button>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setShowTemplateMarket(true)}>🏪 应用模板</Button>
-                <Button variant="ghost" size="sm" onClick={addSection}>+ 新分区</Button>
-              </div>
-            </div>
+        {/* 移动端 Tab 下拉，避免横向拥挤 */}
+        <div className="flex sm:hidden">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as typeof activeTab)}
+            className={inputBase}
+          >
+            {tabs.map(tab => (
+              <option key={tab.id} value={tab.id}>{tab.label}</option>
+            ))}
+          </select>
+        </div>
 
-            {/* Section tabs with drag & drop */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {mvu.schemaSections.map((s, i) => (
-                <div
-                  key={i}
-                  draggable
-                  onDragStart={() => setDraggedSection(i)}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverSection(i); }}
-                  onDragLeave={() => setDragOverSection(null)}
-                  onDrop={(e) => { e.preventDefault(); if (draggedSection !== null) moveSection(draggedSection, i); setDraggedSection(null); setDragOverSection(null); }}
-                  className={`flex items-center gap-1 px-3 py-1 text-xs rounded-lg border transition-colors cursor-move ${
-                    i === selectedSection ? 'bg-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[var(--input-border)]'
-                  } ${dragOverSection === i ? 'ring-2 ring-[var(--color-primary)]' : ''}`}
-                >
-                  <button onClick={() => setSelectedSection(i)} className="flex items-center gap-1">
-                    <span>{expandedSections.has(i) ? '▼' : '▶'}</span>
-                    <span>{s.name}</span>
-                    {s.variables.length > 0 && <span className="text-[10px] text-[var(--color-text-muted)]">({s.variables.length})</span>}
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); toggleSectionExpanded(i); }} className="ml-1 text-[10px] hover:text-[var(--color-primary)]">
-                    {expandedSections.has(i) ? '折叠' : '展开'}
-                  </button>
+        {/* Tab 内容区，切换时播放淡入动画 */}
+        <div key={activeTab} className="animate-fade-in">
+          {/* ── Schema Tab ── */}
+          {activeTab === 'schema' && (
+            <div className="space-y-4">
+              {/* 工具栏 */}
+              <div className={`${cardBase} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedVariables.size > 0 ? (
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary-tint px-2 py-1 text-xs text-primary">
+                        已选 {selectedVariables.size} 个变量
+                      </span>
+                      <Button variant="danger" size="sm" onClick={batchDeleteVariables}>
+                        <Trash2 className="w-3.5 h-3.5" /> 批量删除
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedVariables(new Set())}>取消选择</Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-[var(--color-text-muted)]">勾选变量后可批量删除</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setShowTemplateMarket(true)}>
+                    <Sparkles className="w-3.5 h-3.5" /> 应用模板
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={addSection}>
+                    <span className="text-base leading-none">+</span> 新分区
+                  </Button>
+                </div>
+              </div>
+
+              {/* 分区标签：桌面端拖拽，移动端上下移动按钮 */}
+              <div className="flex flex-wrap gap-2">
+                {mvu.schemaSections.map((s, i) => {
+                  const active = i === selectedSection;
+                  const expanded = expandedSections.has(i);
+                  const isFirst = i === 0;
+                  const isLast = i === mvu.schemaSections.length - 1;
+                  return (
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={() => setDraggedSection(i)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverSection(i); }}
+                      onDragLeave={() => setDragOverSection(null)}
+                      onDrop={(e) => { e.preventDefault(); if (draggedSection !== null) moveSection(draggedSection, i); setDraggedSection(null); setDragOverSection(null); }}
+                      className={`${sectionChip} cursor-grab active:cursor-grabbing ${
+                        active
+                          ? 'bg-primary-tint border-primary-tint-light text-[var(--color-primary)]'
+                          : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[var(--input-border)] hover:text-[var(--text-color)]'
+                      } ${dragOverSection === i ? 'ring-2 ring-[var(--color-primary)]' : ''}`}
+                    >
+                      <span className="hidden sm:inline text-[var(--color-text-muted)] select-none">⋮⋮</span>
+                      <button
+                        onClick={() => setSelectedSection(i)}
+                        className="flex items-center gap-1.5 min-w-0"
+                      >
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                        <span className="truncate max-w-[120px] sm:max-w-[180px]">{s.name}</span>
+                        {s.variables.length > 0 && (
+                          <span className="rounded-full bg-[color-mix(in_srgb,var(--color-text-muted)_20%,transparent)] px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+                            {s.variables.length}
+                          </span>
+                        )}
+                      </button>
+                      <div className="flex sm:hidden items-center gap-0.5">
+                        <button
+                          className={iconBtn}
+                          disabled={isFirst}
+                          onClick={(e) => { e.stopPropagation(); moveSection(i, i - 1); }}
+                          title="上移"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          className={iconBtn}
+                          disabled={isLast}
+                          onClick={(e) => { e.stopPropagation(); moveSection(i, i + 1); }}
+                          title="下移"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <button
+                        className={iconBtn}
+                        onClick={(e) => { e.stopPropagation(); toggleSectionExpanded(i); }}
+                        title={expanded ? '折叠' : '展开'}
+                      >
+                        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 选中分区编辑卡片 */}
+              {section ? (
+                <div className={`${cardBase} space-y-4`}>
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                    <TextInput
+                      label="分区名称"
+                      value={section.name}
+                      onChange={(e) => updateSection(selectedSection, { name: e.target.value })}
+                      placeholder="例如：角色、世界、主角"
+                      className="flex-1"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => duplicateSection(selectedSection)} title="复制分区">复制</Button>
+                      {mvu.schemaSections.length > 1 && (
+                        <Button variant="danger" size="sm" onClick={() => removeSection(selectedSection)}>
+                          <Trash2 className="w-3.5 h-3.5" /> 删除
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[var(--color-text-secondary)]">变量定义</span>
+                      <Button variant="secondary" size="sm" onClick={() => addVariable(selectedSection)}>
+                        <span className="text-base leading-none">+</span> 添加变量
+                      </Button>
+                    </div>
+
+                    {section.variables.length === 0 && (
+                      <div className={emptyBox}>
+                        <FileText className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
+                        <p className="text-sm font-medium text-[var(--color-text-secondary)]">该分区还没有变量</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1">点击右上角按钮添加第一个变量</p>
+                      </div>
+                    )}
+
+                    {expandedSections.has(selectedSection) && section.variables.map((v, vi) => {
+                      const isDuplicate = (pathOccurrences.get(v.path) || 0) > 1;
+                      const isSelected = selectedVariables.has(v.path);
+                      const isExpanded = expandedVars.has(v.path);
+                      const isFirstVar = vi === 0;
+                      const isLastVar = vi === section.variables.length - 1;
+                      return (
+                        <div
+                          key={vi}
+                          draggable
+                          onDragStart={() => setDraggedVar({ sectionIdx: selectedSection, varIdx: vi })}
+                          onDragOver={(e) => { e.preventDefault(); setDragOverVar({ sectionIdx: selectedSection, varIdx: vi }); }}
+                          onDragLeave={() => setDragOverVar(null)}
+                          onDrop={(e) => { e.preventDefault(); if (draggedVar) moveVariable(draggedVar.sectionIdx, draggedVar.varIdx, selectedSection, vi); setDraggedVar(null); setDragOverVar(null); }}
+                          className={`rounded-xl border bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)] overflow-hidden transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                            isDuplicate
+                              ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)]'
+                              : 'border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)]'
+                          } ${dragOverVar?.sectionIdx === selectedSection && dragOverVar?.varIdx === vi ? 'ring-2 ring-[var(--color-primary)]' : ''}`}
+                        >
+                          <div
+                            className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-3 hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_40%,transparent)] transition-colors"
+                            onClick={() => toggleExpanded(v.path)}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => {
+                                  setSelectedVariables(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(v.path)) next.delete(v.path); else next.add(v.path);
+                                    return next;
+                                  });
+                                }}
+                                className="cursor-pointer h-4 w-4 rounded border-[var(--input-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                              />
+                              <span className="hidden sm:inline text-[var(--color-text-muted)] select-none">⋮⋮</span>
+                              <ChevronDown className={`w-3.5 h-3.5 text-[var(--color-text-muted)] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                              <span className={`text-sm font-mono truncate ${isDuplicate ? 'text-[var(--color-status-error)]' : 'text-[var(--text-color)]'}`}>
+                                {v.path || '(未命名变量)'}
+                              </span>
+                              {isDuplicate && (
+                                <span className={`${badgeBase} bg-danger-bg text-[var(--color-status-danger)] border border-danger-border`}>路径重复</span>
+                              )}
+                              {v.prefix && (
+                                <span className={`${badgeBase} bg-warning-bg text-[var(--color-status-warning)] border border-warning-border`}>{v.prefix}前缀</span>
+                              )}
+                              <span className={`${badgeBase} bg-[color-mix(in_srgb,var(--color-surface-elevated)_60%,transparent)] text-[var(--color-text-muted)]`}>
+                                {v.zodType.replace(/\(.*\)/, '(...)')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 self-end sm:self-auto">
+                              <div className="flex sm:hidden items-center gap-0.5">
+                                <button
+                                  className={iconBtn}
+                                  disabled={isFirstVar}
+                                  onClick={(e) => { e.stopPropagation(); moveVariable(selectedSection, vi, selectedSection, vi - 1); }}
+                                  title="上移"
+                                >
+                                  <ChevronUp className="w-4 h-4" />
+                                </button>
+                                <button
+                                  className={iconBtn}
+                                  disabled={isLastVar}
+                                  onClick={(e) => { e.stopPropagation(); moveVariable(selectedSection, vi, selectedSection, vi + 1); }}
+                                  title="下移"
+                                >
+                                  <ChevronDown className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); duplicateVariable(selectedSection, vi); }} title="复制变量">
+                                复制
+                              </Button>
+                              <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); removeVariable(selectedSection, vi); }}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="px-3 pb-4 space-y-3 border-t border-[var(--color-border-default)] pt-3 animate-slide-up">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <TextInput
+                                  label="变量路径"
+                                  value={v.path}
+                                  onChange={(e) => updateVariable(selectedSection, vi, { path: e.target.value })}
+                                  error={isDuplicate ? '路径重复' : undefined}
+                                  placeholder="角色.好感度"
+                                  className="min-h-[44px]"
+                                />
+                                <div>
+                                  <label className={labelBase}>Zod 类型</label>
+                                  <select
+                                    value={v.zodType}
+                                    onChange={(e) => updateVariable(selectedSection, vi, { zodType: e.target.value, initialValue: getInitialValueForType(e.target.value, v.initialValue) })}
+                                    className={inputBase}
+                                  >
+                                    {ZOD_TYPE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className={labelBase}>可见性前缀</label>
+                                  <select
+                                    value={v.prefix}
+                                    onChange={(e) => updateVariable(selectedSection, vi, { prefix: e.target.value as MvuPrefix })}
+                                    className={inputBase}
+                                  >
+                                    {PREFIX_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label} — {p.desc}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className={labelBase}>初始值</label>
+                                  {renderInitialValueInput(v, selectedSection, vi)}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={labelBase}>描述</label>
+                                <input
+                                  value={v.description}
+                                  onChange={(e) => updateVariable(selectedSection, vi, { description: e.target.value })}
+                                  placeholder="变量用途说明"
+                                  className={inputBase}
+                                />
+                              </div>
+                              {v.zodType === 'z.coerce.number()' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className={labelBase}>最小值</label>
+                                    <input
+                                      type="number"
+                                      value={v.range?.min ?? 0}
+                                      onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: Number.isNaN(parsed) ? (v.range?.min ?? 0) : parsed, max: v.range?.max ?? 100 } }); }}
+                                      className={inputBase}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className={labelBase}>最大值</label>
+                                    <input
+                                      type="number"
+                                      value={v.range?.max ?? 100}
+                                      onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: v.range?.min ?? 0, max: Number.isNaN(parsed) ? (v.range?.max ?? 100) : parsed } }); }}
+                                      className={inputBase}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              {v.zodType.startsWith('z.enum(') && (
+                                <div>
+                                  <label className={labelBase}>枚举值 (逗号分隔)</label>
+                                  <input
+                                    value={v.enumValues?.join(', ') ?? ''}
+                                    onChange={(e) => { const values = e.target.value.split(',').map(s => s.trim()).filter(Boolean); updateVariable(selectedSection, vi, { enumValues: values }); }}
+                                    placeholder="开心, 正常, 低落"
+                                    className={inputBase}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className={`${cardBase} ${emptyBox}`}>
+                  <FileText className="w-10 h-10 text-[var(--color-text-muted)] mb-3" />
+                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">还没有分区</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">点击「新分区」或从模板市场开始</p>
+                </div>
+              )}
+
+              {/* 模板市场弹窗：移动端全屏，桌面端居中卡片 */}
+              {showTemplateMarket && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
+                  <div className="w-full sm:max-w-3xl h-[92dvh] sm:h-auto sm:max-h-[85dvh] flex flex-col rounded-t-2xl sm:rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] shadow-xl animate-slide-up sm:animate-scale-in">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-default)]">
+                      <h3 className="text-lg font-bold flex items-center gap-2 text-[var(--text-color)]">
+                        <Sparkles className="w-5 h-5 text-primary" /> 模板市场
+                      </h3>
+                      <Button variant="ghost" size="sm" onClick={() => setShowTemplateMarket(false)}>
+                        <X className="w-5 h-5" />
+                      </Button>
+                    </div>
+                    <div className="p-4 overflow-y-auto space-y-4">
+                      <p className="text-xs text-[var(--color-text-secondary)]">选择一个模板追加到当前配置。已存在的变量路径不会被重复添加。</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {EXPERT_TEMPLATES.map(tmpl => (
+                          <div key={tmpl.id} className={`${cardBase} ${cardHover} flex flex-col`}>
+                            <div className="text-2xl mb-2">{tmpl.icon}</div>
+                            <div className="text-sm font-bold text-[var(--text-color)]">{tmpl.name}</div>
+                            <div className="text-xs text-[var(--color-text-muted)] mt-1 flex-1">{tmpl.description}</div>
+                            <div className="mt-3 flex items-center gap-2">
+                              <Button variant="secondary" size="sm" className="flex-1" onClick={() => applyExpertTemplate(tmpl, false)}>追加</Button>
+                              <Button variant="ghost" size="sm" className="flex-1" onClick={() => applyExpertTemplate(tmpl, true)}>覆盖</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Update Rules Tab ── */}
+          {activeTab === 'updateRules' && (
+            <div className="space-y-4">
+              <div className={`${cardBase} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
+                <p className="text-sm text-[var(--color-text-secondary)]">告诉 AI 如何更新变量。自明变量不需写规则。</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="secondary" size="sm" loading={aiRuleGenerating} onClick={handleAiGenerateRules}>
+                    <Wand2 className="w-3.5 h-3.5" /> AI 生成规则
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={addUpdateRule}>
+                    <span className="text-base leading-none">+</span> 添加规则
+                  </Button>
+                </div>
+              </div>
+
+              {typeMismatchedRules.length > 0 && (
+                <div className="rounded-lg border border-warning-border bg-warning-bg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[var(--color-status-warning)] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-[var(--color-status-warning)] mb-1">规则类型与变量类型可能不匹配</p>
+                      <ul className="text-[11px] text-[var(--color-status-warning)] list-disc list-inside space-y-0.5">
+                        {typeMismatchedRules.map(m => (<li key={m.path}>{m.path}：规则类型「{m.ruleType}」与变量类型「{m.varType}」不一致</li>))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 无规则变量提示 */}
+              {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).length > 0 && (
+                <div className="rounded-lg border border-warning-border bg-warning-bg p-3">
+                  <p className="text-xs font-medium text-[var(--color-status-warning)] mb-2">以下变量尚无更新规则，点击快速添加：</p>
+                  <div className="flex flex-wrap gap-2">
+                    {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).map(v => (
+                      <button
+                        key={v.path}
+                        onClick={() => {
+                          const inferred = inferVariableType(v.zodType);
+                          const preset = CHECK_RULE_PRESETS.find(p => p.type === inferred) || CHECK_RULE_PRESETS.find(p => p.type === 'string');
+                          const newRule: MvuUpdateRule = {
+                            path: v.path,
+                            type: inferred,
+                            range: inferred === 'number' ? `${v.range?.min ?? 0}~${v.range?.max ?? 100}` : undefined,
+                            check: preset ? [...preset.check] : [],
+                          };
+                          onChange({ ...mvu, updateRules: [...mvu.updateRules, newRule] });
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] px-2.5 py-1.5 text-xs text-[var(--color-status-warning)] hover:bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] transition-colors min-h-[44px]"
+                      >
+                        <span className="text-base leading-none">+</span> {v.path}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {mvu.updateRules.length === 0 && (
+                <div className={`${cardBase} ${emptyBox}`}>
+                  <Check className="w-10 h-10 text-[var(--color-text-muted)] mb-3" />
+                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">暂无更新规则</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">使用 AI 生成或手动添加规则</p>
+                </div>
+              )}
+
+              {mvu.updateRules.map((rule, ri) => (
+                <div key={ri} className={`${cardBase} space-y-3 ${invalidRulePaths.has(rule.path) ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)]' : ''}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-sm font-mono truncate ${invalidRulePaths.has(rule.path) ? 'text-[var(--color-status-error)]' : 'text-primary'}`}>
+                        {rule.path || '(新规则)'}
+                      </span>
+                      {invalidRulePaths.has(rule.path) && (
+                        <span className={`${badgeBase} bg-danger-bg text-[var(--color-status-danger)] border border-danger-border`}>变量路径不存在</span>
+                      )}
+                    </div>
+                    <Button variant="danger" size="sm" onClick={() => removeUpdateRule(ri)}>
+                      <Trash2 className="w-3.5 h-3.5" /> 删除
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelBase}>变量路径</label>
+                      <select
+                        value={rule.path}
+                        onChange={(e) => {
+                          const newPath = e.target.value;
+                          const matchedVar = mvu.schemaSections.flatMap(s => s.variables).find(v => v.path === newPath);
+                          const inferredType = matchedVar ? inferVariableType(matchedVar.zodType) : rule.type;
+                          const inferredRange = matchedVar?.range ? `${matchedVar.range.min}~${matchedVar.range.max}` : rule.range;
+                          updateUpdateRule(ri, { path: newPath, type: rule.type || inferredType, range: rule.range || inferredRange });
+                        }}
+                        className={`${inputBase} ${invalidRulePaths.has(rule.path) ? errorCls : ''}`}
+                      >
+                        <option value="">-- 选择变量 --</option>
+                        {mvu.schemaSections.map((s, si) => (
+                          <optgroup key={si} label={s.name}>
+                            {s.variables.filter(v => v.prefix !== '$').map(v => (
+                              <option key={v.path} value={v.path}>{v.path} {v.prefix === '_' ? '(只读)' : ''}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelBase}>类型</label>
+                      <input value={rule.type || ''} onChange={(e) => updateUpdateRule(ri, { type: e.target.value })} placeholder="number / string" className={inputBase} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelBase}>范围</label>
+                      <input value={rule.range || ''} onChange={(e) => updateUpdateRule(ri, { range: e.target.value })} placeholder="0~100" className={inputBase} />
+                    </div>
+                    <div>
+                      <label className={labelBase}>格式</label>
+                      <input value={rule.format || ''} onChange={(e) => updateUpdateRule(ri, { format: e.target.value })} placeholder="YYYY/MM/DD-HH:MM" className={inputBase} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={labelBase}>值描述</label>
+                    <input value={rule.value || ''} onChange={(e) => updateUpdateRule(ri, { value: e.target.value })} placeholder="主角对变量内容的即时感受" className={inputBase} />
+                  </div>
+
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                      <label className={labelBase}>更新条件 (check)</label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          onChange={(e) => {
+                            const preset = CHECK_RULE_PRESETS.find(p => p.label === e.target.value);
+                            if (preset) {
+                              const existing = rule.check || [];
+                              updateUpdateRule(ri, { check: [...existing, ...preset.check] });
+                            }
+                            e.target.value = '';
+                          }}
+                          className={`${inputBase} text-xs py-1.5`}
+                        >
+                          <option value="">预设规则...</option>
+                          {CHECK_RULE_PRESETS.filter(p => rule.type ? p.type === rule.type : true).map(p => (
+                            <option key={p.label} value={p.label}>{p.label}</option>
+                          ))}
+                        </select>
+                        <Button variant="ghost" size="sm" onClick={() => addCheckRule(ri)}>
+                          <span className="text-base leading-none">+</span> 添加
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {(rule.check || []).map((c, ci) => (
+                        <div key={ci} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                          <input value={c} onChange={(e) => updateCheckRule(ri, ci, e.target.value)} placeholder="根据角色行为调整 ±(3~6)" className={`${inputBase} flex-1`} />
+                          <Button variant="danger" size="sm" onClick={() => removeCheckRule(ri, ci)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
+          )}
 
-            {section && (
-              <div className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <TextInput label="分区名称" value={section.name} onChange={(e) => updateSection(selectedSection, { name: e.target.value })} placeholder="例如：角色、世界、主角" />
-                  <Button variant="ghost" size="sm" onClick={() => duplicateSection(selectedSection)} title="复制分区">📋 复制</Button>
-                  {mvu.schemaSections.length > 1 && <Button variant="danger" size="sm" onClick={() => removeSection(selectedSection)}>删除分区</Button>}
+          {/* ── EJS Tab ── */}
+          {activeTab === 'ejs' && (
+            <div className="space-y-4">
+              <div className={`${cardBase} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
+                <p className="text-sm text-[var(--color-text-secondary)]">配置世界书条目的 EJS 动态渲染。</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="secondary" size="sm" loading={aiEjsGenerating} disabled={selectedEjsEntries.size === 0} onClick={handleAiGenerateEjs}>
+                    <Wand2 className="w-3.5 h-3.5" /> AI 生成 EJS
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={addEjsConfig}>
+                    <span className="text-base leading-none">+</span> 添加 EJS 配置
+                  </Button>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[var(--color-text-secondary)]">变量定义</span>
-                    <Button variant="secondary" size="sm" onClick={() => addVariable(selectedSection)}>+ 添加变量</Button>
-                  </div>
-                  {section.variables.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">暂无变量</p>}
-                  {expandedSections.has(selectedSection) && section.variables.map((v, vi) => {
-                    const isDuplicate = (pathOccurrences.get(v.path) || 0) > 1;
-                    const isSelected = selectedVariables.has(v.path);
+              {/* 世界书条目选择器 */}
+              <div className={`${cardBase} p-3`}>
+                <p className="text-xs text-[var(--color-text-secondary)] mb-2">选择要应用 EJS 的世界书条目（用于 AI 生成）：</p>
+                <div className="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto p-0.5 -m-0.5">
+                  {lorebookEntries.length === 0 && (
+                    <span className="text-[11px] text-[var(--color-text-muted)]">暂无世界书条目</span>
+                  )}
+                  {lorebookEntries.map(e => {
+                    const checked = selectedEjsEntries.has(e.id);
                     return (
-                      <div
-                        key={vi}
-                        draggable
-                        onDragStart={() => setDraggedVar({ sectionIdx: selectedSection, varIdx: vi })}
-                        onDragOver={(e) => { e.preventDefault(); setDragOverVar({ sectionIdx: selectedSection, varIdx: vi }); }}
-                        onDragLeave={() => setDragOverVar(null)}
-                        onDrop={(e) => { e.preventDefault(); if (draggedVar) moveVariable(draggedVar.sectionIdx, draggedVar.varIdx, selectedSection, vi); setDraggedVar(null); setDragOverVar(null); }}
-                        className={`rounded-lg border bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)] overflow-hidden cursor-move ${
-                          isDuplicate ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)]' : 'border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)]'
-                        } ${dragOverVar?.sectionIdx === selectedSection && dragOverVar?.varIdx === vi ? 'ring-2 ring-[var(--color-primary)]' : ''}`}
-                      >
-                        <div className="flex items-center justify-between px-3 py-2 hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)]" onClick={() => toggleExpanded(v.path)}>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={() => {
-                                setSelectedVariables(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(v.path)) next.delete(v.path); else next.add(v.path);
-                                  return next;
-                                });
-                              }}
-                              className="cursor-pointer"
-                            />
-                            <span className="text-xs text-[var(--color-text-muted)]">{expandedVars.has(v.path) ? '▼' : '▶'}</span>
-                            <span className={`text-sm font-mono truncate ${isDuplicate ? 'text-[var(--color-status-error)]' : 'text-[var(--text-color)]'}`}>{v.path || '(未命名变量)'}</span>
-                            {isDuplicate && <span className="text-[10px] text-[var(--color-status-error)]">路径重复</span>}
-                            {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)]">{v.prefix}前缀</span>}
-                            <span className="text-[10px] text-[var(--color-text-muted)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] px-1.5 py-0.5 rounded">{v.zodType.replace(/\(.*\)/, '(...)')}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); duplicateVariable(selectedSection, vi); }} title="复制变量">📋</Button>
-                            <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); removeVariable(selectedSection, vi); }}>×</Button>
-                          </div>
-                        </div>
-                        {expandedVars.has(v.path) && (
-                          <div className="px-3 pb-3 space-y-2 border-t border-[color-mix(in_srgb,var(--color-border-default)_30%,transparent)] pt-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className={labelCls}>变量路径</label>
-                                <input value={v.path} onChange={(e) => updateVariable(selectedSection, vi, { path: e.target.value })} placeholder="角色.好感度" className={`${fieldCls} ${isDuplicate ? errorCls : ''}`} />
-                              </div>
-                              <div>
-                                <label className={labelCls}>Zod 类型</label>
-                                <select value={v.zodType} onChange={(e) => updateVariable(selectedSection, vi, { zodType: e.target.value, initialValue: getInitialValueForType(e.target.value, v.initialValue) })} className={fieldCls}>{ZOD_TYPE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div><label className={labelCls}>可见性前缀</label><select value={v.prefix} onChange={(e) => updateVariable(selectedSection, vi, { prefix: e.target.value as MvuPrefix })} className={fieldCls}>{PREFIX_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label} — {p.desc}</option>)}</select></div>
-                              <div><label className={labelCls}>初始值</label>{renderInitialValueInput(v, selectedSection, vi)}</div>
-                            </div>
-                            <div><label className={labelCls}>描述</label><input value={v.description} onChange={(e) => updateVariable(selectedSection, vi, { description: e.target.value })} placeholder="变量用途说明" className={fieldCls} /></div>
-                            {v.zodType === 'z.coerce.number()' && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: Number.isNaN(parsed) ? (v.range?.min ?? 0) : parsed, max: v.range?.max ?? 100 } }); }} className={fieldCls} /></div>
-                                <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: v.range?.min ?? 0, max: Number.isNaN(parsed) ? (v.range?.max ?? 100) : parsed } }); }} className={fieldCls} /></div>
-                              </div>
-                            )}
-                            {v.zodType.startsWith('z.enum(') && (
-                              <div><label className={labelCls}>枚举值 (逗号分隔)</label><input value={v.enumValues?.join(', ') ?? ''} onChange={(e) => { const values = e.target.value.split(',').map(s => s.trim()).filter(Boolean); updateVariable(selectedSection, vi, { enumValues: values }); }} placeholder="开心, 正常, 低落" className={fieldCls} /></div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <label key={e.id} className={`${chipBase} cursor-pointer ${
+                        checked
+                          ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
+                          : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
+                      }`}>
+                        <input type="checkbox" className="sr-only" checked={checked} onChange={() => {
+                          setSelectedEjsEntries(prev => {
+                            const next = new Set(prev);
+                            if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
+                            return next;
+                          });
+                        }} />
+                        {e.name || e.comment || `条目 ${e.id}`}
+                      </label>
                     );
                   })}
                 </div>
               </div>
-            )}
 
-            {/* Template market modal */}
-            {showTemplateMarket && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                <div className="w-full max-w-2xl max-h-[80vh] overflow-auto rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-4 space-y-4">
+              {invalidEjsVarNames.size > 0 && (
+                <div className="rounded-lg border border-danger-border bg-danger-bg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[var(--color-status-danger)] shrink-0 mt-0.5" />
+                    <p className="text-xs text-[var(--color-status-danger)]">
+                      以下 EJS 使用的变量未在 schema 中定义：{Array.from(invalidEjsVarNames).join(', ')}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {mvu.ejsConfigs.length === 0 && (
+                <div className={`${cardBase} ${emptyBox}`}>
+                  <Code2 className="w-10 h-10 text-[var(--color-text-muted)] mb-3" />
+                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">暂无 EJS 配置</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">选择世界书条目后使用 AI 生成，或手动添加</p>
+                </div>
+              )}
+
+              {mvu.ejsConfigs.map((cfg, ci) => (
+                <div key={ci} className={`${cardBase} space-y-3`}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-[var(--text-color)]">🏪 模板市场</h3>
-                    <Button variant="danger" size="sm" onClick={() => setShowTemplateMarket(false)}>×</Button>
+                    <span className="text-sm font-mono text-[var(--color-status-success)]">EJS 配置 #{ci + 1}</span>
+                    <Button variant="danger" size="sm" onClick={() => removeEjsConfig(ci)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-                  <p className="text-xs text-[var(--color-text-secondary)]">选择一个模板追加到当前配置。已存在的变量路径不会被重复添加。</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {EXPERT_TEMPLATES.map(tmpl => (
-                      <div key={tmpl.id} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-3 text-left">
-                        <div className="text-2xl mb-1">{tmpl.icon}</div>
-                        <div className="text-sm font-medium text-[var(--text-color)]">{tmpl.name}</div>
-                        <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{tmpl.description}</div>
-                        <div className="mt-2 flex gap-1">
-                          <Button variant="secondary" size="sm" onClick={() => applyExpertTemplate(tmpl, false)}>追加</Button>
-                          <Button variant="ghost" size="sm" onClick={() => applyExpertTemplate(tmpl, true)}>覆盖</Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Update Rules Tab */}
-        {activeTab === 'updateRules' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-[var(--color-text-secondary)]">告诉 AI 如何更新变量。自明变量不需写规则。</p>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={handleAiGenerateRules} disabled={aiRuleGenerating}>
-                  {aiRuleGenerating ? '⏳ AI 生成中' : '🤖 AI 生成规则'}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={addUpdateRule}>+ 添加规则</Button>
-              </div>
-            </div>
-
-            {typeMismatchedRules.length > 0 && (
-              <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_10%,transparent)] p-3">
-                <p className="text-xs text-[var(--color-status-warning)] mb-1">⚠️ 规则类型与变量类型可能不匹配：</p>
-                <ul className="text-[11px] text-[var(--color-status-warning)] list-disc list-inside">
-                  {typeMismatchedRules.map(m => (<li key={m.path}>{m.path}：规则类型「{m.ruleType}」与变量类型「{m.varType}」不一致</li>))}
-                </ul>
-              </div>
-            )}
-
-            {/* Auto-suggest: variables without rules */}
-            {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).length > 0 && (
-              <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_10%,transparent)] p-3">
-                <p className="text-xs text-[var(--color-status-warning)] mb-2">💡 以下变量尚无更新规则：</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).map(v => (
-                    <button
-                      key={v.path}
-                      onClick={() => {
-                        const inferred = inferVariableType(v.zodType);
-                        const preset = CHECK_RULE_PRESETS.find(p => p.type === inferred) || CHECK_RULE_PRESETS.find(p => p.type === 'string');
-                        const newRule: MvuUpdateRule = {
-                          path: v.path,
-                          type: inferred,
-                          range: inferred === 'number' ? `${v.range?.min ?? 0}~${v.range?.max ?? 100}` : undefined,
-                          check: preset ? [...preset.check] : [],
-                        };
-                        onChange({ ...mvu, updateRules: [...mvu.updateRules, newRule] });
-                      }}
-                      className="text-[11px] px-2 py-1 rounded border border-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)] hover:bg-[color-mix(in_srgb,var(--color-status-warning)_20%,transparent)] transition-colors"
-                    >
-                      + {v.path}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {mvu.updateRules.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-8 text-center">暂无更新规则</p>}
-            {mvu.updateRules.map((rule, ri) => (
-              <div key={ri} className={`rounded-xl border bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3 ${invalidRulePaths.has(rule.path) ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)]' : 'border-[var(--color-border-default)]'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-mono ${invalidRulePaths.has(rule.path) ? 'text-[var(--color-status-error)]' : 'text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]'}`}>
-                    {rule.path || '(新规则)'}
-                    {invalidRulePaths.has(rule.path) && <span className="ml-2 text-[10px]">变量路径不存在</span>}
-                  </span>
-                  <Button variant="danger" size="sm" onClick={() => removeUpdateRule(ri)}>×</Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>变量路径</label>
-                    <select value={rule.path} onChange={(e) => {
-                      const newPath = e.target.value;
-                      const matchedVar = mvu.schemaSections.flatMap(s => s.variables).find(v => v.path === newPath);
-                      const inferredType = matchedVar ? inferVariableType(matchedVar.zodType) : rule.type;
-                      const inferredRange = matchedVar?.range ? `${matchedVar.range.min}~${matchedVar.range.max}` : rule.range;
-                      updateUpdateRule(ri, { path: newPath, type: rule.type || inferredType, range: rule.range || inferredRange });
-                    }} className={`${fieldCls} ${invalidRulePaths.has(rule.path) ? errorCls : ''}`}>
-                      <option value="">-- 选择变量 --</option>
-                      {mvu.schemaSections.map((s, si) => (
-                        <optgroup key={si} label={s.name}>
-                          {s.variables.filter(v => v.prefix !== '$').map(v => (
-                            <option key={v.path} value={v.path}>{v.path} {v.prefix === '_' ? '(只读)' : ''}</option>
-                          ))}
-                        </optgroup>
-                      ))}
+                    <label className={labelBase}>关联世界书条目</label>
+                    <select value={cfg.entryId} onChange={(e) => updateEjsConfig(ci, { entryId: e.target.value })} className={inputBase}>
+                      <option value="">-- 选择条目 --</option>
+                      {lorebookEntries.map(e => <option key={e.id} value={e.id}>{e.name || e.comment || `条目 ${e.id}`}</option>)}
                     </select>
                   </div>
-                  <div><label className={labelCls}>类型</label><input value={rule.type || ''} onChange={(e) => updateUpdateRule(ri, { type: e.target.value })} placeholder="number / string" className={fieldCls} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className={labelCls}>范围</label><input value={rule.range || ''} onChange={(e) => updateUpdateRule(ri, { range: e.target.value })} placeholder="0~100" className={fieldCls} /></div>
-                  <div><label className={labelCls}>格式</label><input value={rule.format || ''} onChange={(e) => updateUpdateRule(ri, { format: e.target.value })} placeholder="YYYY/MM/DD-HH:MM" className={fieldCls} /></div>
-                </div>
-                <div><label className={labelCls}>值描述</label><input value={rule.value || ''} onChange={(e) => updateUpdateRule(ri, { value: e.target.value })} placeholder="主角对变量内容的即时感受" className={fieldCls} /></div>
-                <div>
-                  <div className="flex items-center justify-between mb-1"><label className={labelCls}>更新条件 (check)</label>
-                    <div className="flex items-center gap-1">
-                      <select onChange={(e) => {
-                        const preset = CHECK_RULE_PRESETS.find(p => p.label === e.target.value);
-                        if (preset) {
-                          const existing = rule.check || [];
-                          updateUpdateRule(ri, { check: [...existing, ...preset.check] });
-                        }
-                        e.target.value = '';
-                      }} className="text-[11px] rounded border border-[var(--input-border)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 text-[var(--color-text-secondary)]">
-                        <option value="">预设规则...</option>
-                        {CHECK_RULE_PRESETS.filter(p => rule.type ? p.type === rule.type : true).map(p => (
-                          <option key={p.label} value={p.label}>{p.label}</option>
-                        ))}
-                      </select>
-                      <Button variant="ghost" size="sm" onClick={() => addCheckRule(ri)}>+ 添加</Button>
+                  <div>
+                    <label className={labelBase}>复杂度</label>
+                    <select value={cfg.complexity} onChange={(e) => updateEjsConfig(ci, { complexity: e.target.value as EjsEntryConfig['complexity'] })} className={inputBase}>
+                      {EJS_COMPLEXITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelBase}>{cfg.complexity === '显隐' ? '@@if 条件表达式' : cfg.complexity === '段落控制' ? 'if/else 条件表达式' : 'EJS 模板代码'}</label>
+                    <TextArea
+                      value={cfg.condition}
+                      onChange={(e) => updateEjsConfig(ci, { condition: e.target.value })}
+                      placeholder={cfg.complexity === '显隐' ? 'current_location?.includes("万剑山")' : cfg.complexity === '段落控制' ? 'affection >= 60' : '<%= variable %>'}
+                      rows={cfg.complexity === '动态文本' ? 4 : 2}
+                    />
+                  </div>
+                  {/* 使用变量多选 */}
+                  <div>
+                    <label className={labelBase}>使用的变量</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$').map(v => {
+                        const varName = v.path.split('.').pop() || v.path;
+                        const isChecked = cfg.usedVariables.includes(varName);
+                        const isInvalid = invalidEjsVarNames.has(varName);
+                        return (
+                          <label key={varName} className={`${chipBase} cursor-pointer ${
+                            isInvalid
+                              ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)] bg-[color-mix(in_srgb,var(--color-status-error)_20%,transparent)] text-[var(--color-status-error)]'
+                              : isChecked
+                                ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
+                                : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={isChecked}
+                              onChange={() => {
+                                const current = cfg.usedVariables;
+                                const next = isChecked
+                                  ? current.filter(n => n !== varName)
+                                  : [...current, varName];
+                                updateEjsConfig(ci, { usedVariables: next });
+                              }}
+                            />
+                            {varName}
+                          </label>
+                        );
+                      })}
                     </div>
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">这些变量名将在 EJS 预处理中通过 define() 注册</p>
                   </div>
-                  {(rule.check || []).map((c, ci) => (
-                    <div key={ci} className="flex items-center gap-1 mb-1"><input value={c} onChange={(e) => updateCheckRule(ri, ci, e.target.value)} placeholder="根据角色行为调整 ±(3~6)" className={fieldCls} /><Button variant="danger" size="sm" onClick={() => removeCheckRule(ri, ci)}>×</Button></div>
-                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* EJS Tab */}
-        {activeTab === 'ejs' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-[var(--color-text-secondary)]">配置世界书条目的 EJS 动态渲染。</p>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={handleAiGenerateEjs} disabled={aiEjsGenerating || selectedEjsEntries.size === 0}>
-                  {aiEjsGenerating ? '⏳ AI 生成中' : '🤖 AI 生成 EJS'}
+          {/* ── Output Tab ── */}
+          {activeTab === 'output' && (
+            <div className="space-y-4">
+              <div className={`${cardBase} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
+                <p className="text-sm text-[var(--color-text-secondary)]">预览生成的 MVU 文件内容（修改变量后自动同步更新）。</p>
+                <Button variant="secondary" size="sm" onClick={generateAll}>
+                  <RefreshCw className="w-3.5 h-3.5" /> 强制重新生成
                 </Button>
-                <Button variant="secondary" size="sm" onClick={addEjsConfig}>+ 添加 EJS 配置</Button>
               </div>
-            </div>
 
-            {/* Entry selector for AI generation */}
-            <div className="rounded-lg border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-3">
-              <p className="text-xs text-[var(--color-text-secondary)] mb-2">选择要应用 EJS 的世界书条目（用于 AI 生成）：</p>
-              <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto">
-                {lorebookEntries.length === 0 && <span className="text-[11px] text-[var(--color-text-muted)]">暂无世界书条目</span>}
-                {lorebookEntries.map(e => {
-                  const checked = selectedEjsEntries.has(e.id);
-                  return (
-                    <label key={e.id} className={`text-[11px] px-2 py-1 rounded border cursor-pointer transition-colors select-none ${
-                      checked
-                        ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
-                        : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
-                    }`}>
-                      <input type="checkbox" className="sr-only" checked={checked} onChange={() => {
-                        setSelectedEjsEntries(prev => {
-                          const next = new Set(prev);
-                          if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
-                          return next;
-                        });
-                      }} />
-                      {e.name || e.comment || `条目 ${e.id}`}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {invalidEjsVarNames.size > 0 && (
-              <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-error)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-error)_10%,transparent)] p-3">
-                <p className="text-xs text-[var(--color-status-error)]">❌ 以下 EJS 使用的变量未在 schema 中定义：{Array.from(invalidEjsVarNames).join(', ')}</p>
-              </div>
-            )}
-
-            {mvu.ejsConfigs.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-8 text-center">暂无 EJS 配置</p>}
-            {mvu.ejsConfigs.map((cfg, ci) => (
-              <div key={ci} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
-                <div className="flex items-center justify-between"><span className="text-sm font-mono text-[var(--color-status-success)]">EJS 配置 #{ci + 1}</span><Button variant="danger" size="sm" onClick={() => removeEjsConfig(ci)}>×</Button></div>
-                <div><label className={labelCls}>关联世界书条目</label><select value={cfg.entryId} onChange={(e) => updateEjsConfig(ci, { entryId: e.target.value })} className={fieldCls}><option value="">-- 选择条目 --</option>{lorebookEntries.map(e => <option key={e.id} value={e.id}>{e.name || e.comment || `条目 ${e.id}`}</option>)}</select></div>
-                <div><label className={labelCls}>复杂度</label><select value={cfg.complexity} onChange={(e) => updateEjsConfig(ci, { complexity: e.target.value as EjsEntryConfig['complexity'] })} className={fieldCls}>{EJS_COMPLEXITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}</select></div>
-                <div><label className={labelCls}>{cfg.complexity === '显隐' ? '@@if 条件表达式' : cfg.complexity === '段落控制' ? 'if/else 条件表达式' : 'EJS 模板代码'}</label><TextArea value={cfg.condition} onChange={(e) => updateEjsConfig(ci, { condition: e.target.value })} placeholder={cfg.complexity === '显隐' ? 'current_location?.includes("万剑山")' : cfg.complexity === '段落控制' ? 'affection >= 60' : '<%= variable %>'} rows={cfg.complexity === '动态文本' ? 4 : 2} /></div>
-                {/* Used variables — multi-select checkboxes */}
-                <div>
-                  <label className={labelCls}>使用的变量</label>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$').map(v => {
-                      const varName = v.path.split('.').pop() || v.path;
-                      const isChecked = cfg.usedVariables.includes(varName);
-                      const isInvalid = invalidEjsVarNames.has(varName);
-                      return (
-                        <label key={varName} className={`text-[11px] px-2 py-1 rounded border cursor-pointer transition-colors select-none ${
-                          isInvalid
-                            ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)] bg-[color-mix(in_srgb,var(--color-status-error)_20%,transparent)] text-[var(--color-status-error)]'
-                            : isChecked
-                              ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
-                              : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            className="sr-only"
-                            checked={isChecked}
-                            onChange={() => {
-                              const current = cfg.usedVariables;
-                              const next = isChecked
-                                ? current.filter(n => n !== varName)
-                                : [...current, varName];
-                              updateEjsConfig(ci, { usedVariables: next });
-                            }}
-                          />
-                          {varName}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1">这些变量名将在 EJS 预处理中通过 define() 注册</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Output Tab */}
-        {activeTab === 'output' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between"><p className="text-sm text-[var(--color-text-secondary)]">预览生成的 MVU 文件内容（修改变量后自动同步更新）。</p><Button onClick={generateAll}>🔄 强制重新生成</Button></div>
-
-            {/* Status bar preview */}
-            <details open className="rounded-xl border border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] overflow-hidden">
-              <summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] text-sm font-medium text-[var(--color-primary)]">🎨 状态栏实时预览</summary>
-              <div className="px-4 pb-3 space-y-2">
+              {/* 状态栏实时预览 */}
+              <div className={`${cardBase} border-primary-tint bg-primary-tint-light space-y-4`}>
                 <div className="flex items-center gap-2">
-                  <input value={statusBarTitle} onChange={(e) => { setStatusBarTitle(e.target.value); if (statusBarStyle !== 'ai-custom') { const html = generateStatusBarHtml(statusBarStyle, mvu.schemaSections, e.target.value); onChange({ ...mvu, statusBarHtml: html }); } }} placeholder="状态栏标题" className={fieldCls} />
-                  <select value={statusBarStyle} onChange={(e) => applyStatusBarTemplate(e.target.value)} className={fieldCls}>
-                    {STATUS_BAR_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    <option value="ai-custom">AI/手动定制</option>
-                  </select>
+                  <Eye className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-primary">状态栏实时预览</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelBase}>状态栏标题</label>
+                    <input
+                      value={statusBarTitle}
+                      onChange={(e) => { setStatusBarTitle(e.target.value); if (statusBarStyle !== 'ai-custom') { const html = generateStatusBarHtml(statusBarStyle, mvu.schemaSections, e.target.value); onChange({ ...mvu, statusBarHtml: html }); } }}
+                      placeholder="状态栏标题"
+                      className={inputBase}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelBase}>模板风格</label>
+                    <select value={statusBarStyle} onChange={(e) => applyStatusBarTemplate(e.target.value)} className={inputBase}>
+                      {STATUS_BAR_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      <option value="ai-custom">AI/手动定制</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_40%,transparent)] p-4">
                   <div className="w-full" dangerouslySetInnerHTML={{ __html: statusBarPreviewHtml }} />
                 </div>
               </div>
-            </details>
 
-            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]">📐 schema.ts</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.schemaTsContent || '(请先添加变量分区和变量)'}</pre></details>
-            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-status-warning)]">📋 initvar.yaml</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.initvarYamlContent || '(请先添加变量分区和变量)'}</pre></details>
-            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-status-success)]">📋 变量更新规则.yaml</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.updateRulesYamlContent || '(请先添加更新规则)'}</pre></details>
-            <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-info)]">⚡ EJS 预处理</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.ejsPreprocessContent || '(未配置 EJS 条目或使用的变量为空)'}</pre></details>
-            {mvu.schemaTsContent && <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-primary)]">🔧 Zod.txt (SillyTavern 运行时)</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{buildZodTxt(mvu.schemaTsContent)}</pre></details>}
-          </div>
-        )}
+              {/* 生成文件预览 */}
+              <details className={`${cardBase} overflow-hidden p-0`}>
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_40%,transparent)] text-sm font-medium list-none select-none text-primary">
+                  <FileText className="w-4 h-4" /> schema.ts
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[40vh] sm:max-h-[300px] overflow-y-auto font-mono border-t border-[var(--color-border-default)] pt-3">
+                  {mvu.schemaTsContent || '(请先添加变量分区和变量)'}
+                </pre>
+              </details>
+
+              <details className={`${cardBase} overflow-hidden p-0`}>
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_40%,transparent)] text-sm font-medium list-none select-none text-[var(--color-status-warning)]">
+                  <FileText className="w-4 h-4" /> initvar.yaml
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[40vh] sm:max-h-[300px] overflow-y-auto font-mono border-t border-[var(--color-border-default)] pt-3">
+                  {mvu.initvarYamlContent || '(请先添加变量分区和变量)'}
+                </pre>
+              </details>
+
+              <details className={`${cardBase} overflow-hidden p-0`}>
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_40%,transparent)] text-sm font-medium list-none select-none text-[var(--color-status-success)]">
+                  <FileText className="w-4 h-4" /> 变量更新规则.yaml
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[40vh] sm:max-h-[300px] overflow-y-auto font-mono border-t border-[var(--color-border-default)] pt-3">
+                  {mvu.updateRulesYamlContent || '(请先添加更新规则)'}
+                </pre>
+              </details>
+
+              <details className={`${cardBase} overflow-hidden p-0`}>
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_40%,transparent)] text-sm font-medium list-none select-none text-[var(--color-info)]">
+                  <Code2 className="w-4 h-4" /> EJS 预处理
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[40vh] sm:max-h-[300px] overflow-y-auto font-mono border-t border-[var(--color-border-default)] pt-3">
+                  {mvu.ejsPreprocessContent || '(未配置 EJS 条目或使用的变量为空)'}
+                </pre>
+              </details>
+
+              {mvu.schemaTsContent && (
+                <details className={`${cardBase} overflow-hidden p-0`}>
+                  <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_40%,transparent)] text-sm font-medium list-none select-none text-primary">
+                    <FileText className="w-4 h-4" /> Zod.txt (SillyTavern 运行时)
+                  </summary>
+                  <pre className="px-4 pb-4 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[40vh] sm:max-h-[300px] overflow-y-auto font-mono border-t border-[var(--color-border-default)] pt-3">
+                    {buildZodTxt(mvu.schemaTsContent)}
+                  </pre>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
