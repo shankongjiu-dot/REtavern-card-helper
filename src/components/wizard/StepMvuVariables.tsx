@@ -48,7 +48,10 @@ import type {
 const ZOD_TYPE_PRESETS = [
   { value: 'z.string()', label: '字符串 (z.string)' },
   { value: 'z.coerce.number()', label: '数字 (z.coerce.number)' },
+  { value: 'z.boolean()', label: '布尔 (z.boolean)' },
   { value: 'z.enum(["值1", "值2", "值3"])', label: '枚举 (z.enum)' },
+  { value: 'z.array(z.string())', label: '数组 (z.array)' },
+  { value: 'z.union([z.string(), z.number()])', label: '联合 (z.union)' },
   { value: 'z.object({})', label: '对象 (z.object)' },
   { value: 'z.record(z.string(), z.string())', label: '动态键值 (z.record)' },
 ];
@@ -412,6 +415,189 @@ interface VariablePreset {
   enumValues?: string[];
 }
 
+// ── Expert mode template market ─────────────────────────────────────────────
+
+interface ExpertTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  sections: MvuSchemaSection[];
+  updateRules: MvuUpdateRule[];
+  statusBarTitle: string;
+  statusBarVars: string[];
+}
+
+/** 大神模式模板市场：内置常见变量系统，应用时追加到当前 schemaSections */
+const EXPERT_TEMPLATES: ExpertTemplate[] = [
+  {
+    id: 'rpg-stats',
+    name: 'RPG 属性面板',
+    icon: '⚔️',
+    description: 'HP/MP/等级/金币/经验',
+    sections: [
+      {
+        name: '主角',
+        variables: [
+          { path: '主角.HP', zodType: 'z.coerce.number()', description: '当前生命值', prefix: '', initialValue: 100, range: { min: 0, max: 100 } },
+          { path: '主角.MP', zodType: 'z.coerce.number()', description: '当前魔力值', prefix: '', initialValue: 100, range: { min: 0, max: 100 } },
+          { path: '主角.等级', zodType: 'z.coerce.number()', description: '冒险者等级', prefix: '', initialValue: 1, range: { min: 1, max: 99 } },
+          { path: '主角.金币', zodType: 'z.coerce.number()', description: '持有金币', prefix: '', initialValue: 100, range: { min: 0, max: 99999 } },
+          { path: '主角.经验值', zodType: 'z.coerce.number()', description: '当前经验值', prefix: '', initialValue: 0, range: { min: 0, max: 1000 } },
+        ],
+      },
+    ],
+    updateRules: [
+      { path: '主角.HP', type: 'number', range: '0~100', check: ['战斗受伤减少，休息或治疗回复', '单次变化不超过 ±30'] },
+      { path: '主角.MP', type: 'number', range: '0~100', check: ['使用技能消耗，休息回复', '单次变化不超过 ±25'] },
+      { path: '主角.等级', type: 'number', range: '1~99', check: ['经验值达到阈值后升级'] },
+      { path: '主角.金币', type: 'number', range: '0~99999', check: ['购买物品减少，出售物品/任务奖励增加'] },
+      { path: '主角.经验值', type: 'number', range: '0~1000', check: ['完成任务或击败敌人后增加'] },
+    ],
+    statusBarTitle: '⚔️ 冒险状态',
+    statusBarVars: ['主角.HP', '主角.MP', '主角.等级', '主角.金币'],
+  },
+  {
+    id: 'romance-stats',
+    name: '恋爱养成',
+    icon: '💕',
+    description: '好感度/情绪/关系阶段',
+    sections: [
+      {
+        name: '角色',
+        variables: [
+          { path: '角色.好感度', zodType: 'z.coerce.number()', description: '对主角的好感度', prefix: '', initialValue: 30, range: { min: 0, max: 100 } },
+          { path: '角色.情绪', zodType: 'z.enum(["开心", "平静", "害羞", "生气", "悲伤"])', description: '当前情绪状态', prefix: '', initialValue: '平静', enumValues: ['开心', '平静', '害羞', '生气', '悲伤'] },
+        ],
+      },
+      {
+        name: '关系',
+        variables: [
+          { path: '关系.阶段', zodType: 'z.enum(["陌生人", "认识", "朋友", "暧昧", "恋人", "伴侣"])', description: '与主角的关系阶段', prefix: '', initialValue: '陌生人', enumValues: ['陌生人', '认识', '朋友', '暧昧', '恋人', '伴侣'] },
+        ],
+      },
+    ],
+    updateRules: [
+      { path: '角色.好感度', type: 'number', range: '0~100', check: ['根据互动调整 ±(3~8)，正面互动增加，负面减少', '特殊事件（送礼、告白等）可调整 ±(10~20)'] },
+      { path: '角色.情绪', check: ['根据当前场景和对话内容更新'] },
+      { path: '关系.阶段', check: ['好感度达到阈值时推进：60→朋友，75→暧昧，90→恋人，95→伴侣'] },
+    ],
+    statusBarTitle: '💕 关系状态',
+    statusBarVars: ['角色.好感度', '角色.情绪', '关系.阶段'],
+  },
+  {
+    id: 'school-life',
+    name: '校园日常',
+    icon: '📚',
+    description: '好感度/社团/地点/时间段',
+    sections: [
+      {
+        name: '角色',
+        variables: [
+          { path: '角色.好感度', zodType: 'z.coerce.number()', description: '对主角的好感度', prefix: '', initialValue: 50, range: { min: 0, max: 100 } },
+          { path: '角色.社团', zodType: 'z.string()', description: '所属社团', prefix: '', initialValue: '无' },
+        ],
+      },
+      {
+        name: '学校',
+        variables: [
+          { path: '学校.当前地点', zodType: 'z.enum(["教室", "操场", "食堂", "图书馆", "社团活动室", "校门口", "天台"])', description: '当前学校地点', prefix: '', initialValue: '教室', enumValues: ['教室', '操场', '食堂', '图书馆', '社团活动室', '校门口', '天台'] },
+          { path: '学校.时间段', zodType: 'z.enum(["早自习", "上课", "午休", "下午课", "放学后", "傍晚"])', description: '当前时间段', prefix: '', initialValue: '上课', enumValues: ['早自习', '上课', '午休', '下午课', '放学后', '傍晚'] },
+        ],
+      },
+    ],
+    updateRules: [
+      { path: '角色.好感度', type: 'number', range: '0~100', check: ['根据互动调整 ±(3~6)', '一起参加社团活动增加较多'] },
+      { path: '角色.社团', check: ['角色加入社团时更新'] },
+      { path: '学校.当前地点', check: ['根据活动场景更新'] },
+      { path: '学校.时间段', check: ['根据事件推进自然流转'] },
+    ],
+    statusBarTitle: '📚 校园日常',
+    statusBarVars: ['角色.好感度', '学校.当前地点', '学校.时间段'],
+  },
+  {
+    id: 'urban-life',
+    name: '现代都市',
+    icon: '🏙️',
+    description: '好感度/亲密度/心情/社交圈',
+    sections: [
+      {
+        name: '角色',
+        variables: [
+          { path: '角色.好感度', zodType: 'z.coerce.number()', description: '对主角的好感度', prefix: '', initialValue: 40, range: { min: 0, max: 100 } },
+          { path: '角色.亲密度', zodType: 'z.coerce.number()', description: '两人之间的亲密度', prefix: '', initialValue: 20, range: { min: 0, max: 100 } },
+          { path: '角色.心情', zodType: 'z.enum(["开心", "平静", "烦躁", "难过", "尴尬"])', description: '当前心情', prefix: '', initialValue: '平静', enumValues: ['开心', '平静', '烦躁', '难过', '尴尬'] },
+        ],
+      },
+      {
+        name: '关系',
+        variables: [
+          { path: '关系.阶段', zodType: 'z.enum(["陌生人", "认识", "朋友", "暧昧", "恋人", "伴侣"])', description: '关系阶段', prefix: '', initialValue: '认识', enumValues: ['陌生人', '认识', '朋友', '暧昧', '恋人', '伴侣'] },
+          { path: '关系.社交圈', zodType: 'z.enum(["无交集", "同校", "同公司", "朋友的朋友", "青梅竹马"])', description: '两人社交圈交集', prefix: '', initialValue: '同校', enumValues: ['无交集', '同校', '同公司', '朋友的朋友', '青梅竹马'] },
+        ],
+      },
+    ],
+    updateRules: [
+      { path: '角色.好感度', type: 'number', range: '0~100', check: ['日常互动 ±(2~5)，特殊事件 ±(8~15)'] },
+      { path: '角色.亲密度', type: 'number', range: '0~100', check: ['只有正面互动时增加', '冷战或伤害会大幅降低'] },
+      { path: '角色.心情', check: ['根据当前场景和对话内容更新'] },
+      { path: '关系.阶段', check: ['好感度≥30→朋友，≥60→暧昧，≥85→恋人，≥95→伴侣'] },
+    ],
+    statusBarTitle: '🏙️ 都市关系',
+    statusBarVars: ['角色.好感度', '角色.亲密度', '角色.心情', '关系.阶段'],
+  },
+  {
+    id: 'date-weather',
+    name: '日期天气系统',
+    icon: '📅',
+    description: '日期、星期、天气、季节',
+    sections: [
+      {
+        name: '时间',
+        variables: [
+          { path: '时间.日期', zodType: 'z.string()', description: '当前日期', prefix: '', initialValue: '1月1日' },
+          { path: '时间.星期', zodType: 'z.enum(["周一", "周二", "周三", "周四", "周五", "周六", "周日"])', description: '当前星期', prefix: '', initialValue: '周一', enumValues: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
+          { path: '时间.天气', zodType: 'z.enum(["晴天", "多云", "小雨", "暴雨", "下雪", "大风"])', description: '当前天气', prefix: '', initialValue: '晴天', enumValues: ['晴天', '多云', '小雨', '暴雨', '下雪', '大风'] },
+          { path: '时间.季节', zodType: 'z.enum(["春", "夏", "秋", "冬"])', description: '当前季节', prefix: '', initialValue: '春', enumValues: ['春', '夏', '秋', '冬'] },
+        ],
+      },
+    ],
+    updateRules: [
+      { path: '时间.日期', format: 'M月D日', check: ['根据剧情时间推进自然变化'] },
+      { path: '时间.星期', check: ['随日期变化循环'] },
+      { path: '时间.天气', check: ['根据场景和季节合理变化'] },
+      { path: '时间.季节', check: ['根据日期变化，每月对应一季'] },
+    ],
+    statusBarTitle: '📅 世界时间',
+    statusBarVars: ['时间.日期', '时间.星期', '时间.天气', '时间.季节'],
+  },
+  {
+    id: 'quest-tracker',
+    name: '任务追踪系统',
+    icon: '📜',
+    description: '任务列表、完成度',
+    sections: [
+      {
+        name: '任务',
+        variables: [
+          { path: '任务.列表', zodType: 'z.array(z.string())', description: '当前接取的任务列表', prefix: '', initialValue: [] },
+          { path: '任务.完成度', zodType: 'z.record(z.string(), z.coerce.number())', description: '各任务完成度 0~100', prefix: '', initialValue: {} },
+          { path: '任务.当前任务', zodType: 'z.string()', description: '当前追踪的主线任务', prefix: '', initialValue: '无' },
+        ],
+      },
+    ],
+    updateRules: [
+      { path: '任务.列表', check: ['接取新任务时添加，完成任务时移除'] },
+      { path: '任务.完成度', check: ['推进任务目标时增加，达到 100 时标记完成'] },
+      { path: '任务.当前任务', check: ['切换追踪目标时更新'] },
+    ],
+    statusBarTitle: '📜 任务追踪',
+    statusBarVars: ['任务.当前任务', '任务.列表', '任务.完成度'],
+  },
+];
+
+// ── Variable presets library (for beginner quick-add) ──────────────────────
+
 /** 用于在小白模式下快速添加常用变量的预设库 */
 const VARIABLE_PRESETS: { category: string; items: VariablePreset[] }[] = [
   {
@@ -478,6 +664,166 @@ function createEmptyEjsConfig(): EjsEntryConfig {
   return { entryId: '', complexity: '显隐', condition: '', usedVariables: [] };
 }
 
+/** 根据 zodType 推断 update rule 的 type */
+function inferVariableType(zodType: string): string {
+  if (zodType === 'z.coerce.number()') return 'number';
+  if (zodType === 'z.boolean()' || zodType === 'z.boolean') return 'boolean';
+  if (zodType.startsWith('z.enum(')) return 'string';
+  if (zodType.startsWith('z.array(')) return 'array';
+  if (zodType.startsWith('z.union(')) return 'string';
+  if (zodType.startsWith('z.object(')) return 'object';
+  if (zodType.startsWith('z.record(')) return 'record';
+  return 'string';
+}
+
+/** 校验导入的 MVU 配置是否合法 */
+function validateImportedConfig(data: unknown): Partial<MvuConfig> | null {
+  if (!data || typeof data !== 'object') return null;
+  const cfg = data as Record<string, unknown>;
+  const result: Partial<MvuConfig> = {};
+
+  // schemaSections
+  if (Array.isArray(cfg.schemaSections)) {
+    const sections: MvuSchemaSection[] = [];
+    for (const s of cfg.schemaSections) {
+      if (!s || typeof s !== 'object') continue;
+      const sec = s as Record<string, unknown>;
+      const name = String(sec.name || '');
+      const variables: MvuVariable[] = [];
+      if (Array.isArray(sec.variables)) {
+        for (const v of sec.variables) {
+          if (!v || typeof v !== 'object') continue;
+          const vv = v as Record<string, unknown>;
+          const prefix = String(vv.prefix || '');
+          if (prefix !== '' && prefix !== '_' && prefix !== '$') continue;
+          const zodType = String(vv.zodType || 'z.string()');
+          const path = String(vv.path || '');
+          if (!path) continue;
+          variables.push({
+            path,
+            zodType,
+            description: String(vv.description || ''),
+            prefix: prefix as MvuPrefix,
+            initialValue: vv.initialValue ?? '',
+            enumValues: Array.isArray(vv.enumValues) ? vv.enumValues.map(String) : undefined,
+            range: vv.range && typeof vv.range === 'object'
+              ? { min: Number((vv.range as { min?: unknown }).min ?? 0), max: Number((vv.range as { max?: unknown }).max ?? 100) }
+              : undefined,
+          });
+        }
+      }
+      if (name || variables.length > 0) {
+        sections.push({ name: name || '未命名分区', variables });
+      }
+    }
+    result.schemaSections = sections;
+  }
+
+  // updateRules
+  if (Array.isArray(cfg.updateRules)) {
+    const rules: MvuUpdateRule[] = [];
+    for (const r of cfg.updateRules) {
+      if (!r || typeof r !== 'object') continue;
+      const rr = r as Record<string, unknown>;
+      const path = String(rr.path || '');
+      if (!path) continue;
+      rules.push({
+        path,
+        type: rr.type !== undefined ? String(rr.type) : undefined,
+        range: rr.range !== undefined ? String(rr.range) : undefined,
+        format: rr.format !== undefined ? String(rr.format) : undefined,
+        value: rr.value !== undefined ? String(rr.value) : undefined,
+        check: Array.isArray(rr.check) ? rr.check.map(String) : undefined,
+        category: rr.category && typeof rr.category === 'object' ? rr.category as Record<string, string> : undefined,
+      });
+    }
+    result.updateRules = rules;
+  }
+
+  // ejsConfigs
+  if (Array.isArray(cfg.ejsConfigs)) {
+    const ejs: EjsEntryConfig[] = [];
+    for (const c of cfg.ejsConfigs) {
+      if (!c || typeof c !== 'object') continue;
+      const cc = c as Record<string, unknown>;
+      const complexity = String(cc.complexity || '显隐');
+      if (!['显隐', '段落控制', '动态文本', '分阶段调度'].includes(complexity)) continue;
+      ejs.push({
+        entryId: String(cc.entryId || ''),
+        complexity: complexity as EjsEntryConfig['complexity'],
+        condition: String(cc.condition || ''),
+        usedVariables: Array.isArray(cc.usedVariables) ? cc.usedVariables.map(String) : [],
+      });
+    }
+    result.ejsConfigs = ejs;
+  }
+
+  // statusBarHtml
+  if (typeof cfg.statusBarHtml === 'string') {
+    result.statusBarHtml = cfg.statusBarHtml;
+  }
+
+  // statusBarStyle
+  if (typeof cfg.statusBarStyle === 'string') {
+    result.statusBarStyle = cfg.statusBarStyle;
+  }
+
+  return result;
+}
+
+/** 构建 AI 生成 update rules 的 prompt */
+function buildGenerateRulesPrompt(sections: MvuSchemaSection[], cardName?: string): { system: string; user: string } {
+  const variables = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$');
+  const system = `你是 MVU (Model-View-Update) 变量系统专家。请根据提供的变量 schema，为每个需要 AI 更新的变量生成 updateRules。
+规则要求：
+- 只返回 JSON，不要 markdown 代码块
+- 返回格式：{ "rules": [{ "path": "变量路径", "type": "number|string|boolean|array|object|record", "range?": "0~100", "format?": "", "check": ["规则1", "规则2"] }] }
+- 对于数字变量必须提供 range（从变量 range 推断）
+- 对于枚举/字符串变量 check 描述如何根据剧情更新
+- 对于 boolean 变量 check 描述何时切换 true/false
+- 对于 array/object/record 变量 check 描述增删改规则
+- 只包含 prefix !== '$' 的变量（隐藏变量不需要更新规则）
+- 如果变量明显是自明的（如 current_location 根据场景更新），也需要写 check`;
+  const user = `角色卡名称：${cardName || '未命名'}
+变量定义：
+${JSON.stringify(variables.map(v => ({
+    path: v.path,
+    zodType: v.zodType,
+    description: v.description,
+    range: v.range,
+    enumValues: v.enumValues,
+  })), null, 2)}
+请直接返回 JSON。`;
+  return { system, user };
+}
+
+/** 构建 AI 生成 EJS 配置的 prompt */
+function buildGenerateEjsPrompt(sections: MvuSchemaSection[], entries: LorebookEntry[], selectedEntryIds: string[], cardName?: string): { system: string; user: string } {
+  const variables = sections.flatMap(s => s.variables).filter(v => v.prefix !== '$');
+  const selectedEntries = entries.filter(e => selectedEntryIds.includes(e.id));
+  const system = `你是 SillyTavern EJS 世界书模板专家。请根据提供的变量和选中的世界书条目，生成 EJS 配置。
+规则要求：
+- 只返回 JSON，不要 markdown 代码块
+- 返回格式：{ "ejsConfigs": [{ "entryId": "条目ID", "complexity": "显隐|段落控制|动态文本|分阶段调度", "condition": "条件表达式", "usedVariables": ["变量短名"] }] }
+- 条件表达式要使用变量短名（path.split('.').pop()），例如 current_location?.includes('万剑山') 或 affection >= 60
+- usedVariables 必须列出 condition 中实际使用的变量短名
+- 显隐对应 @@if，段落控制对应 if/else，动态文本对应 <%= %>, 分阶段调度对应 getWorldInfo
+- 为每个选中的条目生成合适的 EJS 配置，如果条目内容与变量无关可以返回空 condition`;
+  const user = `角色卡名称：${cardName || '未命名'}
+变量定义：
+${JSON.stringify(variables.map(v => ({
+    path: v.path,
+    shortName: v.path.split('.').pop(),
+    zodType: v.zodType,
+    description: v.description,
+  })), null, 2)}
+
+选中的世界书条目：
+${JSON.stringify(selectedEntries.map(e => ({ id: e.id, name: e.name || e.comment, contentPreview: (e.content || '').slice(0, 200) })), null, 2)}
+请直接返回 JSON。`;
+  return { system, user };
+}
+
 function applyTemplate(template: BeginnerTemplate): MvuConfig {
   const sections = JSON.parse(JSON.stringify(template.sections)) as MvuSchemaSection[];
   const updateRules = JSON.parse(JSON.stringify(template.updateRules)) as MvuUpdateRule[];
@@ -533,9 +879,21 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
   const [tachieImageUrl, setTachieImageUrl] = useState('');
   const [avatarImageUrl, setAvatarImageUrl] = useState('');
   const [showMultiCharModal, setShowMultiCharModal] = useState(false);
+  // 大神模式增强状态
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set(mvu.schemaSections.map((_, i) => i)));
+  const [selectedVariables, setSelectedVariables] = useState<Set<string>>(new Set());
+  const [showTemplateMarket, setShowTemplateMarket] = useState(false);
+  const [aiRuleGenerating, setAiRuleGenerating] = useState(false);
+  const [aiEjsGenerating, setAiEjsGenerating] = useState(false);
+  const [selectedEjsEntries, setSelectedEjsEntries] = useState<Set<string>>(new Set());
+  const [draggedVar, setDraggedVar] = useState<{ sectionIdx: number; varIdx: number } | null>(null);
+  const [draggedSection, setDraggedSection] = useState<number | null>(null);
+  const [dragOverSection, setDragOverSection] = useState<number | null>(null);
+  const [dragOverVar, setDragOverVar] = useState<{ sectionIdx: number; varIdx: number } | null>(null);
 
   const fieldCls = 'w-full rounded border border-[var(--input-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-sm text-[var(--text-color)]';
   const labelCls = 'text-xs text-[var(--color-text-secondary)]';
+  const errorCls = 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)] text-[var(--color-status-error)]';
 
   // ── MVU enable toggle ─────────────────────────────────────────────────
   const toggleMvu = () => {
@@ -568,6 +926,39 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
     onChange({ ...mvu, schemaSections: mvu.schemaSections.map((s, i) => (i === idx ? { ...s, ...updates } : s)) });
   };
 
+  const duplicateSection = (idx: number) => {
+    const section = mvu.schemaSections[idx];
+    const cloned: MvuSchemaSection = JSON.parse(JSON.stringify(section));
+    cloned.name = `${cloned.name} 副本`;
+    cloned.variables = cloned.variables.map(v => ({ ...v, path: `${v.path}_副本` }));
+    const nextSections = [...mvu.schemaSections];
+    nextSections.splice(idx + 1, 0, cloned);
+    onChange({ ...mvu, schemaSections: nextSections });
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      next.add(idx + 1);
+      return next;
+    });
+  };
+
+  const moveSection = (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
+    const sections = [...mvu.schemaSections];
+    const [moved] = sections.splice(fromIdx, 1);
+    const adjustedTo = toIdx > fromIdx ? toIdx - 1 : toIdx;
+    sections.splice(adjustedTo, 0, moved);
+    onChange({ ...mvu, schemaSections: sections });
+    setSelectedSection(adjustedTo);
+  };
+
+  const toggleSectionExpanded = (idx: number) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
   // ── Variable management ────────────────────────────────────────────────
   const addVariable = (sectionIdx: number) => {
     const v = createEmptyVariable();
@@ -577,9 +968,29 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
     setExpandedVars(prev => new Set([...prev, v.path]));
   };
 
+  const duplicateVariable = (sectionIdx: number, varIdx: number) => {
+    const section = mvu.schemaSections[sectionIdx];
+    const v = section.variables[varIdx];
+    const cloned: MvuVariable = JSON.parse(JSON.stringify(v));
+    cloned.path = `${cloned.path}_副本`;
+    const nextVars = [...section.variables];
+    nextVars.splice(varIdx + 1, 0, cloned);
+    updateSection(sectionIdx, { variables: nextVars });
+    setExpandedVars(prev => new Set([...prev, cloned.path]));
+  };
+
   const removeVariable = (sectionIdx: number, varIdx: number) => {
     const section = mvu.schemaSections[sectionIdx];
     updateSection(sectionIdx, { variables: section.variables.filter((_, i) => i !== varIdx) });
+  };
+
+  const moveVariable = (fromSectionIdx: number, fromVarIdx: number, toSectionIdx: number, toVarIdx: number) => {
+    if (fromSectionIdx === toSectionIdx && fromVarIdx === toVarIdx) return;
+    const sections = JSON.parse(JSON.stringify(mvu.schemaSections)) as MvuSchemaSection[];
+    const [moved] = sections[fromSectionIdx].variables.splice(fromVarIdx, 1);
+    const adjustedTo = toVarIdx > fromVarIdx && fromSectionIdx === toSectionIdx ? toVarIdx - 1 : toVarIdx;
+    sections[toSectionIdx].variables.splice(adjustedTo, 0, moved);
+    onChange({ ...mvu, schemaSections: sections });
   };
 
   const updateVariable = (sectionIdx: number, varIdx: number, updates: Partial<MvuVariable>) => {
@@ -626,6 +1037,164 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
     updateUpdateRule(ruleIdx, { check: (rule.check || []).filter((_, i) => i !== checkIdx) });
   };
 
+  // ── Batch variable operations ──────────────────────────────────────────
+  const batchDeleteVariables = () => {
+    if (selectedVariables.size === 0) return;
+    const nextSections = mvu.schemaSections.map(s => ({
+      ...s,
+      variables: s.variables.filter(v => !selectedVariables.has(v.path)),
+    }));
+    onChange({ ...mvu, schemaSections: nextSections });
+    setSelectedVariables(new Set());
+    addToast('success', `已删除 ${selectedVariables.size} 个变量`);
+  };
+
+  // ── Import / Export MVU config ─────────────────────────────────────────
+  const exportMvuConfig = () => {
+    const payload = {
+      schemaSections: mvu.schemaSections,
+      updateRules: mvu.updateRules,
+      ejsConfigs: mvu.ejsConfigs,
+      ejsPreprocessContent: mvu.ejsPreprocessContent,
+      statusBarHtml: mvu.statusBarHtml,
+      statusBarStyle: mvu.statusBarStyle,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mvu-config-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast('success', 'MVU 配置已导出');
+  };
+
+  const importMvuConfig = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const imported = validateImportedConfig(parsed);
+      if (!imported || (!imported.schemaSections?.length && !imported.updateRules?.length && !imported.ejsConfigs?.length)) {
+        addToast('error', '导入文件不合法或为空');
+        return;
+      }
+      const next: MvuConfig = {
+        ...mvu,
+        schemaSections: imported.schemaSections ?? mvu.schemaSections,
+        updateRules: imported.updateRules ?? mvu.updateRules,
+        ejsConfigs: imported.ejsConfigs ?? mvu.ejsConfigs,
+        statusBarHtml: imported.statusBarHtml ?? mvu.statusBarHtml,
+        statusBarStyle: imported.statusBarStyle ?? mvu.statusBarStyle,
+      };
+      onChange(next);
+      setExpandedSections(new Set(next.schemaSections.map((_, i) => i)));
+      addToast('success', 'MVU 配置已导入');
+    } catch (err) {
+      addToast('error', `导入失败: ${err instanceof Error ? err.message : '请检查 JSON 格式'}`);
+    }
+  };
+
+  // ── AI generate update rules ───────────────────────────────────────────
+  const handleAiGenerateRules = async () => {
+    if (mvu.schemaSections.flatMap(s => s.variables).length === 0) {
+      addToast('error', '请先定义变量再生成规则');
+      return;
+    }
+    setAiRuleGenerating(true);
+    try {
+      const prompt = buildGenerateRulesPrompt(mvu.schemaSections, cardName);
+      const result = await generateText(prompt.system, prompt.user);
+      const parsed = JSON.parse(result);
+      const rulesRaw = Array.isArray(parsed.rules) ? parsed.rules : [];
+      const rules: MvuUpdateRule[] = rulesRaw.map((r: Record<string, unknown>) => ({
+        path: String(r.path || ''),
+        type: String(r.type || ''),
+        range: r.range !== undefined ? String(r.range) : undefined,
+        format: r.format !== undefined ? String(r.format) : undefined,
+        value: r.value !== undefined ? String(r.value) : undefined,
+        check: Array.isArray(r.check) ? r.check.map(String) : [],
+      })).filter((r: MvuUpdateRule) => r.path);
+      if (rules.length === 0) {
+        addToast('error', 'AI 没有返回可用规则');
+        return;
+      }
+      onChange({ ...mvu, updateRules: rules });
+      addToast('success', `已生成 ${rules.length} 条更新规则`);
+    } catch (err) {
+      addToast('error', `AI 生成规则失败: ${err instanceof Error ? err.message : '请重试'}`);
+    } finally {
+      setAiRuleGenerating(false);
+    }
+  };
+
+  // ── AI generate EJS configs ────────────────────────────────────────────
+  const handleAiGenerateEjs = async () => {
+    if (selectedEjsEntries.size === 0) {
+      addToast('error', '请先在下方选择要应用 EJS 的世界书条目');
+      return;
+    }
+    if (mvu.schemaSections.flatMap(s => s.variables).length === 0) {
+      addToast('error', '请先定义变量再生成 EJS');
+      return;
+    }
+    setAiEjsGenerating(true);
+    try {
+      const prompt = buildGenerateEjsPrompt(mvu.schemaSections, lorebookEntries, Array.from(selectedEjsEntries), cardName);
+      const result = await generateText(prompt.system, prompt.user);
+      const parsed = JSON.parse(result);
+      const configsRaw = Array.isArray(parsed.ejsConfigs) ? parsed.ejsConfigs : [];
+      const configs: EjsEntryConfig[] = configsRaw.map((c: Record<string, unknown>) => ({
+        entryId: String(c.entryId || ''),
+        complexity: ['显隐', '段落控制', '动态文本', '分阶段调度'].includes(String(c.complexity))
+          ? (String(c.complexity) as EjsEntryConfig['complexity'])
+          : '显隐',
+        condition: String(c.condition || ''),
+        usedVariables: Array.isArray(c.usedVariables) ? c.usedVariables.map(String) : [],
+      })).filter((c: EjsEntryConfig) => c.entryId && selectedEjsEntries.has(c.entryId));
+      if (configs.length === 0) {
+        addToast('error', 'AI 没有返回可用 EJS 配置');
+        return;
+      }
+      const existing = mvu.ejsConfigs.filter(c => !selectedEjsEntries.has(c.entryId));
+      onChange({ ...mvu, ejsConfigs: [...existing, ...configs] });
+      addToast('success', `已生成 ${configs.length} 条 EJS 配置`);
+    } catch (err) {
+      addToast('error', `AI 生成 EJS 失败: ${err instanceof Error ? err.message : '请重试'}`);
+    } finally {
+      setAiEjsGenerating(false);
+    }
+  };
+
+  // ── Apply expert template (append, do not overwrite) ─────────────────────
+  const applyExpertTemplate = (template: ExpertTemplate, overwrite: boolean) => {
+    const clonedSections = JSON.parse(JSON.stringify(template.sections)) as MvuSchemaSection[];
+    const clonedRules = JSON.parse(JSON.stringify(template.updateRules)) as MvuUpdateRule[];
+    let nextSections = overwrite ? clonedSections : [...mvu.schemaSections, ...clonedSections];
+    let nextRules = overwrite ? clonedRules : [...mvu.updateRules, ...clonedRules];
+    if (!overwrite) {
+      // 去重：已有相同路径的变量/规则不再追加
+      const existingPaths = new Set(mvu.schemaSections.flatMap(s => s.variables.map(v => v.path)));
+      nextSections = [...mvu.schemaSections];
+      for (const s of clonedSections) {
+        const newVars = s.variables.filter(v => !existingPaths.has(v.path));
+        if (newVars.length > 0) {
+          const existingSectionIdx = nextSections.findIndex(ns => ns.name === s.name);
+          if (existingSectionIdx >= 0) {
+            nextSections[existingSectionIdx] = { ...nextSections[existingSectionIdx], variables: [...nextSections[existingSectionIdx].variables, ...newVars] };
+          } else {
+            nextSections.push({ ...s, variables: newVars });
+          }
+        }
+      }
+      const existingRulePaths = new Set(mvu.updateRules.map(r => r.path));
+      nextRules = [...mvu.updateRules, ...clonedRules.filter(r => !existingRulePaths.has(r.path))];
+    }
+    onChange({ ...mvu, schemaSections: nextSections, updateRules: nextRules });
+    setExpandedSections(new Set(nextSections.map((_, i) => i)));
+    setShowTemplateMarket(false);
+    addToast('success', `已应用模板「${template.name}」`);
+  };
+
   // ── EJS config management ──────────────────────────────────────────────
   const addEjsConfig = () => { onChange({ ...mvu, ejsConfigs: [...mvu.ejsConfigs, createEmptyEjsConfig()] }); };
   const removeEjsConfig = (idx: number) => { onChange({ ...mvu, ejsConfigs: mvu.ejsConfigs.filter((_, i) => i !== idx) }); };
@@ -640,6 +1209,7 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
     const updateRulesYaml = buildUpdateRulesYaml(mvu.updateRules);
     const ejsPreprocess = buildEjsPreprocess(mvu.ejsConfigs, mvu.schemaSections);
     onChange({ ...mvu, schemaTsContent: schemaTs, initvarYamlContent: initvarYaml, updateRulesYamlContent: updateRulesYaml, ejsPreprocessContent: ejsPreprocess });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mvu]);
 
   // ── Auto-sync: derived content re-generates when source data changes ─────
@@ -801,6 +1371,42 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
     updateSection(sectionIdx, { variables: [...mvu.schemaSections[sectionIdx].variables, v] });
     setExpandedVars(prev => new Set([...prev, v.path]));
   };
+
+  // ── Real-time validation ───────────────────────────────────────────────
+  const schemaVarPaths = useMemo(() => new Set(mvu.schemaSections.flatMap(s => s.variables.map(v => v.path))), [mvu.schemaSections]);
+  const pathOccurrences = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of mvu.schemaSections) {
+      for (const v of s.variables) {
+        map.set(v.path, (map.get(v.path) || 0) + 1);
+      }
+    }
+    return map;
+  }, [mvu.schemaSections]);
+  const invalidRulePaths = useMemo(() => new Set(mvu.updateRules.map(r => r.path).filter(p => p && !schemaVarPaths.has(p))), [mvu.updateRules, schemaVarPaths]);
+  const invalidEjsVarNames = useMemo(() => {
+    const schemaVarNames = new Set(mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$').map(v => v.path.split('.').pop() || v.path));
+    const invalid = new Set<string>();
+    for (const c of mvu.ejsConfigs) {
+      for (const v of c.usedVariables) {
+        if (!schemaVarNames.has(v)) invalid.add(v);
+      }
+    }
+    return invalid;
+  }, [mvu.ejsConfigs, mvu.schemaSections]);
+  const typeMismatchedRules = useMemo(() => {
+    const mismatches: { path: string; ruleType: string; varType: string }[] = [];
+    for (const r of mvu.updateRules) {
+      if (!r.path || !r.type) continue;
+      const v = mvu.schemaSections.flatMap(s => s.variables).find(vv => vv.path === r.path);
+      if (!v) continue;
+      const inferred = inferVariableType(v.zodType);
+      if (r.type !== inferred && !(r.type === 'string' && inferred === 'boolean')) {
+        mismatches.push({ path: r.path, ruleType: r.type, varType: inferred });
+      }
+    }
+    return mismatches;
+  }, [mvu.updateRules, mvu.schemaSections]);
 
   // ── Status bar: generate preview HTML ──────────────────────────────────
   // Use AI-generated HTML if present, otherwise use template
@@ -1003,6 +1609,46 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
   function renderExpertMode() {
     const section = mvu.schemaSections[selectedSection];
 
+    /** 切换变量类型时给出合适的默认初始值 */
+    function getInitialValueForType(zodType: string, current: unknown): unknown {
+      if (zodType === 'z.coerce.number()') return typeof current === 'number' ? current : 0;
+      if (zodType === 'z.boolean()' || zodType === 'z.boolean') return typeof current === 'boolean' ? current : false;
+      if (zodType.startsWith('z.enum(')) {
+        const match = zodType.match(/z\.enum\(\[([^\]]+)\]\)/);
+        if (match) {
+          const first = match[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''))[0];
+          return first ?? '';
+        }
+        return '';
+      }
+      if (zodType.startsWith('z.array(')) return Array.isArray(current) ? current : [];
+      if (zodType.startsWith('z.union(')) return current ?? '';
+      if (zodType.startsWith('z.object(') || zodType.startsWith('z.record(')) return (current !== null && typeof current === 'object' && !Array.isArray(current)) ? current : {};
+      return typeof current === 'string' ? current : '';
+    }
+
+    /** 根据变量类型渲染初始值输入控件 */
+    function renderInitialValueInput(v: MvuVariable, sectionIdx: number, varIdx: number) {
+      if (v.zodType === 'z.boolean()' || v.zodType === 'z.boolean') {
+        return (
+          <select value={String(v.initialValue ?? false)} onChange={(e) => updateVariable(sectionIdx, varIdx, { initialValue: e.target.value === 'true' })} className={fieldCls}>
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        );
+      }
+      if (v.zodType.startsWith('z.array(')) {
+        return <input value={JSON.stringify(v.initialValue ?? [])} onChange={(e) => { try { const parsed = JSON.parse(e.target.value); if (Array.isArray(parsed)) updateVariable(sectionIdx, varIdx, { initialValue: parsed }); } catch { /* ignore invalid JSON */ } }} placeholder='JSON 数组: ["a", "b"]' className={fieldCls} />;
+      }
+      if (v.zodType.startsWith('z.object(') || v.zodType.startsWith('z.record(')) {
+        return <input value={JSON.stringify(v.initialValue ?? {})} onChange={(e) => { try { const parsed = JSON.parse(e.target.value); if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) updateVariable(sectionIdx, varIdx, { initialValue: parsed }); } catch { /* ignore invalid JSON */ } }} placeholder='JSON 对象: {"key": "value"}' className={fieldCls} />;
+      }
+      if (v.zodType.startsWith('z.union(')) {
+        return <input value={String(v.initialValue ?? '')} onChange={(e) => updateVariable(sectionIdx, varIdx, { initialValue: e.target.value })} placeholder="字符串或数字" className={fieldCls} />;
+      }
+      return <input value={String(v.initialValue ?? '')} onChange={(e) => { let val: unknown = e.target.value; if (v.zodType === 'z.coerce.number()') { const parsed = e.target.value === '' ? 0 : Number(e.target.value); val = Number.isNaN(parsed) ? v.initialValue : parsed; } updateVariable(sectionIdx, varIdx, { initialValue: val }); }} placeholder="0" className={fieldCls} />;
+    }
+
     return (
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -1010,7 +1656,12 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
             <h2 className="text-xl font-bold text-[var(--text-color)]">MVU 变量系统</h2>
             <p className="text-sm text-[var(--color-text-secondary)] mt-1">schema.ts · initvar.yaml · 更新规则 · EJS 配置</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="sm" onClick={exportMvuConfig} title="导出当前 MVU 配置为 JSON">📤 导出配置</Button>
+            <label className="text-[11px] px-2 py-1 rounded border border-[var(--color-border-default)] hover:border-[var(--input-border)] text-[var(--color-text-secondary)] cursor-pointer transition-colors">
+              📥 导入配置
+              <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) importMvuConfig(f); e.target.value = ''; }} />
+            </label>
             <Button variant="ghost" size="sm" onClick={toggleMode} title="切换到小白模式">
               🔧 切换到小白模式
             </Button>
@@ -1032,22 +1683,54 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         {/* Schema Tab */}
         {activeTab === 'schema' && (
           <div className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedVariables.size > 0 && (
+                  <>
+                    <span className="text-xs text-[var(--color-text-secondary)]">已选 {selectedVariables.size} 个变量</span>
+                    <Button variant="danger" size="sm" onClick={batchDeleteVariables}>批量删除</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedVariables(new Set())}>取消选择</Button>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setShowTemplateMarket(true)}>🏪 应用模板</Button>
+                <Button variant="ghost" size="sm" onClick={addSection}>+ 新分区</Button>
+              </div>
+            </div>
+
+            {/* Section tabs with drag & drop */}
             <div className="flex items-center gap-2 flex-wrap">
               {mvu.schemaSections.map((s, i) => (
-                <button key={i} onClick={() => setSelectedSection(i)}
-                  className={`px-3 py-1 text-xs rounded-lg border transition-colors ${
-                    i === selectedSection ? 'bg-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[var(--input-border)]'}`}>
-                  {s.name}
-                  {s.variables.length > 0 && <span className="ml-1 text-[10px] text-[var(--color-text-muted)]">({s.variables.length})</span>}
-                </button>
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => setDraggedSection(i)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverSection(i); }}
+                  onDragLeave={() => setDragOverSection(null)}
+                  onDrop={(e) => { e.preventDefault(); if (draggedSection !== null) moveSection(draggedSection, i); setDraggedSection(null); setDragOverSection(null); }}
+                  className={`flex items-center gap-1 px-3 py-1 text-xs rounded-lg border transition-colors cursor-move ${
+                    i === selectedSection ? 'bg-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[var(--input-border)]'
+                  } ${dragOverSection === i ? 'ring-2 ring-[var(--color-primary)]' : ''}`}
+                >
+                  <button onClick={() => setSelectedSection(i)} className="flex items-center gap-1">
+                    <span>{expandedSections.has(i) ? '▼' : '▶'}</span>
+                    <span>{s.name}</span>
+                    {s.variables.length > 0 && <span className="text-[10px] text-[var(--color-text-muted)]">({s.variables.length})</span>}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); toggleSectionExpanded(i); }} className="ml-1 text-[10px] hover:text-[var(--color-primary)]">
+                    {expandedSections.has(i) ? '折叠' : '展开'}
+                  </button>
+                </div>
               ))}
-              <Button variant="ghost" size="sm" onClick={addSection}>+ 新分区</Button>
             </div>
 
             {section && (
               <div className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <TextInput label="分区名称" value={section.name} onChange={(e) => updateSection(selectedSection, { name: e.target.value })} placeholder="例如：角色、世界、主角" />
+                  <Button variant="ghost" size="sm" onClick={() => duplicateSection(selectedSection)} title="复制分区">📋 复制</Button>
                   {mvu.schemaSections.length > 1 && <Button variant="danger" size="sm" onClick={() => removeSection(selectedSection)}>删除分区</Button>}
                 </div>
 
@@ -1057,41 +1740,104 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                     <Button variant="secondary" size="sm" onClick={() => addVariable(selectedSection)}>+ 添加变量</Button>
                   </div>
                   {section.variables.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">暂无变量</p>}
-                  {section.variables.map((v, vi) => (
-                    <div key={vi} className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)] overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)]" onClick={() => toggleExpanded(v.path)}>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-xs text-[var(--color-text-muted)]">{expandedVars.has(v.path) ? '▼' : '▶'}</span>
-                          <span className="text-sm font-mono text-[var(--text-color)] truncate">{v.path || '(未命名变量)'}</span>
-                          {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)]">{v.prefix}前缀</span>}
-                          <span className="text-[10px] text-[var(--color-text-muted)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] px-1.5 py-0.5 rounded">{v.zodType.replace(/\(.*\)/, '(...)')}</span>
+                  {expandedSections.has(selectedSection) && section.variables.map((v, vi) => {
+                    const isDuplicate = (pathOccurrences.get(v.path) || 0) > 1;
+                    const isSelected = selectedVariables.has(v.path);
+                    return (
+                      <div
+                        key={vi}
+                        draggable
+                        onDragStart={() => setDraggedVar({ sectionIdx: selectedSection, varIdx: vi })}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverVar({ sectionIdx: selectedSection, varIdx: vi }); }}
+                        onDragLeave={() => setDragOverVar(null)}
+                        onDrop={(e) => { e.preventDefault(); if (draggedVar) moveVariable(draggedVar.sectionIdx, draggedVar.varIdx, selectedSection, vi); setDraggedVar(null); setDragOverVar(null); }}
+                        className={`rounded-lg border bg-[color-mix(in_srgb,var(--input-bg)_30%,transparent)] overflow-hidden cursor-move ${
+                          isDuplicate ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)]' : 'border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)]'
+                        } ${dragOverVar?.sectionIdx === selectedSection && dragOverVar?.varIdx === vi ? 'ring-2 ring-[var(--color-primary)]' : ''}`}
+                      >
+                        <div className="flex items-center justify-between px-3 py-2 hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)]" onClick={() => toggleExpanded(v.path)}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={() => {
+                                setSelectedVariables(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(v.path)) next.delete(v.path); else next.add(v.path);
+                                  return next;
+                                });
+                              }}
+                              className="cursor-pointer"
+                            />
+                            <span className="text-xs text-[var(--color-text-muted)]">{expandedVars.has(v.path) ? '▼' : '▶'}</span>
+                            <span className={`text-sm font-mono truncate ${isDuplicate ? 'text-[var(--color-status-error)]' : 'text-[var(--text-color)]'}`}>{v.path || '(未命名变量)'}</span>
+                            {isDuplicate && <span className="text-[10px] text-[var(--color-status-error)]">路径重复</span>}
+                            {v.prefix && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-status-warning)_40%,transparent)] text-[var(--color-status-warning)]">{v.prefix}前缀</span>}
+                            <span className="text-[10px] text-[var(--color-text-muted)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] px-1.5 py-0.5 rounded">{v.zodType.replace(/\(.*\)/, '(...)')}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); duplicateVariable(selectedSection, vi); }} title="复制变量">📋</Button>
+                            <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); removeVariable(selectedSection, vi); }}>×</Button>
+                          </div>
                         </div>
-                        <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); removeVariable(selectedSection, vi); }}>×</Button>
-                      </div>
-                      {expandedVars.has(v.path) && (
-                        <div className="px-3 pb-3 space-y-2 border-t border-[color-mix(in_srgb,var(--color-border-default)_30%,transparent)] pt-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div><label className={labelCls}>变量路径</label><input value={v.path} onChange={(e) => updateVariable(selectedSection, vi, { path: e.target.value })} placeholder="角色.好感度" className={fieldCls} /></div>
-                            <div><label className={labelCls}>Zod 类型</label><select value={v.zodType} onChange={(e) => updateVariable(selectedSection, vi, { zodType: e.target.value })} className={fieldCls}>{ZOD_TYPE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div><label className={labelCls}>可见性前缀</label><select value={v.prefix} onChange={(e) => updateVariable(selectedSection, vi, { prefix: e.target.value as MvuPrefix })} className={fieldCls}>{PREFIX_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label} — {p.desc}</option>)}</select></div>
-                            <div><label className={labelCls}>初始值</label><input value={String(v.initialValue ?? '')} onChange={(e) => { let val: unknown = e.target.value; if (v.zodType === 'z.coerce.number()') { const parsed = e.target.value === '' ? 0 : Number(e.target.value); val = Number.isNaN(parsed) ? v.initialValue : parsed; } updateVariable(selectedSection, vi, { initialValue: val }); }} placeholder="0" className={fieldCls} /></div>
-                          </div>
-                          <div><label className={labelCls}>描述</label><input value={v.description} onChange={(e) => updateVariable(selectedSection, vi, { description: e.target.value })} placeholder="变量用途说明" className={fieldCls} /></div>
-                          {v.zodType === 'z.coerce.number()' && (
+                        {expandedVars.has(v.path) && (
+                          <div className="px-3 pb-3 space-y-2 border-t border-[color-mix(in_srgb,var(--color-border-default)_30%,transparent)] pt-2">
                             <div className="grid grid-cols-2 gap-2">
-                              <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: Number.isNaN(parsed) ? (v.range?.min ?? 0) : parsed, max: v.range?.max ?? 100 } }); }} className={fieldCls} /></div>
-                              <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: v.range?.min ?? 0, max: Number.isNaN(parsed) ? (v.range?.max ?? 100) : parsed } }); }} className={fieldCls} /></div>
+                              <div>
+                                <label className={labelCls}>变量路径</label>
+                                <input value={v.path} onChange={(e) => updateVariable(selectedSection, vi, { path: e.target.value })} placeholder="角色.好感度" className={`${fieldCls} ${isDuplicate ? errorCls : ''}`} />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Zod 类型</label>
+                                <select value={v.zodType} onChange={(e) => updateVariable(selectedSection, vi, { zodType: e.target.value, initialValue: getInitialValueForType(e.target.value, v.initialValue) })} className={fieldCls}>{ZOD_TYPE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select>
+                              </div>
                             </div>
-                          )}
-                          {v.zodType.startsWith('z.enum(') && (
-                            <div><label className={labelCls}>枚举值 (逗号分隔)</label><input value={v.enumValues?.join(', ') ?? ''} onChange={(e) => { const values = e.target.value.split(',').map(s => s.trim()).filter(Boolean); updateVariable(selectedSection, vi, { enumValues: values }); }} placeholder="开心, 正常, 低落" className={fieldCls} /></div>
-                          )}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div><label className={labelCls}>可见性前缀</label><select value={v.prefix} onChange={(e) => updateVariable(selectedSection, vi, { prefix: e.target.value as MvuPrefix })} className={fieldCls}>{PREFIX_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label} — {p.desc}</option>)}</select></div>
+                              <div><label className={labelCls}>初始值</label>{renderInitialValueInput(v, selectedSection, vi)}</div>
+                            </div>
+                            <div><label className={labelCls}>描述</label><input value={v.description} onChange={(e) => updateVariable(selectedSection, vi, { description: e.target.value })} placeholder="变量用途说明" className={fieldCls} /></div>
+                            {v.zodType === 'z.coerce.number()' && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div><label className={labelCls}>最小值</label><input type="number" value={v.range?.min ?? 0} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: Number.isNaN(parsed) ? (v.range?.min ?? 0) : parsed, max: v.range?.max ?? 100 } }); }} className={fieldCls} /></div>
+                                <div><label className={labelCls}>最大值</label><input type="number" value={v.range?.max ?? 100} onChange={(e) => { const parsed = Number(e.target.value); updateVariable(selectedSection, vi, { range: { min: v.range?.min ?? 0, max: Number.isNaN(parsed) ? (v.range?.max ?? 100) : parsed } }); }} className={fieldCls} /></div>
+                              </div>
+                            )}
+                            {v.zodType.startsWith('z.enum(') && (
+                              <div><label className={labelCls}>枚举值 (逗号分隔)</label><input value={v.enumValues?.join(', ') ?? ''} onChange={(e) => { const values = e.target.value.split(',').map(s => s.trim()).filter(Boolean); updateVariable(selectedSection, vi, { enumValues: values }); }} placeholder="开心, 正常, 低落" className={fieldCls} /></div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Template market modal */}
+            {showTemplateMarket && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                <div className="w-full max-w-2xl max-h-[80vh] overflow-auto rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-raised)] p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-[var(--text-color)]">🏪 模板市场</h3>
+                    <Button variant="danger" size="sm" onClick={() => setShowTemplateMarket(false)}>×</Button>
+                  </div>
+                  <p className="text-xs text-[var(--color-text-secondary)]">选择一个模板追加到当前配置。已存在的变量路径不会被重复添加。</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {EXPERT_TEMPLATES.map(tmpl => (
+                      <div key={tmpl.id} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-3 text-left">
+                        <div className="text-2xl mb-1">{tmpl.icon}</div>
+                        <div className="text-sm font-medium text-[var(--text-color)]">{tmpl.name}</div>
+                        <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{tmpl.description}</div>
+                        <div className="mt-2 flex gap-1">
+                          <Button variant="secondary" size="sm" onClick={() => applyExpertTemplate(tmpl, false)}>追加</Button>
+                          <Button variant="ghost" size="sm" onClick={() => applyExpertTemplate(tmpl, true)}>覆盖</Button>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1103,8 +1849,22 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-[var(--color-text-secondary)]">告诉 AI 如何更新变量。自明变量不需写规则。</p>
-              <Button variant="secondary" size="sm" onClick={addUpdateRule}>+ 添加规则</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={handleAiGenerateRules} disabled={aiRuleGenerating}>
+                  {aiRuleGenerating ? '⏳ AI 生成中' : '🤖 AI 生成规则'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={addUpdateRule}>+ 添加规则</Button>
+              </div>
             </div>
+
+            {typeMismatchedRules.length > 0 && (
+              <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-warning)_10%,transparent)] p-3">
+                <p className="text-xs text-[var(--color-status-warning)] mb-1">⚠️ 规则类型与变量类型可能不匹配：</p>
+                <ul className="text-[11px] text-[var(--color-status-warning)] list-disc list-inside">
+                  {typeMismatchedRules.map(m => (<li key={m.path}>{m.path}：规则类型「{m.ruleType}」与变量类型「{m.varType}」不一致</li>))}
+                </ul>
+              </div>
+            )}
 
             {/* Auto-suggest: variables without rules */}
             {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$' && !mvu.updateRules.some(r => r.path === v.path)).length > 0 && (
@@ -1115,12 +1875,12 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                     <button
                       key={v.path}
                       onClick={() => {
-                        const isNumber = v.zodType === 'z.coerce.number()';
-                        const preset = isNumber ? CHECK_RULE_PRESETS[0] : CHECK_RULE_PRESETS.find(p => p.type === 'string');
+                        const inferred = inferVariableType(v.zodType);
+                        const preset = CHECK_RULE_PRESETS.find(p => p.type === inferred) || CHECK_RULE_PRESETS.find(p => p.type === 'string');
                         const newRule: MvuUpdateRule = {
                           path: v.path,
-                          type: isNumber ? 'number' : 'string',
-                          range: isNumber ? `${v.range?.min ?? 0}~${v.range?.max ?? 100}` : undefined,
+                          type: inferred,
+                          range: inferred === 'number' ? `${v.range?.min ?? 0}~${v.range?.max ?? 100}` : undefined,
                           check: preset ? [...preset.check] : [],
                         };
                         onChange({ ...mvu, updateRules: [...mvu.updateRules, newRule] });
@@ -1136,19 +1896,24 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
 
             {mvu.updateRules.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-8 text-center">暂无更新规则</p>}
             {mvu.updateRules.map((rule, ri) => (
-              <div key={ri} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
-                <div className="flex items-center justify-between"><span className="text-sm font-mono text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]">{rule.path || '(新规则)'}</span><Button variant="danger" size="sm" onClick={() => removeUpdateRule(ri)}>×</Button></div>
+              <div key={ri} className={`rounded-xl border bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3 ${invalidRulePaths.has(rule.path) ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)]' : 'border-[var(--color-border-default)]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm font-mono ${invalidRulePaths.has(rule.path) ? 'text-[var(--color-status-error)]' : 'text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]'}`}>
+                    {rule.path || '(新规则)'}
+                    {invalidRulePaths.has(rule.path) && <span className="ml-2 text-[10px]">变量路径不存在</span>}
+                  </span>
+                  <Button variant="danger" size="sm" onClick={() => removeUpdateRule(ri)}>×</Button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={labelCls}>变量路径</label>
                     <select value={rule.path} onChange={(e) => {
                       const newPath = e.target.value;
-                      // 自动推断类型
                       const matchedVar = mvu.schemaSections.flatMap(s => s.variables).find(v => v.path === newPath);
-                      const inferredType = matchedVar?.zodType === 'z.coerce.number()' ? 'number' : 'string';
+                      const inferredType = matchedVar ? inferVariableType(matchedVar.zodType) : rule.type;
                       const inferredRange = matchedVar?.range ? `${matchedVar.range.min}~${matchedVar.range.max}` : rule.range;
                       updateUpdateRule(ri, { path: newPath, type: rule.type || inferredType, range: rule.range || inferredRange });
-                    }} className={fieldCls}>
+                    }} className={`${fieldCls} ${invalidRulePaths.has(rule.path) ? errorCls : ''}`}>
                       <option value="">-- 选择变量 --</option>
                       {mvu.schemaSections.map((s, si) => (
                         <optgroup key={si} label={s.name}>
@@ -1199,8 +1964,47 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-[var(--color-text-secondary)]">配置世界书条目的 EJS 动态渲染。</p>
-              <Button variant="secondary" size="sm" onClick={addEjsConfig}>+ 添加 EJS 配置</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={handleAiGenerateEjs} disabled={aiEjsGenerating || selectedEjsEntries.size === 0}>
+                  {aiEjsGenerating ? '⏳ AI 生成中' : '🤖 AI 生成 EJS'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={addEjsConfig}>+ 添加 EJS 配置</Button>
+              </div>
             </div>
+
+            {/* Entry selector for AI generation */}
+            <div className="rounded-lg border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-3">
+              <p className="text-xs text-[var(--color-text-secondary)] mb-2">选择要应用 EJS 的世界书条目（用于 AI 生成）：</p>
+              <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto">
+                {lorebookEntries.length === 0 && <span className="text-[11px] text-[var(--color-text-muted)]">暂无世界书条目</span>}
+                {lorebookEntries.map(e => {
+                  const checked = selectedEjsEntries.has(e.id);
+                  return (
+                    <label key={e.id} className={`text-[11px] px-2 py-1 rounded border cursor-pointer transition-colors select-none ${
+                      checked
+                        ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
+                        : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
+                    }`}>
+                      <input type="checkbox" className="sr-only" checked={checked} onChange={() => {
+                        setSelectedEjsEntries(prev => {
+                          const next = new Set(prev);
+                          if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
+                          return next;
+                        });
+                      }} />
+                      {e.name || e.comment || `条目 ${e.id}`}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {invalidEjsVarNames.size > 0 && (
+              <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-status-error)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-status-error)_10%,transparent)] p-3">
+                <p className="text-xs text-[var(--color-status-error)]">❌ 以下 EJS 使用的变量未在 schema 中定义：{Array.from(invalidEjsVarNames).join(', ')}</p>
+              </div>
+            )}
+
             {mvu.ejsConfigs.length === 0 && <p className="text-xs text-[var(--color-text-muted)] py-8 text-center">暂无 EJS 配置</p>}
             {mvu.ejsConfigs.map((cfg, ci) => (
               <div key={ci} className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] p-4 space-y-3">
@@ -1215,11 +2019,14 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
                     {mvu.schemaSections.flatMap(s => s.variables).filter(v => v.prefix !== '$').map(v => {
                       const varName = v.path.split('.').pop() || v.path;
                       const isChecked = cfg.usedVariables.includes(varName);
+                      const isInvalid = invalidEjsVarNames.has(varName);
                       return (
                         <label key={varName} className={`text-[11px] px-2 py-1 rounded border cursor-pointer transition-colors select-none ${
-                          isChecked
-                            ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
-                            : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
+                          isInvalid
+                            ? 'border-[color-mix(in_srgb,var(--color-status-error)_60%,transparent)] bg-[color-mix(in_srgb,var(--color-status-error)_20%,transparent)] text-[var(--color-status-error)]'
+                            : isChecked
+                              ? 'border-[color-mix(in_srgb,var(--color-status-success)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-status-success)_30%,transparent)] text-[var(--color-status-success)]'
+                              : 'border-[color-mix(in_srgb,var(--input-border)_50%,transparent)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-muted)]'
                         }`}>
                           <input
                             type="checkbox"
@@ -1249,6 +2056,24 @@ export function StepMvuVariables({ mvu, lorebookEntries, onChange, cardName = ''
         {activeTab === 'output' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between"><p className="text-sm text-[var(--color-text-secondary)]">预览生成的 MVU 文件内容（修改变量后自动同步更新）。</p><Button onClick={generateAll}>🔄 强制重新生成</Button></div>
+
+            {/* Status bar preview */}
+            <details open className="rounded-xl border border-[color-mix(in_srgb,var(--color-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] overflow-hidden">
+              <summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] text-sm font-medium text-[var(--color-primary)]">🎨 状态栏实时预览</summary>
+              <div className="px-4 pb-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input value={statusBarTitle} onChange={(e) => { setStatusBarTitle(e.target.value); if (statusBarStyle !== 'ai-custom') { const html = generateStatusBarHtml(statusBarStyle, mvu.schemaSections, e.target.value); onChange({ ...mvu, statusBarHtml: html }); } }} placeholder="状态栏标题" className={fieldCls} />
+                  <select value={statusBarStyle} onChange={(e) => applyStatusBarTemplate(e.target.value)} className={fieldCls}>
+                    {STATUS_BAR_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    <option value="ai-custom">AI/手动定制</option>
+                  </select>
+                </div>
+                <div className="rounded-lg border border-[color-mix(in_srgb,var(--color-border-default)_50%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_40%,transparent)] p-4">
+                  <div className="w-full" dangerouslySetInnerHTML={{ __html: statusBarPreviewHtml }} />
+                </div>
+              </div>
+            </details>
+
             <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[color-mix(in_srgb,var(--color-primary)_80%,var(--text-color))]">📐 schema.ts</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.schemaTsContent || '(请先添加变量分区和变量)'}</pre></details>
             <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-status-warning)]">📋 initvar.yaml</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.initvarYamlContent || '(请先添加变量分区和变量)'}</pre></details>
             <details className="rounded-xl border border-[var(--color-border-default)] bg-[color-mix(in_srgb,var(--color-surface-raised)_50%,transparent)] overflow-hidden"><summary className="px-4 py-2 cursor-pointer hover:bg-[color-mix(in_srgb,var(--color-surface-raised)_30%,transparent)] text-sm font-medium text-[var(--color-status-success)]">📋 变量更新规则.yaml</summary><pre className="px-4 pb-3 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto font-mono">{mvu.updateRulesYamlContent || '(请先添加更新规则)'}</pre></details>

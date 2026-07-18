@@ -166,6 +166,36 @@ function buildLeafZod(v: MvuVariable): { expr: string; defLit: string } {
     return { expr: `${type}.or(z.literal('待初始化')).prefault('待初始化')`, defLit: "'待初始化'" };
   }
 
+  // z.array(...) — array type
+  if (type.startsWith('z.array(')) {
+    let defLit = '[]';
+    if (Array.isArray(initialValue) && initialValue.length > 0) {
+      defLit = `[${initialValue.map((item) => {
+        if (typeof item === 'string') return `'${escapeJsString(item)}'`;
+        if (typeof item === 'boolean') return String(item);
+        if (typeof item === 'number') return String(item);
+        if (item !== null && typeof item === 'object') return JSON.stringify(item);
+        return String(item);
+      }).join(', ')}]`;
+    }
+    return { expr: `${type}.prefault(${defLit})`, defLit };
+  }
+
+  // z.union([...]) — union type
+  if (type.startsWith('z.union(')) {
+    let defLit: string;
+    if (typeof initialValue === 'string') {
+      defLit = `'${escapeJsString(initialValue)}'`;
+    } else if (typeof initialValue === 'boolean') {
+      defLit = String(initialValue);
+    } else if (typeof initialValue === 'number' && Number.isFinite(initialValue)) {
+      defLit = String(initialValue);
+    } else {
+      defLit = "''";
+    }
+    return { expr: `${type}.prefault(${defLit})`, defLit };
+  }
+
   // z.record(...) — record/map type
   if (type.startsWith('z.record(')) {
     // Build default record object from initialValue if it's an object
