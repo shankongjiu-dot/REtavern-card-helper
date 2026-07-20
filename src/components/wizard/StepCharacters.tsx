@@ -1,5 +1,5 @@
 /**
- * Step 2: Character configuration.
+ * Step 3: Character configuration.
  * Uses CSS variables for consistent theming.
  */
 import { useRef, useCallback } from 'react';

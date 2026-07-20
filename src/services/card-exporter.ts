@@ -21,7 +21,7 @@
  *     2. 对AI隐藏状态栏：把占位符从 prompt 中删除（promptOnly）
  *   first_mes 末尾自动追加占位符，保证开场消息也会渲染状态栏。
  */
-import { generateId, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
+import { generateId, MVU_LOREBOOK_ENTRY_NAMES, formatWorldAnchorForPrompt } from '../constants/defaults';
 import type { WizardDraft, LorebookEntry, LorebookPosition, MvuConfig, EjsEntryConfig } from '../constants/defaults';
 import { buildMvuScriptBundle } from './mvu-builder';
 import { migrateStagedDispatcherContent, parseDispatcherContent } from './staged-lorebook-builder';
@@ -99,15 +99,20 @@ function buildFirstMessage(draft: WizardDraft): string {
         // 否则后续更新规则和 EJS 调度中 getvar 会得到 undefined。
         const initVal = v.initialValue;
         if (initVal !== undefined && initVal !== null && initVal !== '') {
+          // H11: Escape v.path so a `'`, `\`, or `%>` in user/AI-provided
+          // variable paths can't break out of the single-quoted JS string
+          // literal in setvar('stat_data....', ...). Same vector as H10.
+          const escapedPath = escapeEjsJsString(v.path);
           // 数字类型不引号，字符串类型需要引号
           if (v.zodType === 'z.coerce.number()') {
-            setvarCalls.push(`setvar('stat_data.${v.path}', ${Number(initVal)});`);
+            const numVal = Number(initVal);
+            setvarCalls.push(`setvar('stat_data.${escapedPath}', ${Number.isFinite(numVal) ? numVal : 0});`);
           } else if (v.zodType.startsWith('z.boolean(')) {
             const boolVal = initVal === true || initVal === 'true';
-            setvarCalls.push(`setvar('stat_data.${v.path}', ${boolVal});`);
+            setvarCalls.push(`setvar('stat_data.${escapedPath}', ${boolVal});`);
           } else {
             const escapedVal = escapeEjsJsString(initVal);
-            setvarCalls.push(`setvar('stat_data.${v.path}', '${escapedVal}');`);
+            setvarCalls.push(`setvar('stat_data.${escapedPath}', '${escapedVal}');`);
           }
         }
       }
@@ -356,9 +361,9 @@ function buildCardExtensions(draft: WizardDraft, zodScript?: string): Record<str
     mvu_has_status_bar: Boolean(draft.mvu.statusBarHtml),
     mvu_has_ejs_preprocess: Boolean(draft.mvu.ejsPreprocessContent),
     // 酒馆助手脚本注册
-    tavern_helper: Object.keys(tavernHelperScripts).length > 0 ? { scripts: tavernHelperScripts, variables: {} } : undefined,
+    tavern_helper: tavernHelperScripts.length > 0 ? { scripts: tavernHelperScripts, variables: {} } : undefined,
     // 正则脚本
-    regex_scripts: Object.keys(regexScripts).length > 0 ? regexScripts : undefined,
+    regex_scripts: regexScripts.length > 0 ? regexScripts : undefined,
   };
 }
 
@@ -487,6 +492,36 @@ export function assembleCard(draft: WizardDraft, existingId?: number) {
       ignoreBudget: entry.ignore_budget ?? false,
     }),
   }));
+
+  // ── World Anchor entry (constant, highest priority, before_char) ──────────
+  // Injected when the user has configured structured world constraints.
+  const anchorText = formatWorldAnchorForPrompt(draft.worldAnchor);
+  if (anchorText) {
+    entries.unshift({
+      id: 0, // will be re-indexed below
+      keys: [],
+      secondary_keys: [],
+      content: `[世界观绝对约束 - AI 不得偏离]\n${anchorText}`,
+      name: '世界锚',
+      enabled: true,
+      insertion_order: 0,
+      case_sensitive: false,
+      selective: false,
+      constant: true,
+      position: 'before_char',
+      priority: 200,
+      comment: '世界锚',
+      use_regex: false,
+      extensions: buildSTExtensions({
+        position: 'before_char',
+        displayIndex: 0,
+        probability: 100,
+        ignoreBudget: true,
+      }),
+    });
+    // Re-index all entry IDs after unshift
+    entries.forEach((e, i) => { e.id = i + 1; });
+  }
 
   // ── MVU entries (embedded when MVU is enabled) ──────────────────────────
   // 入口条件：MVU 启用 且 (有 schemaTsContent 或 schemaSections 非空)
@@ -1046,5 +1081,12 @@ export function cardToDraft(card: Record<string, unknown>): WizardDraft {
 
     // Reconstruct MVU config from extensions + lorebook entries
     mvu: reconstructMvuConfig(data, rawEntries),
+    worldRules: '',
+    // Shared UI state between Step 2 & Step 4 — start with defaults when loading a card.
+    // (These are draft-only UI state, not persisted in the card itself.)
+    skeletonTopic: '',
+    skeletonCount: 8,
+    worldbookBatchCount: 8,
+    skeletonModeEnabled: true,
   };
 }

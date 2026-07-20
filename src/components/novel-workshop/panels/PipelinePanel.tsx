@@ -3,6 +3,7 @@
  * Migrated from .temp_statusbar.astro
  */
 
+import { useMemo } from 'react';
 import type { WorkflowRunState, GateMode, NarrativeMode } from '../types';
 import { buildCallEstimate, renderCallRisk, formatNumber } from '../utils';
 
@@ -20,7 +21,9 @@ export function PipelinePanel({
   chunkCharLimit,
   workflowRunState,
 }: PipelinePanelProps) {
-  const estimate = buildCallEstimate(source, chunkCharLimit);
+  // Re-splitting the whole novel on every render is expensive; memoize on the
+  // inputs that actually affect the estimate.
+  const estimate = useMemo(() => buildCallEstimate(source, chunkCharLimit), [source, chunkCharLimit]);
 
   const steps = [
     {

@@ -58,7 +58,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       {/* Overlay */}
       <div
         className="absolute inset-0 animate-fade-in"
@@ -71,7 +71,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={`relative w-full ${maxWidth} rounded-xl border shadow-2xl animate-scale-in outline-none`}
+        className={`mobile-modal-content relative w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-xl border shadow-2xl animate-scale-in outline-none`}
         style={{
           backgroundColor: 'var(--color-surface-raised)',
           borderColor: 'var(--color-border-default)',
@@ -79,21 +79,21 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
       >
         {title && (
           <div
-            className="flex items-center justify-between px-6 py-4"
-            style={{ borderBottom: '1px solid var(--color-border-default)' }}
+            className="mobile-modal-header sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4"
+            style={{ borderBottom: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-surface-raised)' }}
           >
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-color)' }}>
+            <h3 className="text-base sm:text-lg font-semibold truncate pr-2" style={{ color: 'var(--text-color)' }}>
               {title}
             </h3>
             <button
               onClick={onClose}
-              className="text-[var(--color-text-muted)] hover:text-[var(--text-color)] text-xl cursor-pointer transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
+              className="shrink-0 text-[var(--color-text-muted)] hover:text-[var(--text-color)] text-xl cursor-pointer transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[color-mix(in_srgb,var(--text-color)_5%,transparent)]"
             >
               &times;
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="mobile-modal-body p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );

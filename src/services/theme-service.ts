@@ -212,6 +212,24 @@ export const THEME_PRESETS: ThemePreset[] = [
       cardBgColor: '#111827',
     },
   },
+  {
+    id: 'starry-ink',
+    name: '星夜墨韵',
+    background: '/themes/starry-ink.png',
+    settings: {
+      bgOverlayOpacity: 28,
+      primaryColor: '#d4a853',
+      surfaceOpacity: 24,
+      blurIntensity: 4,
+      textColor: '#f5f0e8',
+      textShadow: 1,
+      textShadowColor: '#1a1a2e',
+      cardShadow: 6,
+      inputBgColor: '#16162a',
+      inputBorderColor: '#3d3d5c',
+      cardBgColor: '#1a1a2e',
+    },
+  },
 ];
 
 /**

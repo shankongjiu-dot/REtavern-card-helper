@@ -2,9 +2,9 @@
  * MVU Builder Tests - 验证 .prefault() 默认值修复
  */
 import { describe, it, expect } from 'vitest';
-import { buildSchemaTs, buildMvuScriptBundle } from './mvu-builder';
+import { buildSchemaTs, buildMvuScriptBundle, buildEjsPreprocess } from './mvu-builder';
 import { createEmptyMvuConfig } from '../constants/defaults';
-import type { MvuSchemaSection } from '../constants/defaults';
+import type { MvuSchemaSection, EjsEntryConfig } from '../constants/defaults';
 
 describe('MVU Builder - .prefault() 修复验证', () => {
   function makeTestSections(): MvuSchemaSection[] {
@@ -170,5 +170,193 @@ describe('MVU Builder - .prefault() 修复验证', () => {
     const schema = buildSchemaTs(sectionsWithRecord);
     expect(schema).toContain('.prefault({');
     expect(schema).toContain('NPC1');
+  });
+});
+
+// ── H10 regression: varName / statPath must be escaped in buildEjsPreprocess ──
+//
+// buildEjsPreprocess emits:
+//   define('${varName}', getvar('stat_data.${statPath}', { defaults: ${defaults} }));
+// Both varName and statPath come from user/AI-provided variable paths (v.path)
+// which are free-text <input> fields in StepMvuVariables.tsx and are populated
+// without sanitization by mergeVariableBlueprintsIntoMvu (AI-generated). A `'`,
+// `\`, or `%>` in the path would otherwise break out of the single-quoted JS
+// string literals and allow EJS code injection.
+
+describe('MVU Builder — H10 EJS varName/statPath escaping in buildEjsPreprocess', () => {
+  /**
+   * Naive EJS→JS converter for testing: strips @@generate_before, wraps
+   * `<%_ ... _%>` blocks as plain JS, so we can use `new Function()` to verify
+   * the generated EJS compiles and runs without injection.
+   */
+  function ejsToJs(ejs: string): string {
+    return ejs
+      .replace(/^@@generate_before\s*\n?/m, '')
+      .replace(/<%_/g, '')
+      .replace(/_%>/g, '')
+      .replace(/<%=/g, 'output += ')
+      .replace(/%>/g, ';');
+  }
+
+  /** Compile and run the EJS preprocess content with stubbed define/getvar. */
+  function runEjs(content: string, getvarImpl: (path: string, opts?: unknown) => unknown) {
+    // `new Function()` does not capture closure variables, so `defines` must be
+    // declared inside the function body and returned alongside `output`.
+    const getvar = (path: string, opts?: unknown) => getvarImpl(path, opts);
+    const fn = new Function(
+      'define', 'getvar',
+      `let output = ''; const defines = {}; const __define = (n, v) => { defines[n] = v; }; ${ejsToJs(content).replace(/\bdefine\(/g, '__define(')}; return { output, defines };`,
+    );
+    return fn(undefined, getvar);
+  }
+
+  it('escapes single quote in variable path (EJS injection vector)', () => {
+    // Malicious/AI-generated path containing a single quote that would break
+    // out of the single-quoted JS string literal in getvar('stat_data....', ...).
+    // varPathMap keys on v.path.split('.').pop() — i.e. the last segment after
+    // the final dot — so usedVariables must match that exact (malicious) key.
+    const sections: MvuSchemaSection[] = [
+      {
+        name: '角色',
+        variables: [
+          { path: "角色.好感度'); evilCode(); //", zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: '好感度' },
+        ],
+      },
+    ];
+    const configs: EjsEntryConfig[] = [
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ["好感度'); evilCode(); //"] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // The raw path must NOT appear unescaped inside the getvar string literal
+    expect(content).not.toContain("stat_data.角色.好感度'); evilCode(); //'");
+    // The escaped form must be present (single quote escaped to \')
+    expect(content).toContain("stat_data.角色.好感度\\'); evilCode(); //");
+  });
+
+  it('escapes backslash in variable path', () => {
+    const sections: MvuSchemaSection[] = [
+      {
+        name: '角色',
+        variables: [
+          // path literal `角色.好感度\夜` (single backslash between 好感度 and 夜)
+          { path: '角色.好感度\\夜', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: '好感度' },
+        ],
+      },
+    ];
+    const configs: EjsEntryConfig[] = [
+      // varPathMap keys on v.path.split('.').pop() = '好感度\夜' — usedVariables
+      // must match this exact key to hit the if-branch where statPath is emitted.
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ['好感度\\夜'] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // Backslash must be doubled to avoid escaping the closing quote
+    expect(content).not.toMatch(/stat_data\.角色\.好感度\\夜'/);
+    expect(content).toContain('stat_data.角色.好感度\\\\夜');
+  });
+
+  it('escapes backslash at end of variable path (critical case)', () => {
+    // A trailing backslash would escape the closing quote and break syntax.
+    const sections: MvuSchemaSection[] = [
+      {
+        name: '角色',
+        variables: [
+          { path: '角色.x\\', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: 'x' },
+        ],
+      },
+    ];
+    const configs: EjsEntryConfig[] = [
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ['x\\'] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // Trailing backslash must be doubled (so \\' in output, which is \\\\ in regex)
+    expect(content).toMatch(/stat_data\.角色\.x\\\\'/);
+  });
+
+  it('escapes %> sequence in variable path to prevent EJS close tag injection', () => {
+    const sections: MvuSchemaSection[] = [
+      {
+        name: '角色',
+        variables: [
+          { path: '角色.x%>y', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: 'x' },
+        ],
+      },
+    ];
+    const configs: EjsEntryConfig[] = [
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ['x%>y'] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // %> must be escaped so it doesn't terminate the EJS scriptlet early
+    expect(content).not.toMatch(/stat_data\.角色\.x%>y/);
+    expect(content).toContain('stat_data.角色.x%\\>y');
+  });
+
+  it('escapes newline in variable path', () => {
+    const sections: MvuSchemaSection[] = [
+      {
+        name: '角色',
+        variables: [
+          { path: '角色.x\ny', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: 'x' },
+        ],
+      },
+    ];
+    const configs: EjsEntryConfig[] = [
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ['x\ny'] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // Newline must be escaped to \n (backslash-n) so it doesn't break the JS literal
+    expect(content).not.toMatch(/stat_data\.角色\.x\ny/);
+    expect(content).toContain('stat_data.角色.x\\ny');
+  });
+
+  it('sanitized path keeps EJS runtime working (no injection at runtime)', () => {
+    // The sanitized path should still be a valid JS string that getvar receives
+    // verbatim, so the runtime behaviour is preserved.
+    const sections: MvuSchemaSection[] = [
+      {
+        name: '角色',
+        variables: [
+          { path: "角色.好感度'", zodType: 'z.coerce.number()', initialValue: 42, prefix: '', description: '好感度' },
+        ],
+      },
+    ];
+    const configs: EjsEntryConfig[] = [
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ["好感度'"] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // Verify the generated EJS compiles and runs without throwing
+    const seenPaths: string[] = [];
+    const result = runEjs(content, (path) => {
+      seenPaths.push(path);
+      return 42;
+    });
+
+    // getvar should receive the verbatim path including the single quote
+    expect(seenPaths).toContain("stat_data.角色.好感度'");
+    // define() should have been called with the varName including the single quote
+    expect(result.defines).toHaveProperty("好感度'", 42);
+  });
+
+  it('escapes varName when variable is not found in schema (else branch)', () => {
+    // When a varName from EJS config doesn't match any schema variable,
+    // buildEjsPreprocess falls back to the else branch where varName is used
+    // for both define() and getvar() — it must still be escaped.
+    const sections: MvuSchemaSection[] = [
+      { name: '角色', variables: [] },
+    ];
+    const configs: EjsEntryConfig[] = [
+      { entryId: 'e1', complexity: '显隐', condition: '', usedVariables: ["evil'); evilCode(); //"] },
+    ];
+    const content = buildEjsPreprocess(configs, sections);
+
+    // The else branch must also escape the varName
+    expect(content).not.toContain("define('evil'); evilCode(); //'");
+    expect(content).toContain("define('evil\\'); evilCode(); //");
+    expect(content).toContain("getvar('stat_data.evil\\'); evilCode(); //',");
   });
 });

@@ -85,9 +85,9 @@ export function autoFixEntries(entries: LorebookEntry[]): FixResult {
 
       indicesToRemove.add(idx);
 
-      // Keep first chunk in original entry, create new ones for rest
-      entry.content = chunks[0];
-      newEntries.push(entry);
+      // Keep first chunk in a cloned entry, create new ones for rest
+      const fixedEntry: LorebookEntry = { ...entry, content: chunks[0] };
+      newEntries.push(fixedEntry);
 
       for (let ci = 1; ci < chunks.length; ci++) {
         const subEntry: LorebookEntry = {

@@ -16,6 +16,7 @@ import {
   type NovelChunk,
 } from '../services/novel-analysis-service';
 import { pushAnalysisToWorkshop } from '../services/novel-workshop-bridge';
+import { readFileText, MAX_NOVEL_FILE_BYTES, formatFileSize } from '../services/file-decode';
 import { themeAlpha } from '../constants/theme';
 
 const mutedText = 'color-mix(in srgb, var(--text-color) 60%, transparent)';
@@ -77,7 +78,9 @@ export function NovelAnalysisPage() {
   const [stallCritical, setStallCritical] = useState(false);
   const [showDownloadRaw, setShowDownloadRaw] = useState(false);
   const [partialRawText, setPartialRawText] = useState<string | null>(null);
+  const [info, setInfo] = useState('');
   const streamPanelRef = useRef<HTMLDivElement>(null);
+  const lastRenderUpdateRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastStreamUpdateRef = useRef<number>(Date.now());
   const shouldAbortRef = useRef(false);
@@ -144,6 +147,7 @@ export function NovelAnalysisPage() {
 
   const handleAnalyze = async () => {
     setError('');
+    setInfo('');
     setStreamingText('');
     setProgressPercent(0);
     setShowDownloadRaw(false);
@@ -152,6 +156,7 @@ export function NovelAnalysisPage() {
     setStallCritical(false);
     shouldAbortRef.current = false;
     lastStreamUpdateRef.current = Date.now();
+    lastRenderUpdateRef.current = 0;
     const nextChunks = chunks.length > 0 ? chunks : splitNovelText(text);
     setChunks(nextChunks);
     if (nextChunks.length === 0) {
@@ -173,11 +178,17 @@ export function NovelAnalysisPage() {
           lastStreamUpdateRef.current = Date.now();
           setStallWarning(false);
           setStallCritical(false);
-          setStreamingText(fullText);
+          // Keep the ref authoritative (used for abort-save) but throttle the
+          // actual setState so we don't re-render the entire page per token.
           streamingTextRef.current = fullText;
-          const estimatedChars = outputMaxTokens * 2;
-          const pct = Math.min(Math.round((fullText.length / estimatedChars) * 100), 99);
-          setProgressPercent(pct);
+          const now = Date.now();
+          if (now - lastRenderUpdateRef.current >= 150) {
+            lastRenderUpdateRef.current = now;
+            setStreamingText(fullText);
+            const estimatedChars = outputMaxTokens * 2;
+            const pct = Math.min(Math.round((fullText.length / estimatedChars) * 100), 99);
+            setProgressPercent(pct);
+          }
         },
       );
       setProgressPercent(100);
@@ -250,12 +261,24 @@ export function NovelAnalysisPage() {
 
   const handleFile = async (file: File) => {
     setError('');
+    setInfo('');
     setAnalysis(null);
+    if (file.size > MAX_NOVEL_FILE_BYTES) {
+      setError(`文件过大（${formatFileSize(file.size)}），已超出 ${formatFileSize(MAX_NOVEL_FILE_BYTES)} 上限。请拆分或压缩后重试。`);
+      return;
+    }
     try {
-      const content = await file.text();
+      const { text: content, encoding, wasReencoded } = await readFileText(file);
+      if (!content.trim()) {
+        setError(t('novel.errorNoText'));
+        return;
+      }
       setText(content);
       setTitle(file.name.replace(/\.[^.]+$/, ''));
       setChunks(splitNovelText(content));
+      if (wasReencoded) {
+        setInfo(`已自动识别为 ${encoding.toUpperCase()} 编码并转码（原文非 UTF-8），如仍有乱码请检查文件编码。`);
+      }
     } catch (err) {
       setError(err instanceof Error ? `文件读取失败：${err.message}` : t('novel.analysisFailed'));
     }
@@ -334,7 +357,7 @@ export function NovelAnalysisPage() {
               <label className="text-sm font-medium" style={{ color: 'var(--text-color)' }}>{t('novel.tokenModeLabel')}</label>
               <span className="text-xs text-status-success">{t('novel.currentTokens', { count: outputMaxTokens.toLocaleString() })}</span>
             </div>
-            <div className="grid gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {TOKEN_MODE_OPTIONS(t).map((option) => (
                 <button
                   key={option.value}
@@ -397,6 +420,12 @@ export function NovelAnalysisPage() {
           {error && (
             <div className="rounded-lg border p-3 text-sm" style={{ borderColor: themeAlpha('danger', 35), backgroundColor: themeAlpha('danger', 12), color: 'var(--color-status-danger)' }}>
               {error}
+            </div>
+          )}
+
+          {info && !error && (
+            <div className="rounded-lg border p-3 text-sm" style={{ borderColor: themeAlpha('info', 35), backgroundColor: themeAlpha('info', 12), color: 'var(--color-info)' }}>
+              {info}
             </div>
           )}
 
@@ -530,7 +559,7 @@ export function NovelAnalysisPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <Stat label={t('novel.statTotalChars')} value={totalChars} />
             <Stat label={t('novel.statChunks')} value={chunks.length} />
             <Stat label={t('novel.statOutputLimit')} value={outputMaxTokens.toLocaleString()} />
@@ -657,6 +686,97 @@ export function NovelAnalysisPage() {
               </div>
             </div>
           </section>
+
+          {/* NEW: Structured items section */}
+          {analysis.items.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-sm font-medium text-status-success">{t('novel.itemsTitle')}</h3>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {analysis.items.map((item, index) => (
+                  <div key={`item-${index}`} className="rounded-lg border p-3 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 40%, transparent)', backgroundColor: cardBgSemiTransparent }}>
+                    <div className="font-semibold" style={{ color: 'var(--text-color)' }}>{item.name} {item.category && <span className="text-xs text-status-success">{item.category}</span>}</div>
+                    <div className="mt-1" style={{ color: mutedText }}>{t('novel.itemAttributes', { value: item.attributes || '—' })}</div>
+                    <div className="mt-1" style={{ color: mutedText }}>{t('novel.itemFunction', { value: item.function || '—' })}</div>
+                    <div className="mt-1" style={{ color: faintText }}>{t('novel.itemAcquisition', { value: item.acquisition || '—' })}</div>
+                    <div className="mt-1" style={{ color: faintText }}>{t('novel.itemSignificance', { value: item.significance || '—' })}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* NEW: Structured main plot section (staged disclosure hint) */}
+          {analysis.mainPlot.stages.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-status-success">{t('novel.mainPlotTitle')}</h3>
+                <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ backgroundColor: themeAlpha('info', 15), color: 'var(--color-info)' }}>
+                  {t('novel.plotStages')}：{String(analysis.mainPlot.stages.length)}
+                </span>
+              </div>
+              <div className="rounded-lg border p-3 text-xs" style={{ borderColor: themeAlpha('info', 30), backgroundColor: themeAlpha('info', 8), color: 'var(--color-info)' }}>
+                {t('novel.plotStagedHint')}
+              </div>
+              {(analysis.mainPlot.premise || analysis.mainPlot.resolution) && (
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  {analysis.mainPlot.premise && (
+                    <div className="rounded-lg border p-3 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 40%, transparent)', backgroundColor: cardBgSemiTransparent }}>
+                      <div className="font-medium" style={{ color: 'var(--text-color)' }}>{t('novel.plotPremise')}</div>
+                      <p className="mt-1 whitespace-pre-wrap" style={{ color: mutedText }}>{analysis.mainPlot.premise}</p>
+                    </div>
+                  )}
+                  {analysis.mainPlot.resolution && (
+                    <div className="rounded-lg border p-3 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 40%, transparent)', backgroundColor: cardBgSemiTransparent }}>
+                      <div className="font-medium" style={{ color: 'var(--text-color)' }}>{t('novel.plotResolution')}</div>
+                      <p className="mt-1 whitespace-pre-wrap" style={{ color: mutedText }}>{analysis.mainPlot.resolution}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="mt-3 space-y-2">
+                {analysis.mainPlot.stages.map((stage, index) => (
+                  <div key={`plot-${index}`} className="rounded-lg border p-3 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 40%, transparent)', backgroundColor: cardBgSemiTransparent }}>
+                    <div className="font-semibold" style={{ color: 'var(--text-color)' }}>{index + 1}. {stage.name}</div>
+                    {stage.summary && <p className="mt-1 whitespace-pre-wrap" style={{ color: mutedText }}><span className="font-medium">{t('novel.plotStageSummary')}：</span>{stage.summary}</p>}
+                    {stage.keyEvents?.length > 0 && (
+                      <div className="mt-1" style={{ color: mutedText }}>
+                        <div className="font-medium">{t('novel.plotStageKeyEvents')}：</div>
+                        <ul className="mt-0.5 list-disc pl-5">
+                          {stage.keyEvents.filter((e) => e?.trim()).map((e, i) => <li key={i}>{e}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {stage.climax && <p className="mt-1" style={{ color: faintText }}><span className="font-medium">{t('novel.plotStageClimax')}：</span>{stage.climax}</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* NEW: Easter eggs section */}
+          {analysis.easterEggs.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-status-success">{t('novel.easterEggsTitle')}</h3>
+                <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ backgroundColor: themeAlpha('warning', 15), color: 'var(--color-status-warning)' }}>
+                  {String(analysis.easterEggs.length)}
+                </span>
+              </div>
+              <div className="rounded-lg border p-3 text-xs" style={{ borderColor: themeAlpha('warning', 30), backgroundColor: themeAlpha('warning', 8), color: 'var(--color-status-warning)' }}>
+                {t('novel.eggStagedHint', { id: analysis.easterEggs[0]?.id || 'xxx' })}
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {analysis.easterEggs.map((egg, index) => (
+                  <div key={`egg-${index}`} className="rounded-lg border p-3 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--color-border-default) 40%, transparent)', backgroundColor: cardBgSemiTransparent }}>
+                    <div className="font-semibold" style={{ color: 'var(--text-color)' }}>{egg.name || egg.id} <span className="text-[10px]" style={{ color: faintText }}>{t('novel.eggId', { value: egg.id })}</span></div>
+                    <div className="mt-1" style={{ color: mutedText }}>{t('novel.eggTrigger', { value: egg.trigger || '—' })}</div>
+                    {egg.keys?.length > 0 && <div className="mt-1" style={{ color: faintText }}>{t('novel.eggKeys', { keys: egg.keys.join('、') })}</div>}
+                    <pre className="mt-2 whitespace-pre-wrap rounded p-2 text-xs" style={{ backgroundColor: 'rgba(var(--card-bg-r), var(--card-bg-g), var(--card-bg-b), 0.6)', color: 'var(--color-text-secondary)' }}>{egg.content}</pre>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

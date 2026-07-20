@@ -12,6 +12,17 @@ import type { WizardDraft } from '../constants/defaults';
 import { validateCard } from './card-validator';
 import { assembleCard, findStagedLorebookEntryIndices, isProtectedLorebookEntry } from './card-exporter';
 
+/** 每次 runQualityCheck 调用期间的 assembleCard 缓存，避免重复计算 */
+let _cachedCard: Record<string, unknown> | null = null;
+let _cachedDraftRef: WizardDraft | null = null;
+function getAssembledCard(d: WizardDraft): Record<string, unknown> {
+  if (_cachedDraftRef !== d || _cachedCard === null) {
+    _cachedDraftRef = d;
+    _cachedCard = assembleCard(d) as unknown as Record<string, unknown>;
+  }
+  return _cachedCard;
+}
+
 export type CheckCategory =
   | 'basic'
   | 'character'
@@ -128,7 +139,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '命名角色',
     weight: 8,
     severity: 'critical',
-    jumpStep: 2,
+    jumpStep: 3,
     threshold: '≥1 个有名称和描述',
     applicable: () => true,
     check: (d) => {
@@ -136,7 +147,7 @@ const CHECK_ITEMS: CheckItem[] = [
       return {
         passed: named.length >= 1,
         actual: `${named.length} 个`,
-        fixHint: named.length >= 1 ? '' : '请在第 2 步添加至少一个有名称和描述的角色',
+        fixHint: named.length >= 1 ? '' : '请在第 3 步添加至少一个有名称和描述的角色',
       };
     },
   },
@@ -146,7 +157,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '开场白字数',
     weight: 12,
     severity: 'suggestion',
-    jumpStep: 6,
+    jumpStep: 7,
     optimizeFields: ['firstMessage'],
     threshold: '200~3000 字',
     applicable: () => true,
@@ -165,7 +176,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '世界书条目数',
     weight: 10,
     severity: 'suggestion',
-    jumpStep: 3,
+    jumpStep: 4,
     optimizeFields: ['lorebookEntries'],
     threshold: '≥5 条',
     applicable: () => true,
@@ -187,7 +198,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '空内容条目',
     weight: 8,
     severity: 'critical',
-    jumpStep: 3,
+    jumpStep: 4,
     optimizeFields: ['lorebookEntries'],
     threshold: '0 条空内容',
     applicable: () => true,
@@ -209,7 +220,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '触发词覆盖',
     weight: 8,
     severity: 'critical',
-    jumpStep: 3,
+    jumpStep: 4,
     optimizeFields: ['lorebookEntries'],
     threshold: '非蓝灯条目都有触发词',
     applicable: () => true,
@@ -232,7 +243,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: 'MVU 变量',
     weight: 8,
     severity: 'critical',
-    jumpStep: 4,
+    jumpStep: 5,
     optimizeFields: ['mvu.schemaSections'],
     threshold: '≥1 个变量',
     applicable: (d) => !!d.mvu?.enabled,
@@ -244,7 +255,7 @@ const CHECK_ITEMS: CheckItem[] = [
       return {
         passed: count >= 1,
         actual: `${count} 个`,
-        fixHint: count >= 1 ? '' : 'MVU 已启用但未定义变量，请到第 4 步添加变量',
+        fixHint: count >= 1 ? '' : 'MVU 已启用但未定义变量，请到第 5 步添加变量',
       };
     },
   },
@@ -254,7 +265,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '状态栏 HTML',
     weight: 4,
     severity: 'optional',
-    jumpStep: 4,
+    jumpStep: 5,
     optimizeFields: ['mvu.statusBarHtml'],
     threshold: '非空',
     applicable: (d) => !!d.mvu?.enabled,
@@ -273,7 +284,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '状态栏兼容性',
     weight: 4,
     severity: 'critical',
-    jumpStep: 4,
+    jumpStep: 5,
     optimizeFields: ['mvu.statusBarHtml'],
     threshold: '宏完整且无危险标签',
     applicable: (d) => !!d.mvu?.enabled && !!(d.mvu?.statusBarHtml || '').trim(),
@@ -304,7 +315,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '状态栏适配性',
     weight: 2,
     severity: 'suggestion',
-    jumpStep: 4,
+    jumpStep: 5,
     optimizeFields: ['mvu.statusBarHtml'],
     threshold: '无固定宽度/外部依赖',
     applicable: (d) => !!d.mvu?.enabled && !!(d.mvu?.statusBarHtml || '').trim(),
@@ -326,7 +337,7 @@ const CHECK_ITEMS: CheckItem[] = [
     label: '分阶段内容',
     weight: 4,
     severity: 'critical',
-    jumpStep: 5,
+    jumpStep: 6,
     threshold: '所有阶段有内容',
     applicable: (d) => !!d.stagedMode?.enabled,
     check: (d) => {
@@ -340,7 +351,7 @@ const CHECK_ITEMS: CheckItem[] = [
       return {
         passed: emptyStages.length === 0,
         actual: emptyStages.length === 0 ? '全部已填' : `${emptyStages.length} 个空阶段`,
-        fixHint: emptyStages.length === 0 ? '' : `${emptyStages.length} 个阶段缺少内容，请到第 5 步补充`,
+        fixHint: emptyStages.length === 0 ? '' : `${emptyStages.length} 个阶段缺少内容，请到第 6 步补充`,
       };
     },
   },
@@ -355,7 +366,7 @@ const CHECK_ITEMS: CheckItem[] = [
     applicable: () => true,
     check: (d) => {
       try {
-        const card = assembleCard(d) as unknown as Record<string, unknown>;
+        const card = getAssembledCard(d);
         const stagedIndices = d.stagedMode?.enabled ? findStagedLorebookEntryIndices(d.lorebookEntries) : undefined;
         const result = validateCard(card, { stagedLorebookEntryIndices: stagedIndices });
         return {
@@ -386,7 +397,7 @@ const CHECK_ITEMS: CheckItem[] = [
     applicable: () => true,
     check: (d) => {
       try {
-        const card = assembleCard(d) as unknown as Record<string, unknown>;
+        const card = getAssembledCard(d);
         const stagedIndices = d.stagedMode?.enabled ? findStagedLorebookEntryIndices(d.lorebookEntries) : undefined;
         const result = validateCard(card, { stagedLorebookEntryIndices: stagedIndices });
         return {

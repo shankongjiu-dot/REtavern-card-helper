@@ -81,6 +81,44 @@ export function makeVarSuffix(name: string): string {
 }
 
 /**
+ * Escape a value for safe embedding inside a double-quoted JS string literal in EJS.
+ * - Escapes backslash and double quote (the two characters that break JS strings)
+ * - Escapes newlines / line separators (would break the EJS template across lines)
+ * - Neutralises `%>` so user input can't prematurely close the EJS tag
+ *
+ * Used for `bookName` and `childComment` arguments to `getWorldInfo("book", "comment")`.
+ */
+export function escapeEjsDoubleQuoted(s: unknown): string {
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/%>/g, '%\\>');
+}
+
+/**
+ * Escape a value for safe embedding inside a single-quoted JS string literal in EJS.
+ * - Escapes backslash and single quote (the two characters that break JS strings)
+ * - Escapes newlines / line separators (would break the EJS template across lines)
+ * - Neutralises `%>` so user input can't prematurely close the EJS tag
+ *
+ * Used for `axisPath` in `getvar('stat_data.${axisPath}')` calls.
+ */
+export function escapeEjsSingleQuoted(s: unknown): string {
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/%>/g, '%\\>');
+}
+
+/**
  * 兼容旧版分阶段调度条目：把无后缀的 __stagedRaw / __stagedVal
  * 重写成带 dispatcherName 后缀的唯一变量名，避免多角色卡中重复声明。
  */
@@ -115,7 +153,13 @@ export function autoCondition(
   direction: NumericDirection = '>=',
 ): string {
   if (axisType === 'enum') {
-    const v = String(value).replace(/'/g, "\\'");
+    // H12: Use escapeEjsSingleQuoted (not just `replace(/'/g, "\\'")`) so a
+    // backslash in stage.name can't combine with the quote-escaping to break
+    // out of the single-quoted JS string literal. Attack vector:
+    //   stage.name = `阶段\'; evilCode(); //`
+    //   old replace: `阶段\\'; evilCode(); //` (the `\\` becomes `\`, then
+    //   `'` closes the string, then `evilCode()` runs).
+    const v = escapeEjsSingleQuoted(value);
     return `=== '${v}'`;
   }
   const n = Number(value);
@@ -130,13 +174,20 @@ export function buildDispatcherContent(config: StagedLorebookConfig): string {
   const { axisPath, axisType, stages, bookName, dispatcherName, description } = config;
   // stat_data 下的点分路径。参考卡「高考冲刺100天」用数组 [值, 描述]，项目 MVU 默认用标量。
   // 这里先读取原始值，再用 Array.isArray 判断取首元素或直接用，保证两种格式都能工作。
-  const rawExpr = `getvar('stat_data.${axisPath}')`;
+  // Escape axisPath so a `'` or `\` in user/AI-provided paths can't break out of
+  // the single-quoted JS string literal in getvar('stat_data.{axisPath}').
+  const escapedAxisPath = escapeEjsSingleQuoted(axisPath);
+  const rawExpr = `getvar('stat_data.${escapedAxisPath}')`;
 
   // Each dispatcher needs its own EJS locals so multiple dispatchers can coexist
   // in the same EJS compile unit (e.g. when combined in first_mes or preprocess).
   const suffix = makeVarSuffix(dispatcherName);
   const rawVar = `__stagedRaw_${suffix}`;
   const valVar = `__stagedVal_${suffix}`;
+
+  // Escape bookName and childComment so a `"` or `\` in user/AI-provided names
+  // can't break out of the double-quoted JS string literal in getWorldInfo(...).
+  const escapedBook = escapeEjsDoubleQuoted(bookName);
 
   const lines: string[] = [];
   if (description) {
@@ -145,7 +196,7 @@ export function buildDispatcherContent(config: StagedLorebookConfig): string {
   lines.push(`<%_ const ${rawVar} = ${rawExpr}; _%>`);
   lines.push(`<%_ const ${valVar} = Array.isArray(${rawVar}) ? ${rawVar}[0] : ${rawVar}; _%>`);
   lines.push(`<%_ if (${valVar} === undefined) { _%>`);
-  lines.push(`<!-- 错误：阶段轴变量"${axisPath}"未定义，无法加载分阶段内容。 -->`);
+  lines.push(`<!-- 错误：阶段轴变量"${escapedAxisPath}"未定义，无法加载分阶段内容。 -->`);
 
   stages.forEach((stage) => {
     const cond = stage.condition || autoCondition(
@@ -154,13 +205,14 @@ export function buildDispatcherContent(config: StagedLorebookConfig): string {
       config.numericDirection,
     );
     const childComment = buildChildComment(dispatcherName, stage.name);
+    const escapedComment = escapeEjsDoubleQuoted(childComment);
     lines.push(`<%_ } else if (${valVar} ${cond}) { _%>`);
-    lines.push(`<%= await getWorldInfo("${bookName}", "${childComment}") _%>`);
+    lines.push(`<%= await getWorldInfo("${escapedBook}", "${escapedComment}") _%>`);
   });
 
   // 兜底：变量有值但不在任何阶段范围内
   lines.push('<%_ } else { _%>');
-  lines.push(`<!-- 警告：阶段轴变量"${axisPath}"的值未匹配任何已定义阶段。 -->`);
+  lines.push(`<!-- 警告：阶段轴变量"${escapedAxisPath}"的值未匹配任何已定义阶段。 -->`);
   lines.push('<%_ } _%>');
 
   return lines.join('\n');

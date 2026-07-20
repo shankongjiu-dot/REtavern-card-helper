@@ -1,0 +1,390 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   IntroPage — cinematic brand opener for 吟游手册 / REtavern Card Helper
+   Self-contained styles; reuses theme tokens for cohesion with the app.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--text-color, #f1f5f9);
+  background: var(--color-bg, #0f172a);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Layered aurora background ─────────────────────────────────────────── */
+.intro-bg {
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  background:
+    radial-gradient(40% 55% at 22% 28%, color-mix(in srgb, var(--color-primary, #10b981) 30%, transparent), transparent 70%),
+    radial-gradient(45% 55% at 80% 30%, color-mix(in srgb, var(--color-purple, #8b5cf6) 28%, transparent), transparent 70%),
+    radial-gradient(60% 60% at 50% 92%, color-mix(in srgb, var(--color-primary, #10b981) 18%, transparent), transparent 72%),
+    var(--color-bg, #0f172a);
+  filter: saturate(1.15);
+  animation: introAurora 14s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+/* slow rotating conic sheen for extra depth — optimized: reduced blend area + slower spin */
+.intro-bg::after {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    transparent 0deg,
+    color-mix(in srgb, var(--color-primary, #10b981) 8%, transparent) 90deg,
+    transparent 180deg,
+    color-mix(in srgb, var(--color-purple, #8b5cf6) 8%, transparent) 270deg,
+    transparent 360deg
+  );
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  animation: introSpin 40s linear infinite;
+  will-change: transform;
+}
+
+.intro-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+/* ── Floating particle / ember layer ───────────────────────────────────── */
+.intro-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.intro-particle {
+  position: absolute;
+  bottom: -8%;
+  border-radius: 50%;
+  opacity: 0;
+  animation: introFloatUp linear infinite;
+  will-change: transform, opacity;
+}
+.intro-particle.is-primary {
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-primary, #10b981) 90%, white) 0%, transparent 70%);
+}
+.intro-particle.is-violet {
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-purple, #8b5cf6) 90%, white) 0%, transparent 70%);
+}
+
+/* ── Stage (centered content) ──────────────────────────────────────────── */
+.intro-stage {
+  position: relative;
+  z-index: 3;
+  width: min(92vw, 720px);
+  padding: 24px;
+  text-align: center;
+  transform-origin: center;
+  will-change: transform, opacity, filter;
+}
+
+/* ── The character card (flips to reveal the emblem) ───────────────────── */
+.intro-card-wrap {
+  perspective: 900px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: clamp(20px, 4vw, 40px);
+}
+
+/* ── Card deck: cards fly in from sides and stack ─────────────────────── */
+.intro-deck {
+  position: relative;
+  width: clamp(108px, 24vw, 152px);
+  height: clamp(148px, 33vw, 210px);
+  animation: introDeckSettle 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 1.15s both;
+}
+
+.intro-deck-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--card-tint, var(--color-primary, #10b981)) 55%, transparent);
+  background:
+    /* 统一顶部高光条 — 所有卡片共有的全息光带 */
+    linear-gradient(165deg, color-mix(in srgb, #ffffff 18%, transparent) 0%, transparent 22%),
+    /* 统一暗角 — 增加深度一致性 */
+    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.35) 100%),
+    /* 底部色调渐变 — 使用各卡自身颜色 */
+    linear-gradient(to top, color-mix(in srgb, var(--card-tint, #10b981) 35%, black) 0%, transparent 45%),
+    /* 卡面图片 */
+    var(--card-img, linear-gradient(160deg, var(--color-surface-raised, #1e293b), #0f172a)) center / cover no-repeat;
+  /* 统一内框 + 外部色调光晕 */
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent),
+    inset 0 0 12px rgba(0, 0, 0, 0.3),
+    0 4px 20px color-mix(in srgb, var(--card-tint, #10b981) 30%, transparent);
+  opacity: 0;
+  animation:
+    introDeckIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+    introCardGlow 1.2s ease-out 1.3s both;
+  --stack-y: 0px;
+  --stack-r: 0deg;
+  --from-x: 1;
+  --from-y: 0;
+  --card-tint: var(--color-primary, #10b981);
+  --card-img: none;
+}
+
+.intro-deck-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-color: color-mix(in srgb, var(--color-primary, #10b981) 55%, transparent);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0.25) 0%, transparent 55%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.5) 0%, transparent 35%),
+    url(/cards/card-top.png) center / cover no-repeat;
+  box-shadow:
+    0 12px 40px color-mix(in srgb, var(--color-primary, #10b981) 25%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent);
+  z-index: 7;
+}
+
+.intro-emblem {
+  width: 56%;
+  height: 56%;
+  color: var(--color-primary, #10b981);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary, #10b981) 70%, transparent));
+  animation: introGlow 2.6s ease-in-out 1.6s infinite;
+}
+
+/* ── Brand title with per-letter reveal ────────────────────────────────── */
+.intro-title {
+  margin: 0;
+  font-size: clamp(40px, 11vw, 92px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+}
+
+.intro-letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(22px);
+  filter: blur(10px);
+  animation: introLetter 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  background: linear-gradient(180deg, #ffffff 0%, color-mix(in srgb, var(--color-primary, #10b981) 70%, white) 60%, var(--color-primary, #10b981) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 38px color-mix(in srgb, var(--color-primary, #10b981) 30%, transparent);
+}
+
+.intro-en {
+  margin-top: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: clamp(12px, 3.2vw, 18px);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-purple, #8b5cf6) 80%, white);
+  opacity: 0;
+  animation: introRise 0.8s ease-out 1.9s forwards;
+}
+
+.intro-tagline {
+  margin: clamp(14px, 3vw, 22px) auto 0;
+  max-width: 30ch;
+  font-size: clamp(15px, 4vw, 21px);
+  color: color-mix(in srgb, var(--text-color, #f1f5f9) 92%, transparent);
+  opacity: 0;
+  animation: introRise 0.8s ease-out 2.3s forwards;
+}
+
+.intro-poetic {
+  margin: 10px auto 0;
+  font-size: clamp(13px, 3.4vw, 17px);
+  letter-spacing: 0.18em;
+  color: color-mix(in srgb, var(--color-primary, #10b981) 85%, white);
+  opacity: 0;
+  animation: introRise 0.8s ease-out 2.7s forwards;
+}
+
+/* ── Feature pills (creative intro of capabilities) ────────────────────── */
+.intro-pills {
+  margin-top: clamp(20px, 4vw, 32px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.intro-pill {
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: clamp(12px, 3vw, 15px);
+  font-weight: 600;
+  color: var(--text-color, #f1f5f9);
+  background: color-mix(in srgb, var(--color-surface-raised, #1e293b) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary, #10b981) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-color, #f1f5f9) 4%, transparent);
+  opacity: 0;
+  transform: translateY(12px) scale(0.92);
+  animation: introPillPop 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── Hint + skip ───────────────────────────────────────────────────────── */
+.intro-hint {
+  margin-top: clamp(22px, 5vw, 38px);
+  font-size: clamp(13px, 3.2vw, 16px);
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--text-color, #f1f5f9) 70%, transparent);
+  opacity: 0;
+  animation: introRise 0.8s ease-out 4s forwards, introPulse 2.2s ease-in-out 4.8s infinite;
+}
+
+.intro-skip {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 5;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--text-color, #f1f5f9) 80%, transparent);
+  background: color-mix(in srgb, var(--color-surface-raised, #1e293b) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-color, #f1f5f9) 14%, transparent);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+/* ── Auto-advance progress bar ─────────────────────────────────────────── */
+.intro-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  height: 3px;
+  background: color-mix(in srgb, var(--text-color, #f1f5f9) 8%, transparent);
+}
+.intro-progress-bar {
+  height: 100%;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, var(--color-primary, #10b981), var(--color-purple, #8b5cf6));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary, #10b981) 60%, transparent);
+  animation: introProgress var(--intro-dur, 5200ms) linear forwards;
+}
+
+/* ── Exit transition (curtain) ─────────────────────────────────────────── */
+.intro--leaving .intro-stage {
+  animation: introLeave 0.8s cubic-bezier(0.55, 0, 0.55, 1) forwards;
+}
+.intro--leaving .intro-bg,
+.intro--leaving .intro-particles,
+.intro--leaving .intro-vignette,
+.intro--leaving .intro-progress {
+  animation: introFade 0.7s ease-in forwards;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Keyframes
+   ═══════════════════════════════════════════════════════════════════════ */
+@keyframes introAurora {
+  0% { transform: translate3d(-3%, -2%, 0) scale(1.05); }
+  100% { transform: translate3d(3%, 2%, 0) scale(1.12); }
+}
+@keyframes introSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes introFloatUp {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  10% { opacity: 0.9; }
+  90% { opacity: 0.7; }
+  100% { transform: translate3d(var(--drift, 0), -110vh, 0); opacity: 0; }
+}
+@keyframes introDeckIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(calc(var(--from-x) * 105vw), calc(var(--from-y, 0) * 12vh), 0)
+               rotate(calc(var(--from-x) * 35deg)) scale(0.6);
+  }
+  50% {
+    opacity: 1;
+  }
+  75% {
+    transform: translate3d(0, var(--stack-y), 0) rotate(calc(var(--stack-r) * 1.4)) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, var(--stack-y), 0) rotate(var(--stack-r)) scale(1);
+  }
+}
+@keyframes introDeckSettle {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes introCardGlow {
+  0% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent),
+      inset 0 0 12px rgba(0, 0, 0, 0.3),
+      0 4px 20px color-mix(in srgb, var(--card-tint, #10b981) 30%, transparent);
+  }
+  45% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, #ffffff 20%, transparent),
+      inset 0 0 12px rgba(0, 0, 0, 0.2),
+      0 0 32px color-mix(in srgb, var(--card-tint, #10b981) 55%, transparent),
+      0 0 60px color-mix(in srgb, var(--card-tint, #10b981) 25%, transparent);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent),
+      inset 0 0 12px rgba(0, 0, 0, 0.3),
+      0 4px 24px color-mix(in srgb, var(--card-tint, #10b981) 35%, transparent);
+  }
+}
+@keyframes introGlow {
+  0%, 100% { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-primary, #10b981) 50%, transparent)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 20px color-mix(in srgb, var(--color-primary, #10b981) 90%, transparent)); transform: scale(1.06); }
+}
+@keyframes introLetter {
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes introRise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes introPillPop {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes introPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+@keyframes introProgress {
+  to { transform: scaleX(1); }
+}
+@keyframes introLeave {
+  to { transform: scale(1.14); filter: blur(14px); opacity: 0; }
+}
+@keyframes introFade {
+  to { opacity: 0; }
+}
+
+/* Reduced motion: hide particles, keep a calm static brand */
+@media (prefers-reduced-motion: reduce) {
+  .intro-particle { display: none; }
+}

@@ -173,8 +173,9 @@ export function useAIGenerate() {
     batchSize: number,
     existingTitles: string,
     rules?: string,
+    worldAnchor?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
-    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules, lang);
+    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules, worldAnchor, lang);
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
@@ -197,8 +198,9 @@ export function useAIGenerate() {
     existingTitles: string,
     onChunk: StreamCallback,
     rules?: string,
+    worldAnchor?: string,
   ): Promise<Array<{ comment: string; content: string; keys: string[]; strategy: string }>> => {
-    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules, lang);
+    const prompts = LOREBOOK_SKELETON_PROMPT(cardName, characterSummaries, topic, batchSize, existingTitles, rules, worldAnchor, lang);
     const text = await callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, presetMode: 'force' });
     const parsed = parseAIJson(text) as Array<{ comment?: string; content?: string; keys?: string[]; strategy?: string }> | null;
     return (parsed || []).map((sk) => ({
@@ -369,9 +371,10 @@ export function useAIGenerate() {
     characterContext: string,
     userRequirement?: string,
     nsfw?: boolean,
+    worldAnchor?: string,
   ) => {
     const isSkeleton = (entry.content || '').length < 120;
-    const prompts = EXPAND_ENTRY_PROMPT(entry, characterContext, isSkeleton, userRequirement, nsfw, lang);
+    const prompts = EXPAND_ENTRY_PROMPT(entry, characterContext, isSkeleton, userRequirement, nsfw, worldAnchor, lang);
     const text = await callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, presetMode: 'force' });
     const parsed = parseAIJson(text) as { comment?: string; content?: string; keys?: string[]; strategy?: string } | null;
 

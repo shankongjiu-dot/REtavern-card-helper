@@ -187,8 +187,8 @@ export function CharacterEditor({
   return (
     <div className="rounded-xl border p-5 space-y-4" style={{ borderColor, backgroundColor: surfaceBg }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold" style={{ color: 'var(--text-color)' }}>
+      <div className="mobile-stack-header flex items-center justify-between gap-2">
+        <h3 className="text-base font-semibold min-w-0 truncate" style={{ color: 'var(--text-color)' }}>
           {t('characters.characterIndex', { index: String(index + 1) })}{localName ? `: ${localName}` : ''}
         </h3>
         <div className="flex items-center gap-2 flex-wrap justify-end">

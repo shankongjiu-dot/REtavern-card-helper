@@ -6,9 +6,10 @@
  * is passed verbatim so the Workshop can split/chunk it independently.
  */
 import type { NovelAnalysisResult } from './novel-analysis-service';
-import type { LorebookEntry, MvuSchemaSection, MvuVariable } from '../constants/defaults';
+import type { LorebookEntry, MvuConfig, MvuSchemaSection, MvuVariable } from '../constants/defaults';
 import { createEmptyLorebookEntry } from '../constants/defaults';
-import type { GeneratedEntry, VariableBlueprint } from '../components/novel-workshop/types';
+import type { GeneratedEntry, VariableBlueprint, RevealFlag } from '../components/novel-workshop/types';
+import { sanitizeSegment } from '../components/novel-workshop/utils';
 
 export const NOVEL_WORKSHOP_BRIDGE_KEY = 'novel-workshop-analysis-bridge';
 
@@ -65,6 +66,13 @@ export function buildWorkshopContextText(title: string, analysis: NovelAnalysisR
     parts.push(`\n## 人物关系网络`);
     analysis.relationshipMap.forEach((r) => {
       parts.push(`- ${r.source} → ${r.target}：${r.relation}。${r.conflictOrBond}（叙事功能：${r.storyFunction}）`);
+    });
+  }
+
+  if (analysis.timeline?.length) {
+    parts.push(`\n## 剧情时间线`);
+    analysis.timeline.forEach((item) => {
+      parts.push(`- ${item.order}. ${item.event}${item.impact ? `（影响：${item.impact}）` : ''}`);
     });
   }
 
@@ -214,7 +222,11 @@ function workshopCategoryPriority(category: string): number {
   return WORKSHOP_CATEGORY_PRIORITY[category] ?? 50;
 }
 
-/** Convert GeneratedEntry[] from Novel Workshop into LorebookEntry[] for the card wizard. */
+/** Convert GeneratedEntry[] from Novel Workshop into LorebookEntry[] for the card wizard.
+ *  - Tags every entry with fromSkeleton=true so the wizard shows the 🦴 badge.
+ *  - For entries with requiredFlags, wraps content in an EJS guard that only injects
+ *    when ALL listed flags are true (checked via `getvar('stat_data.开关.{flagId}')`).
+ *    The matching MVU boolean variables are produced by revealFlagsToVariableBlueprints. */
 export function workshopEntriesToLorebookEntries(
   entries: GeneratedEntry[],
   _stageOrder: string[],
@@ -234,8 +246,60 @@ export function workshopEntriesToLorebookEntries(
     lore.priority = entry.priority || workshopCategoryPriority(entry.category);
     lore.prevent_recursion = true;
     lore.match_whole_words = true;
+    lore.fromSkeleton = true;
+    lore.skeletonExpanded = false;
+
+    // Gate content behind requiredFlags (AND logic). The flag booleans live at
+    // `stat_data.开关.{flagId}` and are seeded by revealFlagsToVariableBlueprints.
+    // Sanitize each flag id with sanitizeSegment so characters like single quotes
+    // can't break out of the JS string literal in the EJS guard. Sanitization
+    // MUST match what revealFlagsToVariableBlueprints does — otherwise the guard
+    // would reference a different variable path than the one seeded.
+    const flags = (entry.requiredFlags || [])
+      .map((f) => f.trim())
+      .filter(Boolean)
+      .map((f) => sanitizeSegment(f))
+      .filter(Boolean);
+    if (flags.length > 0) {
+      const conditions = flags.map((f) => `getvar('stat_data.开关.${f}') === true`).join(' && ');
+      lore.content = [
+        `<%_ if (${conditions}) { _%>`,
+        lore.content,
+        `<%_ } _%>`,
+      ].join('\n');
+    }
     return lore;
   }).filter((entry) => entry.content.trim());
+}
+
+/** Convert RevealFlag[] from the Workshop UI into VariableBlueprint[] so the
+ *  wizard can seed the matching `开关.{flagId}` MVU booleans. Defaults to false
+ *  — the card's updateRules is expected to flip these to true when the user
+ *  satisfies the corresponding trigger condition. */
+export function revealFlagsToVariableBlueprints(flags: RevealFlag[]): VariableBlueprint[] {
+  if (!flags?.length) return [];
+  const seen = new Set<string>();
+  const blueprints: VariableBlueprint[] = [];
+  for (const flag of flags) {
+    const rawId = flag.id?.trim();
+    if (!rawId) continue; // skip empty ids — preserves pre-fix behavior
+    // Sanitize the id so the resulting MVU variable path is a valid EJS string
+    // literal argument (e.g. "flag'bad" → "flag_bad"). AI is instructed to use
+    // snake_case but defensive sanitization keeps the card from breaking when
+    // it doesn't. Sanitization MUST match what workshopEntriesToLorebookEntries
+    // does to requiredFlags — otherwise the EJS guard would reference a
+    // different variable path than the one seeded here.
+    const id = sanitizeSegment(rawId);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    blueprints.push({
+      path: `开关.${id}`,
+      type: 'boolean',
+      default: false,
+      description: `剧情开关「${flag.label || id}」${flag.description ? `：${flag.description}` : ''}。默认 false；当卡片 updateRules 检测到对应条件时置为 true，触发 requiredFlags 引用了此开关的世界书条目注入。`,
+    });
+  }
+  return blueprints;
 }
 
 /** Save workshop-generated entries to sessionStorage for WizardPage to consume. */
@@ -328,4 +392,67 @@ export function variableBlueprintsToMvuSections(
     name,
     variables,
   }));
+}
+
+/**
+ * Merge incoming variable blueprints into an existing MVU config.
+ *
+ * This is extracted from WizardPage's two import effects (novel-analysis and
+ * workshop) so the merge logic can be unit-tested. The merge is performed at
+ * the VARIABLE PATH level (not the section level) so that importing a new
+ * variable `剧情.进度` does NOT get silently dropped when the existing config
+ * already has a section named `剧情` containing other variables like
+ * `剧情.支线触发`. Existing variables always win over incoming blueprints
+ * with the same path (user edits preserved).
+ *
+ * Returned MvuConfig is enabled=true whenever at least one new variable was
+ * added; otherwise the input config is returned unchanged.
+ */
+export function mergeVariableBlueprintsIntoMvu(
+  current: MvuConfig,
+  blueprints: VariableBlueprint[],
+): MvuConfig {
+  const incomingSections = variableBlueprintsToMvuSections(blueprints);
+  if (incomingSections.length === 0) return current;
+
+  // Index existing variables by path for fast lookup.
+  const existingVariablePaths = new Set<string>();
+  for (const section of current.schemaSections) {
+    for (const v of section.variables) {
+      existingVariablePaths.add(v.path);
+    }
+  }
+
+  const mergedSections = current.schemaSections.map((s) => ({ ...s, variables: [...s.variables] }));
+  let addedCount = 0;
+
+  for (const incoming of incomingSections) {
+    const target = mergedSections.find((s) => s.name === incoming.name);
+    if (target) {
+      // Merge variables into existing section: skip duplicate paths.
+      for (const v of incoming.variables) {
+        if (!existingVariablePaths.has(v.path)) {
+          target.variables.push(v);
+          existingVariablePaths.add(v.path);
+          addedCount += 1;
+        }
+      }
+    } else {
+      // New section: only include variables whose path doesn't already exist
+      // elsewhere (defensive — shouldn't normally happen, but covers the case
+      // where the same path is split across differently-named sections).
+      const newVars = incoming.variables.filter((v) => {
+        if (existingVariablePaths.has(v.path)) return false;
+        existingVariablePaths.add(v.path);
+        return true;
+      });
+      if (newVars.length > 0) {
+        mergedSections.push({ name: incoming.name, variables: newVars });
+        addedCount += newVars.length;
+      }
+    }
+  }
+
+  if (addedCount === 0) return current;
+  return { ...current, enabled: true, schemaSections: mergedSections };
 }

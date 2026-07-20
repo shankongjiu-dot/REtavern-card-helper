@@ -34,6 +34,13 @@ export interface LorebookEntry {
   comment: string;
   /** Per-entry NSFW toggle for AI expansion feature */
   expandNsfw?: boolean;
+  /** UI-only flag: entry was generated in Step 2 (skeleton mode).
+   *  Used to render a "🦴 骨架" badge in Step 4 so users can track which entries
+   *  still need AI expansion. Not exported to the SillyTavern card format. */
+  fromSkeleton?: boolean;
+  /** UI-only flag: entry has been AI-expanded in Step 4 (originally a skeleton).
+   *  Renders a "✅ 已展开" badge so users can see at-a-glance what's done. */
+  skeletonExpanded?: boolean;
   // ST runtime
   probability: number;
   group: string;
@@ -53,7 +60,7 @@ export interface LorebookEntry {
   extensions?: Record<string, unknown>;
 }
 
-/** Wizard character (Step 2) — simplified: name + description + optional alignment */
+/** Wizard character (Step 3) — simplified: name + description + optional alignment */
 export interface WizardCharacter {
   id: string;
   name: string;
@@ -280,6 +287,29 @@ export const MVU_LOREBOOK_ENTRY_NAMES: readonly string[] = [
   '[mvu_update]变量输出格式',
 ];
 
+/** 世界观锚定 — 结构化约束，防止 AI 生成偏离设定 */
+export interface WorldAnchor {
+  /** 时代背景：现代/古代/未来/架空/自定义 */
+  era: string;
+  /** 核心规则：这个世界的基本法则（如"无魔法"、"科技水平约2024年"） */
+  coreRules: string;
+  /** 禁止偏离项：AI 绝对不能违反的硬性约束（如"不存在超自然力量"） */
+  hardConstraints: string;
+  /** 基调/氛围：世界的整体调性 */
+  tone: string;
+}
+
+/** 将 WorldAnchor 格式化为 prompt 注入文本 */
+export function formatWorldAnchorForPrompt(anchor: WorldAnchor | undefined): string {
+  if (!anchor) return '';
+  const parts: string[] = [];
+  if (anchor.era) parts.push(`时代背景: ${anchor.era}`);
+  if (anchor.coreRules) parts.push(`核心规则: ${anchor.coreRules}`);
+  if (anchor.hardConstraints) parts.push(`禁止偏离: ${anchor.hardConstraints}`);
+  if (anchor.tone) parts.push(`基调氛围: ${anchor.tone}`);
+  return parts.join('\n');
+}
+
 /** Wizard draft state shape (shared across pages, hooks, services) */
 export interface WizardDraft {
   cardName: string;
@@ -300,15 +330,25 @@ export interface WizardDraft {
   bookRecursiveScanning: boolean;
   /** Whether NSFW content generation is allowed for world book entries */
   worldbookNsfw?: boolean;
+  /** World rules / generation constraints (persisted across sessions) */
+  worldRules?: string;
+  /** 世界观锚定 — 结构化约束 */
+  worldAnchor?: WorldAnchor;
+  /** Shared UI state between Step 2 (skeleton) and Step 4 (detail worldbook) — keeps the
+   *  topic / counts / mode in sync so users don't lose inputs when navigating back & forth. */
+  skeletonTopic?: string;
+  skeletonCount?: number;
+  worldbookBatchCount?: number;
+  skeletonModeEnabled?: boolean;
   /** MVU + EJS configuration */
   mvu?: MvuConfig;
   /** Whether to use MVU-aware export (embeds scripts, Zod.txt, regex) */
   useMvuExport?: boolean;
-  /** 分阶段模式配置（步骤5，可选启用） */
+  /** 分阶段模式配置（步骤6，可选启用） */
   stagedMode?: StagedModeConfig;
 }
 
-/** Empty character template for Step 2 of the wizard */
+/** Empty character template for Step 3 of the wizard */
 export function createEmptyCharacter(): WizardCharacter {
   return {
     id: generateId(),
@@ -318,7 +358,7 @@ export function createEmptyCharacter(): WizardCharacter {
 }
 
 /**
- * Empty lorebook entry template for Step 3 (World Book).
+ * Empty lorebook entry template for Step 2/4 (World Book skeleton + detail).
  * Aligned with SillyTavern runtime format (CardForge reference).
  *
  * V2 Spec fields (embedded in PNG):
@@ -409,7 +449,7 @@ export const LOREBOOK_ROLE_OPTIONS = [
  * Bump this whenever the draft shape changes incompatibly so that old cached
  * drafts are discarded on app restart.
  */
-export const WIZARD_DRAFT_VERSION = 4;
+export const WIZARD_DRAFT_VERSION = 5;
 
 /**
  * Empty wizard draft state.
@@ -419,13 +459,13 @@ export function createEmptyDraft(): WizardDraft {
   return {
     cardName: '',
 
-    // Step 2: Characters → auto-injected into world book entries
+    // Step 3: Characters → auto-injected into world book entries
     characters: [createEmptyCharacter()],
 
-    // Step 3: World Book / Character Book entries
+    // Step 2/4: World Book (skeleton + detail) / Character Book entries
     lorebookEntries: [],
 
-    // Step 4: MVU Variables (optional)
+    // Step 5: MVU Variables (optional)
     mvu: {
       enabled: false,
       mode: 'beginner',
@@ -442,7 +482,7 @@ export function createEmptyDraft(): WizardDraft {
     },
     useMvuExport: false,
 
-    // Step 5: Staged Mode (optional, off by default)
+    // Step 6: Staged Mode (optional, off by default)
     stagedMode: {
       enabled: false,
       templateId: 'pure-love',
@@ -450,7 +490,7 @@ export function createEmptyDraft(): WizardDraft {
       characters: [],
     },
 
-    // Step 6: First message
+    // Step 7: First message
     firstMessage: '',
 
     // ── V2 Advanced Fields ──────────────────────────────────────────────────
@@ -466,6 +506,13 @@ export function createEmptyDraft(): WizardDraft {
     bookTokenBudget: 1500,
     bookRecursiveScanning: false,
     worldbookNsfw: false,
+    worldRules: '',
+    worldAnchor: { era: '', coreRules: '', hardConstraints: '', tone: '' },
+    // Shared UI state between Step 2 (skeleton) & Step 4 (detail worldbook)
+    skeletonTopic: '',
+    skeletonCount: 8,
+    worldbookBatchCount: 8,
+    skeletonModeEnabled: true,
   };
 }
 
@@ -490,10 +537,11 @@ export function createEmptyMvuConfig(): MvuConfig {
 /** Wizard step definitions with labels and validation flags */
 export const WIZARD_STEPS = [
   { id: 1, label: '卡片名称', required: true },
-  { id: 2, label: '角色配置', required: true },
-  { id: 3, label: '世界书', required: false },
-  { id: 4, label: 'MVU变量', required: false },
-  { id: 5, label: '分阶段模式', required: false },
-  { id: 6, label: '开场白', required: true },
-  { id: 7, label: '美化导出', required: false },
+  { id: 2, label: '世界书骨架', required: false },
+  { id: 3, label: '角色配置', required: true },
+  { id: 4, label: '世界书细节', required: false },
+  { id: 5, label: 'MVU变量', required: false },
+  { id: 6, label: '分阶段模式', required: false },
+  { id: 7, label: '开场白', required: true },
+  { id: 8, label: '美化导出', required: false },
 ] as const;

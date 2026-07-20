@@ -32,6 +32,20 @@ import {
   clampNumber,
 } from '../utils';
 import { consumeWorkshopBridge } from '../../../services/novel-workshop-bridge';
+import { readFileText, MAX_NOVEL_FILE_BYTES, formatFileSize } from '../../../services/file-decode';
+
+/** Detect quota/space errors so we can warn instead of silently losing data. */
+function isQuotaError(err: unknown): boolean {
+  if (err instanceof DOMException) {
+    return (
+      err.name === 'QuotaExceededError' ||
+      err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      err.code === 22 ||
+      err.code === 1014
+    );
+  }
+  return err instanceof Error && err.name === 'QuotaExceededError';
+}
 
 // ── Default State Factory ─────────────────────────────────────────────────
 
@@ -86,6 +100,7 @@ export function useNovelState() {
 
   const rawSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fullSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quotaWarnedRef = useRef(false);
 
   // ── Status Helper ─────────────────────────────────────────────────────
 
@@ -93,6 +108,13 @@ export function useNovelState() {
     setStatusText(text);
     setStatusColor(color || 'var(--color-status-success)');
   }, []);
+
+  // Warn about storage exhaustion at most once per session to avoid spamming.
+  const warnQuotaOnce = useCallback((message: string) => {
+    if (quotaWarnedRef.current) return;
+    quotaWarnedRef.current = true;
+    setStatus(message, 'var(--color-status-danger)');
+  }, [setStatus]);
 
   // ── Raw State Persistence ─────────────────────────────────────────────
 
@@ -145,8 +167,17 @@ export function useNovelState() {
   // ── Checkpoint Persistence ────────────────────────────────────────────
 
   const saveCheckpoint = useCallback((checkpoint: Checkpoint) => {
-    try { localStorage.setItem(getCheckpointStorageKey(), JSON.stringify(checkpoint)); } catch {}
-  }, []);
+    try {
+      localStorage.setItem(getCheckpointStorageKey(), JSON.stringify(checkpoint));
+    } catch (err) {
+      // A full checkpoint (all partial packages) can exceed localStorage quota.
+      // Surface this so the user knows resume may not work — instead of failing
+      // silently and losing progress.
+      if (isQuotaError(err)) {
+        warnQuotaOnce('⚠️ 浏览器本地存储空间不足，断点续跑进度可能无法保存。请清理浏览器存储或分页处理后再试。');
+      }
+    }
+  }, [warnQuotaOnce]);
 
   const clearCheckpoint = useCallback(() => {
     try { localStorage.removeItem(getCheckpointStorageKey()); } catch {}
@@ -195,22 +226,32 @@ export function useNovelState() {
 
   // ── File Import ──────────────────────────────────────────────────────
 
-  const handleFileImport = useCallback((file: File) => {
+  const handleFileImport = useCallback(async (file: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = String(event.target?.result || '');
+    if (file.size > MAX_NOVEL_FILE_BYTES) {
+      setStatus(`❌ 文件过大（${formatFileSize(file.size)}），已超出 ${formatFileSize(MAX_NOVEL_FILE_BYTES)} 上限，请拆分或压缩后重试。`, 'var(--color-status-danger)');
+      return;
+    }
+    try {
+      const { text, encoding, wasReencoded } = await readFileText(file);
+      if (!text.trim()) {
+        setStatus(`❌ 文件内容为空：${file.name}`, 'var(--color-status-danger)');
+        return;
+      }
       setImportedFileText(text);
       setImportedFileMeta({
         name: String(file.name || '未命名文件'),
         charCount: text.length,
       });
-      setStatus(`✅ 已载入文件：${file.name}，全文仅保留在内存中。`, 'var(--color-info)');
-    };
-    reader.onerror = () => {
-      setStatus(`❌ 文件读取失败：${file.name}，请检查文件是否损坏或权限不足。`, 'var(--color-status-danger)');
-    };
-    reader.readAsText(file, 'utf-8');
+      setStatus(
+        wasReencoded
+          ? `✅ 已载入文件：${file.name}（自动识别为 ${encoding.toUpperCase()} 编码并转码），全文仅保留在内存中。`
+          : `✅ 已载入文件：${file.name}，全文仅保留在内存中。`,
+        'var(--color-info)'
+      );
+    } catch (err) {
+      setStatus(`❌ 文件读取失败：${file.name}（${err instanceof Error ? err.message : '未知错误'}），请检查文件是否损坏或权限不足。`, 'var(--color-status-danger)');
+    }
   }, [setStatus]);
 
   const clearFile = useCallback(() => {
@@ -281,14 +322,19 @@ export function useNovelState() {
           generatedVariables: state.generatedVariables,
           generatedAt: state.generatedAt,
         }));
-      } catch {
-        // localStorage may be full; ignore
+      } catch (err) {
+        // localStorage may be full; warn (once) so the user knows results
+        // aren't being saved instead of failing silently.
+        if (isQuotaError(err) && !quotaWarnedRef.current) {
+          quotaWarnedRef.current = true;
+          setStatus('⚠️ 浏览器本地存储空间不足，生成的条目可能无法自动保存。请清理浏览器存储后重试。', 'var(--color-status-danger)');
+        }
       }
     }, 300);
     return () => {
       if (fullSaveTimer.current) clearTimeout(fullSaveTimer.current);
     };
-  }, [state.summary, state.stageOrder, state.currentStage, state.flags, state.entityIndex, state.generatedEntries, state.generatedVariables, state.generatedAt]);
+  }, [state.summary, state.stageOrder, state.currentStage, state.flags, state.entityIndex, state.generatedEntries, state.generatedVariables, state.generatedAt, setStatus]);
 
   // ── Initialize ───────────────────────────────────────────────────────
 

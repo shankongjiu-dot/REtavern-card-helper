@@ -52,6 +52,7 @@ export function parseRangeString(raw: unknown): { min: number; max: number } | u
 /**
  * 将任意值转义为可安全嵌入单引号 JS 字符串字面量的内容。
  * 处理反斜杠、单引号、换行符等，避免多行/含特殊字符的初始值破坏生成的脚本语法。
+ * 同时转义 EJS 闭合标签 `%>`，避免在 EJS 模板（如 buildEjsPreprocess 输出）中被提前截断。
  */
 function escapeJsString(s: unknown): string {
   return String(s)
@@ -60,7 +61,8 @@ function escapeJsString(s: unknown): string {
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r')
     .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/%>/g, '%\\>');
 }
 
 interface SchemaNode {
@@ -296,13 +298,36 @@ export function buildInitvarYaml(sections: MvuSchemaSection[]): string {
 /**
  * Convert a nested object to YAML-like indented format.
  * Matches the format used by reference cards like 「银帷骑士团」.
+ * Supports nested objects, arrays, and scalar values.
  */
 function toYaml(obj: Record<string, unknown>, indent = 0): string {
   const pad = '  '.repeat(indent);
   const lines: string[] = [];
 
   for (const [key, value] of Object.entries(obj)) {
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        lines.push(`${pad}${key}: []`);
+      } else {
+        lines.push(`${pad}${key}:`);
+        for (const item of value) {
+          if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+            const entries = Object.entries(item as Record<string, unknown>);
+            if (entries.length > 0) {
+              const [firstKey, firstVal] = entries[0];
+              lines.push(`${pad}  - ${firstKey}: ${formatYamlScalar(firstVal)}`);
+              for (let i = 1; i < entries.length; i++) {
+                lines.push(`${pad}    ${entries[i][0]}: ${formatYamlScalar(entries[i][1])}`);
+              }
+            } else {
+              lines.push(`${pad}  - {}`);
+            }
+          } else {
+            lines.push(`${pad}  - ${formatYamlScalar(item)}`);
+          }
+        }
+      }
+    } else if (value !== null && typeof value === 'object') {
       lines.push(`${pad}${key}:`);
       lines.push(toYaml(value as Record<string, unknown>, indent + 1));
     } else {
@@ -422,13 +447,17 @@ export function buildEjsPreprocess(configs: EjsEntryConfig[], sections: MvuSchem
 
   for (const varName of usedVars) {
     const fullPath = varPathMap.get(varName);
+    // H10: Escape varName and statPath so a `'`, `\`, or `%>` in user/AI-provided
+    // variable paths can't break out of the single-quoted JS string literals in
+    // define('...', getvar('stat_data....', ...)) and cause EJS code injection.
+    const escapedVarName = escapeJsString(varName);
     if (fullPath) {
-      const statPath = fullPath.split('.').join('.');
+      const escapedStatPath = escapeJsString(fullPath);
       const defaults = getDefaultForDefine(fullPath, sections);
-      lines.push(`define('${varName}', getvar('stat_data.${statPath}', { defaults: ${defaults} }));`);
+      lines.push(`define('${escapedVarName}', getvar('stat_data.${escapedStatPath}', { defaults: ${defaults} }));`);
     } else {
       // Variable not found in schema, use generic define
-      lines.push(`define('${varName}', getvar('stat_data.${varName}', { defaults: '' }));`);
+      lines.push(`define('${escapedVarName}', getvar('stat_data.${escapedVarName}', { defaults: '' }));`);
     }
   }
 
@@ -487,12 +516,63 @@ export function buildVariableList(sections: MvuSchemaSection[]): string {
 }
 
 /**
+ * 紧凑规则格式：仅保留 range + check + category，省略 type/format/value。
+ * 相比完整 buildUpdateRulesYaml，减少约 30-50% token 占用，
+ * 因为 type 信息已在 schema（变量列表）中体现，AI 无需重复获知。
+ */
+function buildCompactRules(rules: MvuUpdateRule[]): string {
+  if (rules.length === 0) return '变量更新规则: {}';
+
+  const lines: string[] = ['变量更新规则:'];
+  const grouped = groupRulesByPath(rules);
+
+  for (const [key, subRules] of Object.entries(grouped)) {
+    if (subRules.length === 1 && !subRules[0].path.includes('.')) {
+      const r = subRules[0];
+      lines.push(`  ${key}:`);
+      appendCompactRuleFields(lines, r, 4);
+    } else {
+      lines.push(`  ${key}:`);
+      for (const r of subRules) {
+        const subKey = r.path.split('.').slice(1).join('.') || key;
+        lines.push(`    ${subKey}:`);
+        appendCompactRuleFields(lines, r, 6);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function appendCompactRuleFields(lines: string[], r: MvuUpdateRule, indent: number) {
+  const pad = ' '.repeat(indent);
+  if (r.range) {
+    lines.push(`${pad}range: ${r.range}`);
+    if (r.category && Object.keys(r.category).length > 0) {
+      lines.push(`${pad}category:`);
+      for (const [k, v] of Object.entries(r.category)) {
+        lines.push(`${pad}  ${k}: ${v}`);
+      }
+    }
+  }
+  if (r.check && r.check.length > 0) {
+    lines.push(`${pad}check:`);
+    for (const c of r.check) {
+      lines.push(`${pad}  - ${c}`);
+    }
+  }
+}
+
+/**
  * Build 变量输出格式.txt (output format for SillyTavern).
  *
  * Matches the reference card convention (e.g. 「银帷骑士团」):
  *   - <update_variable_rules>: instruct AI to emit <UpdateVariable> JSON Patch blocks
  *   - <status_bar_rule>: instruct AI to append <StatusPlaceHolderImpl/> at the end of every reply
  *   - <status_current_variable>: show current stat_data for reference
+ *
+ * 体积优化：规则部分使用紧凑格式，仅保留 range + check（type/format 已在 schema 中），
+ *   减少 30-50% 上下文窗口占用。
  */
 export function buildVariableOutputFormat(sections: MvuSchemaSection[], rules: MvuUpdateRule[] = []): string {
   const variableListLines: string[] = [];
@@ -504,7 +584,8 @@ export function buildVariableOutputFormat(sections: MvuSchemaSection[], rules: M
     }
   }
 
-  const rulesYaml = rules.length > 0 ? buildUpdateRulesYaml(rules) : '变量更新规则: {}';
+  // 紧凑规则：仅保留 range 和 check，省略 type/format/value（已在 schema 中体现）
+  const compactRules = buildCompactRules(rules);
 
   return `---
 <update_variable_rules>
@@ -528,7 +609,7 @@ format: |-
   ]
   </JSONPatch>
   </UpdateVariable>
-${rulesYaml}
+${compactRules}
 </update_variable_rules>
 ---
 <status_bar_rule>
@@ -664,9 +745,8 @@ export function validateMvuConsistency(
  * 注意：statusBarHtml 由 card-exporter 通过 regex_scripts 直接替换占位符渲染，
  *   不放入世界书条目，也不依赖 EJS 扩展。
  *
- * 兜底：如果 schemaTsContent / initvarYamlContent / updateRulesYamlContent
- *   为空（旧项目或小白模式未点"重新生成"），但 schemaSections 有内容，
- *   则自动从 schemaSections 生成，避免导出时 MVU 块被整体跳过。
+ * 性能优化：优先使用缓存的文本内容（由向导自动同步 useEffect 维护），
+ *   仅当缓存为空时才从结构化数据重新生成（兼容旧项目或首次导出）。
  */
 export function buildMvuScriptBundle(mvu: MvuConfig): {
   zodTxt: string;
@@ -677,17 +757,14 @@ export function buildMvuScriptBundle(mvu: MvuConfig): {
   initvarYaml: string;
   updateRulesYaml: string;
 } {
-  // 始终从结构化数据(schemaSections/updateRules)重新生成，确保 .prefault() 等修复生效
-  // 仅当结构化数据为空时才回退到缓存的文本内容（兼容极端情况）
-  const schemaTsContent = mvu.schemaSections.length > 0
-    ? buildSchemaTs(mvu.schemaSections)
-    : (mvu.schemaTsContent || '');
-  const initvarYaml = mvu.schemaSections.length > 0
+  // 优先使用缓存内容（自动同步已保证一致性），仅在缓存为空时回退到重新生成
+  const schemaTsContent = mvu.schemaTsContent || (mvu.schemaSections.length > 0 ? buildSchemaTs(mvu.schemaSections) : '');
+  const initvarYaml = mvu.initvarYamlContent || (mvu.schemaSections.length > 0
     ? buildInitvarYaml(mvu.schemaSections)
-    : (mvu.initvarYamlContent || '# MVU enabled but no variables defined\n_init: true');
-  const updateRulesYaml = mvu.updateRules.length > 0
+    : '# MVU enabled but no variables defined\n_init: true');
+  const updateRulesYaml = mvu.updateRulesYamlContent || (mvu.updateRules.length > 0
     ? buildUpdateRulesYaml(mvu.updateRules)
-    : (mvu.updateRulesYamlContent || '变量更新规则: {}');
+    : '变量更新规则: {}');
 
   return {
     zodTxt: buildZodTxt(schemaTsContent),

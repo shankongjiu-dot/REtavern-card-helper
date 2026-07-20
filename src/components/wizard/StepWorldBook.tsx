@@ -1,5 +1,5 @@
 /**
- * Step 3: World Book / Lorebook entries.
+ * Step World Book / Lorebook entries — shared between Step 2 (skeleton) and Step 4 (detail).
  * Full SillyTavern V2 + runtime parameter support (CardForge reference).
  */
 import { useMemo, useState } from 'react';
@@ -9,11 +9,12 @@ import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPane
 import { LorebookEntryEditor, type EntryExpandLevel } from './LorebookEntryEditor';
 import { useTranslation } from '../../i18n/I18nContext';
 import { AIGeneratePanel } from './AIGeneratePanel';
+import { WorldAnchorPanel } from './WorldAnchorPanel';
 import { OrganizePreviewTable } from './OrganizePreviewTable';
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import { themeAlpha } from '../../constants/theme';
 import { createEmptyLorebookEntry, MVU_LOREBOOK_ENTRY_NAMES } from '../../constants/defaults';
-import type { LorebookEntry, LorebookPosition, AIOrganizeSuggestion, MvuConfig } from '../../constants/defaults';
+import type { LorebookEntry, LorebookPosition, AIOrganizeSuggestion, MvuConfig, WorldAnchor } from '../../constants/defaults';
 import { findStagedLorebookEntryIndices } from '../../services/card-exporter';
 
 const POSITION_ORDER: Record<LorebookPosition, number> = {
@@ -46,27 +47,101 @@ function getProtectedEntryLabel(entry: LorebookEntry, idx: number, stagedIndices
 
 interface StepWorldBookProps {
   entries: LorebookEntry[];
-  cardName: string;
-  characterSummaries: string;
-  existingWorldbookContext: string;
-  onUpdate: (entries: LorebookEntry[]) => void;
+  onEntriesChange: (entries: LorebookEntry[]) => void;
+  /** Controlled world rules text — persisted in draft */
+  worldRules?: string;
+  onWorldRulesChange?: (worldRules: string) => void;
+  /** Character context for detail mode (full descriptions after characters are generated) */
+  characterContext?: string;
+  /** Mode: skeleton = step 2 (before characters), detail = step 4 (after characters) */
+  mode?: 'skeleton' | 'detail';
   /** Whether NSFW content generation is allowed for world book entries */
   nsfw?: boolean;
   onNsfwChange?: (nsfw: boolean) => void;
-  /** MVU config — used to show EJS indicators on entries */
+  /** 世界观锚定 — 结构化约束 */
+  worldAnchor?: WorldAnchor;
+  onWorldAnchorChange?: (anchor: WorldAnchor) => void;
+  /** MVU config — used to show EJS indicators on entries (detail mode only) */
   mvu?: MvuConfig;
+  // ── Shared UI state between Step 2 (skeleton) & Step 4 (detail) ──
+  // When provided, these controlled values are persisted to the draft so that
+  // navigating back & forth between step 2 and step 4 preserves the user's
+  // topic, counts and mode toggle. Falls back to local state when not provided
+  // (e.g. legacy callers).
+  /** Controlled topic input — shared between step 2 & step 4 */
+  topicValue?: string;
+  onTopicChangePersist?: (topic: string) => void;
+  /** Controlled skeleton entry count — shared between step 2 & step 4 */
+  skeletonCountValue?: number;
+  onSkeletonCountPersist?: (count: number) => void;
+  /** Controlled full-mode batch count — shared between step 2 & step 4 */
+  batchCountValue?: number;
+  onBatchCountPersist?: (count: number) => void;
+  /** Controlled skeleton-mode toggle (step 4 only — step 2 is always skeleton) */
+  skeletonModeValue?: boolean;
+  onSkeletonModePersist?: (mode: boolean) => void;
+  /** Cross-step navigation callback — wired from WizardPage's setCurrentStep.
+   *  Lets the skeleton/detail banner jump directly to the linked step so users
+   *  can quickly flip back & forth without losing context. */
+  onJumpToStep?: (step: number) => void;
+  // Legacy props kept for backward compat during transition
+  cardName?: string;
+  characterSummaries?: string;
+  existingWorldbookContext?: string;
+  onUpdate?: (entries: LorebookEntry[]) => void;
 }
 
-export function StepWorldBook({ entries, cardName, characterSummaries, existingWorldbookContext, onUpdate, nsfw, onNsfwChange, mvu }: StepWorldBookProps) {
+export function StepWorldBook({
+  entries,
+  onEntriesChange,
+  worldRules: externalWorldRules = '',
+  onWorldRulesChange,
+  characterContext,
+  mode = 'detail',
+  nsfw,
+  onNsfwChange,
+  worldAnchor,
+  onWorldAnchorChange,
+  mvu,
+  // Shared controlled UI state (step 2 ↔ step 4)
+  topicValue: externalTopic,
+  onTopicChangePersist,
+  skeletonCountValue: externalSkeletonCount,
+  onSkeletonCountPersist,
+  batchCountValue: externalBatchCount,
+  onBatchCountPersist,
+  skeletonModeValue: externalSkeletonMode,
+  onSkeletonModePersist,
+  onJumpToStep,
+  // Legacy
+  cardName: legacyCardName,
+  characterSummaries: legacyCharacterSummaries,
+  existingWorldbookContext: legacyExistingContext,
+  onUpdate: legacyOnUpdate,
+}: StepWorldBookProps) {
   const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
-  const [topic, setTopic] = useState('');
-  const [worldRules, setWorldRules] = useState('');
-  // Skeleton mode
-  const [skeletonMode, setSkeletonMode] = useState(false);
-  const [skeletonCount, setSkeletonCount] = useState(8);
-  // Full mode batch count
-  const [batchCount, setBatchCount] = useState(8);
+  // topic: prefer external controlled value, fallback to local state
+  const [localTopic, setLocalTopic] = useState('');
+  const topic = externalTopic !== undefined ? externalTopic : localTopic;
+  const setTopic = onTopicChangePersist || setLocalTopic;
+  // worldRules: prefer external controlled value, fallback to local state
+  const [localWorldRules, setLocalWorldRules] = useState('');
+  const effectiveWorldRules = onWorldRulesChange ? externalWorldRules : localWorldRules;
+  const setWorldRules = onWorldRulesChange || setLocalWorldRules;
+  // Skeleton mode: default true in skeleton mode step.
+  // When controlled (step 4), use external value; otherwise local state.
+  const [localSkeletonMode, setLocalSkeletonMode] = useState(mode === 'skeleton');
+  const skeletonMode = externalSkeletonMode !== undefined ? externalSkeletonMode : localSkeletonMode;
+  const setSkeletonMode = onSkeletonModePersist || setLocalSkeletonMode;
+  // Skeleton count: shared between step 2 & step 4
+  const [localSkeletonCount, setLocalSkeletonCount] = useState(mode === 'skeleton' ? 8 : 6);
+  const skeletonCount = externalSkeletonCount !== undefined ? externalSkeletonCount : localSkeletonCount;
+  const setSkeletonCount = onSkeletonCountPersist || setLocalSkeletonCount;
+  // Full mode batch count: shared between step 2 & step 4
+  const [localBatchCount, setLocalBatchCount] = useState(8);
+  const batchCount = externalBatchCount !== undefined ? externalBatchCount : localBatchCount;
+  const setBatchCount = onBatchCountPersist || setLocalBatchCount;
   // AI organize state
   const [organizing, setOrganizing] = useState(false);
   const [organizeResults, setOrganizeResults] = useState<AIOrganizeSuggestion[] | null>(null);
@@ -83,6 +158,15 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   const [expandLevels, setExpandLevels] = useState<Map<string, EntryExpandLevel>>(new Map());
   const { generateLorebookParsedStreaming, generateLorebookSkeletonStreaming, organizeEntries, generateEntryKeys, expandLorebookEntry } = useAIGenerate();
   const { addToast } = useToast();
+
+  // Unified entry update handler (supports both new and legacy APIs)
+  const handleUpdateEntries = onEntriesChange || legacyOnUpdate || (() => {});
+  // Unified character context (prefer new API)
+  const effectiveCharacterContext = characterContext ?? legacyCharacterSummaries ?? '';
+  // Effective card name
+  const effectiveCardName = legacyCardName ?? '';
+  // Effective existing context
+  const effectiveExistingContext = legacyExistingContext ?? '';
   const C = {
     text: 'var(--text-color)',
     secondary: 'var(--color-text-secondary)',
@@ -93,6 +177,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
     surface: 'var(--color-surface-raised)',
     primary: 'var(--color-primary)',
     info: 'var(--color-info)',
+    success: 'var(--color-status-success)',
     warning: 'var(--color-status-warning)',
   } as const;
   const surfaceA = (n: number) => `color-mix(in srgb, ${C.surface} ${n}%, transparent)`;
@@ -122,15 +207,15 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   };
 
   const addEntry = () => {
-    onUpdate([...entries, createEmptyLorebookEntry()]);
+    handleUpdateEntries([...entries, createEmptyLorebookEntry()]);
   };
 
   const removeEntry = (index: number) => {
-    onUpdate(entries.filter((_, i) => i !== index));
+    handleUpdateEntries(entries.filter((_, i) => i !== index));
   };
 
   const updateEntry = (index: number, updates: Partial<LorebookEntry>) => {
-    onUpdate(entries.map((e, i) => (i === index ? { ...e, ...updates } : e)));
+    handleUpdateEntries(entries.map((e, i) => (i === index ? { ...e, ...updates } : e)));
   };
 
   const handleBatchGenerate = async () => {
@@ -138,8 +223,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
     setAiStatus('generating');
     setStreamText('');
     const consistencyRules = [
-      worldRules,
-      existingWorldbookContext ? `${t('worldBook.existingWorldbookHeader')}\n${existingWorldbookContext}` : '',
+      effectiveWorldRules,
+      effectiveExistingContext ? `${t('worldBook.existingWorldbookHeader')}\n${effectiveExistingContext}` : '',
     ].filter(Boolean).join('\n\n');
     try {
       if (skeletonMode) {
@@ -157,7 +242,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             setStreamText(prev => prev + `\n\n── ${batchMarker} ──\n`);
           }
           const skeletons = await generateLorebookSkeletonStreaming(
-            cardName, characterSummaries, topic, batchSize, existingTitles,
+            effectiveCardName, effectiveCharacterContext, topic, batchSize, existingTitles,
             (_chunk, fullText) => setStreamText(prev => {
               // Replace current batch's streaming portion
               const lastMarker = prev.lastIndexOf('── ');
@@ -188,9 +273,13 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           priority: 50,
           probability: 100,
           depth: 4,
+          // Mark as skeleton-origin so Step 4 can show a 🦴 badge and track
+          // expansion progress. Cleared on AI-expand success.
+          fromSkeleton: true,
+          skeletonExpanded: false,
         })) as LorebookEntry[];
 
-        onUpdate(sortLorebookEntries([...entries, ...newEntries]));
+        handleUpdateEntries(sortLorebookEntries([...entries, ...newEntries]));
         // Auto-collapse newly generated entries (show as collapsed)
         setExpandLevels(prev => {
           const next = new Map(prev);
@@ -201,7 +290,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       } else {
         // ── Full mode: streaming with live preview ──
         const result = await generateLorebookParsedStreaming(
-          cardName, characterSummaries, topic, batchCount,
+          effectiveCardName, effectiveCharacterContext, topic, batchCount,
           (_chunk, fullText) => setStreamText(fullText),
           consistencyRules || undefined, nsfw,
         );
@@ -237,7 +326,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
               ignore_budget: item.ignore_budget ?? false,
             } as LorebookEntry;
           });
-          onUpdate(sortLorebookEntries([...entries, ...newEntries]));
+          handleUpdateEntries(sortLorebookEntries([...entries, ...newEntries]));
           // Auto-collapse newly generated entries (show as collapsed)
           setExpandLevels(prev => {
             const next = new Map(prev);
@@ -275,9 +364,9 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
           strategy: entry.constant ? 'constant' : 'selective',
           position: entry.insertion_order,
         },
-        existingWorldbookContext
-          ? `${characterSummaries}\n\n${t('worldBook.existingWorldbookHeaderBrief')}\n${existingWorldbookContext}`
-          : characterSummaries,
+        effectiveExistingContext
+          ? `${effectiveCharacterContext}\n\n${t('worldBook.existingWorldbookHeaderBrief')}\n${effectiveExistingContext}`
+          : effectiveCharacterContext,
         undefined,
         entry.expandNsfw,
       );
@@ -286,6 +375,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         content: result.content,
         keys: result.keys,
         constant: result.strategy === 'constant',
+        // Mark skeleton as expanded so the badge flips from 🦴 → ✅.
+        skeletonExpanded: true,
       });
       addToast('success', t('worldBook.expandDone', { name: result.comment || entry.name }));
     } catch (err: unknown) {
@@ -293,6 +384,74 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
       addToast('error', t('worldBook.expandFailed', { message: msg }));
     } finally {
       setExpandingIndex(null);
+    }
+  };
+
+  // ── Batch AI Expand: expand every un-expanded skeleton entry sequentially ──
+  // Used by the "一键展开所有未展开骨架" button in step 4's skeleton progress row.
+  // Runs expansions one-by-one to avoid API rate limits and so each result feeds
+  // into the next call's `effectiveExistingContext` for cross-entry consistency.
+  const [batchExpanding, setBatchExpanding] = useState(false);
+  const [batchExpandProgress, setBatchExpandProgress] = useState({ current: 0, total: 0 });
+  const handleBatchExpandSkeletons = async () => {
+    // Snapshot the targets — only entries flagged as skeleton-origin AND not yet expanded.
+    const targets: number[] = [];
+    entries.forEach((e, i) => {
+      if (e.fromSkeleton && !e.skeletonExpanded && e.content?.trim()) targets.push(i);
+    });
+    if (targets.length === 0) return;
+
+    setBatchExpanding(true);
+    setBatchExpandProgress({ current: 0, total: targets.length });
+    let successCount = 0;
+    let failCount = 0;
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const idx = targets[i];
+        setBatchExpandProgress({ current: i + 1, total: targets.length });
+        setExpandingIndex(idx);
+        try {
+          const entry = entries[idx];
+          if (!entry) continue;
+          const result = await expandLorebookEntry(
+            {
+              comment: entry.comment || entry.name || '',
+              content: entry.content,
+              keys: entry.keys,
+              strategy: entry.constant ? 'constant' : 'selective',
+              position: entry.insertion_order,
+            },
+            effectiveExistingContext
+              ? `${effectiveCharacterContext}\n\n${t('worldBook.existingWorldbookHeaderBrief')}\n${effectiveExistingContext}`
+              : effectiveCharacterContext,
+            undefined,
+            entry.expandNsfw,
+          );
+          updateEntry(idx, {
+            comment: result.comment,
+            content: result.content,
+            keys: result.keys,
+            constant: result.strategy === 'constant',
+            skeletonExpanded: true,
+          });
+          successCount++;
+        } catch {
+          failCount++;
+        }
+        // Small delay between API calls to avoid rate limiting
+        if (i < targets.length - 1) await new Promise((r) => setTimeout(r, 300));
+      }
+      if (successCount > 0 && failCount > 0) {
+        addToast('success', t('worldBook.batchExpandPartial', { success: String(successCount), fail: String(failCount) }));
+      } else if (successCount > 0) {
+        addToast('success', t('worldBook.batchExpandDone', { count: String(successCount) }));
+      } else if (failCount > 0) {
+        addToast('error', t('worldBook.batchExpandAllFailed', { count: String(failCount) }));
+      }
+    } finally {
+      setExpandingIndex(null);
+      setBatchExpanding(false);
+      setBatchExpandProgress({ current: 0, total: 0 });
     }
   };
 
@@ -335,7 +494,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         updated[r.index] = entry;
       }
     }
-    onUpdate(sortLorebookEntries(updated));
+    handleUpdateEntries(sortLorebookEntries(updated));
     setOrganizeResults(null);
   };
 
@@ -363,7 +522,7 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
             updated[r.index] = { ...updated[r.index], keys: merged };
           }
         }
-        onUpdate(updated);
+        handleUpdateEntries(updated);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t('common.unknownError');
@@ -375,24 +534,24 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
 
   const cleanupEmptyEntries = () => {
     const updated = entries.filter(e => e.content?.trim() || e.name?.trim() || e.keys.length > 0);
-    onUpdate(updated);
+    handleUpdateEntries(updated);
     addToast('success', t('worldBook.cleanupDone', { count: String(entries.length - updated.length) }));
   };
 
   const sortEntries = () => {
-    onUpdate(sortLorebookEntries(entries));
+    handleUpdateEntries(sortLorebookEntries(entries));
     addToast('success', t('worldBook.sortDone'));
   };
 
   const disableEmptyKeyEntries = () => {
     const updated = entries.map(e => (!e.constant && e.keys.length === 0 ? { ...e, enabled: false } : e));
     const count = entries.filter(e => !e.constant && e.keys.length === 0 && e.enabled).length;
-    onUpdate(updated);
+    handleUpdateEntries(updated);
     addToast('success', t('worldBook.disabledCount', { count: String(count) }));
   };
 
   const enableAllEntries = () => {
-    onUpdate(entries.map(e => ({ ...e, enabled: true })));
+    handleUpdateEntries(entries.map(e => ({ ...e, enabled: true })));
     addToast('success', t('worldBook.enabledAll'));
   };
 
@@ -409,12 +568,33 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
   const renderEntry = ({ entry, index }: { entry: LorebookEntry; index: number }) => {
     const protectedLabel = getProtectedEntryLabel(entry, index, stagedIndices);
     const ejsConfig = mvu?.enabled ? mvu.ejsConfigs.find(c => c.entryId === entry.id) : undefined;
+    const isUnexpandedSkeleton = entry.fromSkeleton === true && entry.skeletonExpanded !== true;
+    const isExpandedSkeleton = entry.fromSkeleton === true && entry.skeletonExpanded === true;
+    const showBadges = !!(protectedLabel || ejsConfig || isUnexpandedSkeleton || isExpandedSkeleton);
     return (
       <div key={entry.id} className="relative">
-        {(protectedLabel || ejsConfig) && (
+        {showBadges && (
           <div className="mb-1 flex items-center gap-1.5 text-[10px]" style={{ color: C.secondary }}>
             {protectedLabel && (
               <span className="rounded border px-1.5 py-0.5" style={{ borderColor: themeAlpha('primary', 30), backgroundColor: themeAlpha('primary', 10), color: C.primary }}>{protectedLabel}</span>
+            )}
+            {isUnexpandedSkeleton && (
+              <span
+                className="rounded border px-1.5 py-0.5"
+                style={{ borderColor: themeAlpha('warning', 40), backgroundColor: themeAlpha('warning', 12), color: C.warning }}
+                title={t('worldBook.skeletonBadgeTooltip')}
+              >
+                🦴 {t('worldBook.skeletonBadge')}
+              </span>
+            )}
+            {isExpandedSkeleton && (
+              <span
+                className="rounded border px-1.5 py-0.5"
+                style={{ borderColor: themeAlpha('success', 35), backgroundColor: themeAlpha('success', 10), color: C.success }}
+                title={t('worldBook.expandedBadgeTooltip')}
+              >
+                ✅ {t('worldBook.expandedBadge')}
+              </span>
             )}
             {ejsConfig && (
               <span className="rounded border px-1.5 py-0.5" style={{ borderColor: themeAlpha('info', 30), backgroundColor: themeAlpha('info', 10), color: C.info }}>EJS · {ejsConfig.complexity}</span>
@@ -438,8 +618,186 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
 
   return (
     <div>
-      {/* Batch tools bar */}
-      {entries.length > 0 && (
+      {/* ── Skeleton ↔ Detail continuity banner ──────────────────────────
+          In skeleton mode: tell the user their setup flows to step 4.
+          In detail mode: summarize what was set up in step 2, or warn if empty. */}
+      {mode === 'skeleton' ? (
+        <div
+          className="mb-4 rounded-xl border p-3 flex items-start gap-3"
+          style={{ backgroundColor: themeAlpha('success', 8), borderColor: themeAlpha('success', 25) }}
+        >
+          <span className="text-base shrink-0" aria-hidden>🦴</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold" style={{ color: C.success }}>{t('worldBook.skeletonFlowTitle')}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'color-mix(in srgb, var(--color-status-success) 70%, transparent)' }}>
+                  {t('worldBook.skeletonFlowHint')}
+                </p>
+              </div>
+              {onJumpToStep && (entries.length > 0 || effectiveWorldRules.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => onJumpToStep(4)}
+                  className="shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                  style={{ borderColor: themeAlpha('success', 40), backgroundColor: themeAlpha('success', 12), color: C.success }}
+                  title={t('worldBook.jumpToDetailTooltip')}
+                >
+                  {t('worldBook.jumpToDetail')} →
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="mb-4 rounded-xl border p-3 flex items-start gap-3"
+          style={
+            entries.length === 0 && !effectiveWorldRules.trim() && !topic.trim()
+              ? { backgroundColor: themeAlpha('warning', 10), borderColor: themeAlpha('warning', 35) }
+              : { backgroundColor: themeAlpha('info', 8), borderColor: themeAlpha('info', 25) }
+          }
+        >
+          <span className="text-base shrink-0" aria-hidden>{entries.length === 0 && !effectiveWorldRules.trim() ? '⚠️' : '🔗'}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p
+                  className="text-xs font-semibold"
+                  style={{ color: entries.length === 0 && !effectiveWorldRules.trim() ? C.warning : C.info }}
+                >
+                  {t('worldBook.skeletonContinuityTitle')}
+                </p>
+                {entries.length === 0 && !effectiveWorldRules.trim() ? (
+                  <p className="text-[11px] mt-0.5" style={{ color: 'color-mix(in srgb, var(--color-status-warning) 80%, transparent)' }}>
+                    {t('worldBook.skeletonMissingHint')}
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <span
+                        className="rounded-full border px-2 py-0.5"
+                        style={{ borderColor: themeAlpha('info', 30), backgroundColor: themeAlpha('info', 10), color: C.info }}
+                      >
+                        {t('worldBook.skeletonStatEntries', { count: String(entries.length) })}
+                      </span>
+                      {topic.trim() && (
+                        <span
+                          className="rounded-full border px-2 py-0.5 max-w-[260px] truncate"
+                          style={{ borderColor: themeAlpha('info', 30), backgroundColor: themeAlpha('info', 10), color: C.info }}
+                          title={topic}
+                        >
+                          {t('worldBook.skeletonStatTopic', { topic: topic.trim().slice(0, 40) })}
+                        </span>
+                      )}
+                      {effectiveWorldRules.trim() && (
+                        <span
+                          className="rounded-full border px-2 py-0.5"
+                          style={{ borderColor: themeAlpha('info', 30), backgroundColor: themeAlpha('info', 10), color: C.info }}
+                        >
+                          {t('worldBook.skeletonStatRules', { count: String(effectiveWorldRules.length) })}
+                        </span>
+                      )}
+                      {characterContext?.trim() && (
+                        <span
+                          className="rounded-full border px-2 py-0.5"
+                          style={{ borderColor: themeAlpha('success', 30), backgroundColor: themeAlpha('success', 10), color: C.success }}
+                        >
+                          {t('worldBook.skeletonStatChars')}
+                        </span>
+                      )}
+                    </div>
+                    {/* Skeleton expand progress — count entries flagged fromSkeleton and
+                        show how many have been expanded by AI. Includes a one-click
+                        batch-expand button for the remaining un-expanded skeletons. */}
+                    {(() => {
+                      const skeletonTotal = entries.filter(e => e.fromSkeleton === true).length;
+                      if (skeletonTotal === 0) return null;
+                      const expanded = entries.filter(e => e.fromSkeleton === true && e.skeletonExpanded === true).length;
+                      const remaining = skeletonTotal - expanded;
+                      const allExpanded = remaining === 0;
+                      return (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          <span
+                            className="rounded-full border px-2 py-0.5"
+                            style={
+                              allExpanded
+                                ? { borderColor: themeAlpha('success', 35), backgroundColor: themeAlpha('success', 10), color: C.success }
+                                : { borderColor: themeAlpha('warning', 40), backgroundColor: themeAlpha('warning', 12), color: C.warning }
+                            }
+                          >
+                            {allExpanded
+                              ? t('worldBook.skeletonProgressAllDone', { count: String(skeletonTotal) })
+                              : t('worldBook.skeletonProgress', { expanded: String(expanded), total: String(skeletonTotal) })}
+                          </span>
+                          {!allExpanded && (
+                            <button
+                              type="button"
+                              onClick={handleBatchExpandSkeletons}
+                              disabled={batchExpanding || generating}
+                              className="rounded-lg border px-2 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ borderColor: themeAlpha('success', 40), backgroundColor: themeAlpha('success', 12), color: C.success }}
+                              title={t('worldBook.batchExpandTooltip')}
+                            >
+                              {batchExpanding
+                                ? t('worldBook.batchExpanding', { current: String(batchExpandProgress.current), total: String(batchExpandProgress.total) })
+                                : `🚀 ${t('worldBook.batchExpand')}`}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Data quality warnings — surface integrity issues from skeleton so
+                        users can fix them before exporting. */}
+                    {(() => {
+                      const emptyContent = entries.filter(e => !e.content?.trim()).length;
+                      const missingKeys = entries.filter(e => !e.constant && e.keys.length === 0).length;
+                      if (emptyContent === 0 && missingKeys === 0) return null;
+                      return (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          {emptyContent > 0 && (
+                            <span
+                              className="rounded-full border px-2 py-0.5"
+                              style={{ borderColor: themeAlpha('warning', 40), backgroundColor: themeAlpha('warning', 12), color: C.warning }}
+                            >
+                              {t('worldBook.skeletonQualityEmpty', { count: String(emptyContent) })}
+                            </span>
+                          )}
+                          {missingKeys > 0 && (
+                            <span
+                              className="rounded-full border px-2 py-0.5"
+                              style={{ borderColor: themeAlpha('warning', 40), backgroundColor: themeAlpha('warning', 12), color: C.warning }}
+                            >
+                              {t('worldBook.skeletonQualityMissingKeys', { count: String(missingKeys) })}
+                            </span>
+                          )}
+                          <span className="text-[10px]" style={{ color: 'color-mix(in srgb, var(--color-status-warning) 70%, transparent)' }}>
+                            {t('worldBook.skeletonQualityHint')}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+              </div>
+              {onJumpToStep && (
+                <button
+                  type="button"
+                  onClick={() => onJumpToStep(2)}
+                  className="shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                  style={{ borderColor: themeAlpha('info', 40), backgroundColor: themeAlpha('info', 12), color: C.info }}
+                  title={t('worldBook.jumpToSkeletonTooltip')}
+                >
+                  ← {t('worldBook.jumpToSkeleton')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch tools bar — hidden in skeleton mode */}
+      {mode !== 'skeleton' && entries.length > 0 && (
         <div className="space-y-3 mb-4">
           <div className="flex flex-col gap-2 p-3 rounded-lg border sm:flex-row sm:flex-wrap sm:items-center" style={{ backgroundColor: surfaceA(40), borderColor: borderA(50) }}>
             <input
@@ -465,8 +823,8 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
         </div>
       )}
 
-      {/* AI Tools bar */}
-      {entries.length > 0 && (
+      {/* AI Tools bar — hidden in skeleton mode */}
+      {mode !== 'skeleton' && entries.length > 0 && (
         <div className="flex flex-col gap-2 mb-4 p-3 rounded-lg border sm:flex-row sm:flex-wrap sm:items-center" style={{ backgroundColor: themeAlpha('warning', 10), borderColor: themeAlpha('warning', 30) }}>
           <span className="text-xs font-medium shrink-0" style={{ color: C.warning }}>🧹 {t('worldBook.aiToolsLabel')}</span>
           <Button
@@ -503,31 +861,42 @@ export function StepWorldBook({ entries, cardName, characterSummaries, existingW
 
       {/* Header */}
       <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold" style={{ color: C.text }}>{t('worldBook.title')}</h2>
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold" style={{ color: C.text }}>{mode === 'skeleton' ? t('worldBook.skeletonTitle') : t('worldBook.title')}</h2>
           <p className="text-sm mt-1" style={{ color: C.secondary }}>
             {t('worldBook.headerCount', { count: String(entries.length) })}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={addEntry}>+ {t('worldBook.addEntry')}</Button>
+        <div className="flex gap-2 shrink-0">
+          {mode !== 'skeleton' && (
+            <Button variant="secondary" onClick={addEntry}>+ {t('worldBook.addEntry')}</Button>
+          )}
         </div>
       </div>
+
+      {/* World Anchor Panel - skeleton mode only */}
+      {mode === 'skeleton' && onWorldAnchorChange && (
+        <WorldAnchorPanel
+          anchor={worldAnchor ?? { era: '', coreRules: '', hardConstraints: '', tone: '' }}
+          onChange={onWorldAnchorChange}
+          defaultExpanded={true}
+        />
+      )}
 
       {/* AI Generate Panel - always visible */}
       <AIGeneratePanel
         topic={topic}
-        worldRules={worldRules}
+        worldRules={effectiveWorldRules}
         generating={generating}
         onTopicChange={setTopic}
-        onWorldRulesChange={setWorldRules}
-        cardName={cardName}
-        characterSummaries={characterSummaries}
-        existingWorldbookContext={existingWorldbookContext}
-        skeletonMode={skeletonMode}
+        onWorldRulesChange={(val) => setWorldRules(val)}
+        cardName={effectiveCardName}
+        characterSummaries={effectiveCharacterContext}
+        existingWorldbookContext={effectiveExistingContext}
+        skeletonMode={mode === 'skeleton' ? true : skeletonMode}
         skeletonCount={skeletonCount}
         batchCount={batchCount}
-        onSkeletonModeChange={setSkeletonMode}
+        onSkeletonModeChange={mode === 'skeleton' ? () => {} : setSkeletonMode}
         onSkeletonCountChange={setSkeletonCount}
         onBatchCountChange={setBatchCount}
         onGenerate={handleBatchGenerate}

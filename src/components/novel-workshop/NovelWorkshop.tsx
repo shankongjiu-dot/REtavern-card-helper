@@ -3,7 +3,7 @@
  * Migrated from .temp_statusbar.astro
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNovelState } from './hooks/useNovelState';
 import { HeaderBanner } from './panels/HeaderBanner';
@@ -13,7 +13,7 @@ import { PipelinePanel } from './panels/PipelinePanel';
 import { ManagerPanel } from './panels/ManagerPanel';
 import { NovelStatusBar } from './shared/NovelStatusBar';
 import { extractNovelChunk, mergeNovelPackages, mergePackagesLocally, emptyPackage } from '../../services/novel-workshop-service';
-import { saveWorkshopLorebookImport } from '../../services/novel-workshop-bridge';
+import { saveWorkshopLorebookImport, revealFlagsToVariableBlueprints } from '../../services/novel-workshop-bridge';
 import { splitTextIntoChunks, buildCallEstimate, assertWorkflowAffordable, hashString } from './utils';
 import { MERGE_BATCH_SIZE } from './types';
 import type { NovelPackage, Checkpoint, GeneratedEntry, VariableBlueprint, EntityIndex } from './types';
@@ -116,6 +116,10 @@ export function NovelWorkshop() {
   const handleAbort = () => {
     shouldAbortRef.current = true;
   };
+
+  // Memoize combined source so PipelinePanel's estimate isn't recomputed on
+  // every unrelated render (e.g. status/stall updates during generation).
+  const combinedSource = useMemo(() => getCombinedSourceText(), [getCombinedSourceText]);
 
   const handleGenerate = async () => {
     if (isGenerating) return;
@@ -375,13 +379,24 @@ export function NovelWorkshop() {
       const stageOrderForBridge = finalPackage.stage_order.length ? finalPackage.stage_order : state.stageOrder;
       const generatedEntries = packageEntriesToGeneratedEntries(finalPackage.entries, stageOrderForBridge);
       const generatedVariables = packageVariablesToBlueprints(finalPackage.variables);
+      // Convert reveal_flags into 开关.{id} MVU booleans so requiredFlags-gated
+      // entries have their corresponding EJS guards resolve correctly.
+      const flagBlueprints = revealFlagsToVariableBlueprints(
+        (finalPackage.reveal_flags || []).map((f, i) => ({
+          id: f.id || `flag_${i}`,
+          label: f.label || f.name || `标记${i + 1}`,
+          description: f.description || f.desc || '',
+          value: f.default === true,
+        })),
+      );
+      const mergedVariableBlueprints = [...generatedVariables, ...flagBlueprints];
       const entryCount = (finalPackage.entries || []).length;
 
       const importedEntries = entryCount > 0
         ? saveWorkshopLorebookImport(
             state.lastFileName || '小说世界书',
             generatedEntries,
-            generatedVariables,
+            mergedVariableBlueprints,
             finalPackage.summary || '',
             stageOrderForBridge,
           )
@@ -425,10 +440,12 @@ export function NovelWorkshop() {
       return;
     }
     try {
+      const flagBlueprints = revealFlagsToVariableBlueprints(state.flags);
+      const mergedVariableBlueprints = [...state.generatedVariables, ...flagBlueprints];
       const imported = saveWorkshopLorebookImport(
         state.lastFileName || '小说世界书',
         state.generatedEntries,
-        state.generatedVariables,
+        mergedVariableBlueprints,
         state.summary || '',
         state.stageOrder,
       );
@@ -553,7 +570,7 @@ export function NovelWorkshop() {
       )}
 
       <PipelinePanel
-        source={getCombinedSourceText()}
+        source={combinedSource}
         chunkCharLimit={state.chunkCharLimit}
         gateMode={state.gateMode}
         narrativeMode={state.narrativeMode}

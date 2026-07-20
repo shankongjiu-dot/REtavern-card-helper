@@ -12,6 +12,12 @@ import { translations, type Language, getNestedValue } from './translations';
 const STORAGE_KEY = 'tavern-card-helper-lang';
 
 function detectDefaultLanguage(): Language {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (saved && saved in translations) return saved as Language;
+  } catch {
+    // localStorage unavailable (e.g. SSR or privacy mode)
+  }
   return 'zh';
 }
 

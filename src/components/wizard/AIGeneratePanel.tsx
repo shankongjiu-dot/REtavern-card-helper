@@ -262,8 +262,8 @@ export function AIGeneratePanel({
       )}
 
       <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-sm font-medium text-primary-bright">
+        <div className="mobile-stack-header flex items-start justify-between gap-2 mb-1">
+          <label className="text-sm font-medium text-primary-bright min-w-0">
             {t('aiPanel.rulesLabel')}
             <span className="text-xs font-normal ml-2" style={{ color: faintText }}>{t('aiPanel.rulesHint')}</span>
           </label>

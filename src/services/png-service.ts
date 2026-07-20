@@ -63,12 +63,32 @@ function findIendOffset(bytes: Uint8Array): number {
   return bytes.length;
 }
 
+/** UTF-8 string → base64 (replaces deprecated btoa(unescape(encodeURIComponent(...)))) */
+function utf8ToBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/** base64 → UTF-8 string (replaces deprecated decodeURIComponent(escape(atob(...)))) */
+function base64ToUtf8(base64: string): string {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 export function embedJsonInPng(
   pngBuffer: ArrayBufferLike | null,
   cardJson: Record<string, unknown>,
 ): Uint8Array {
   const jsonString = JSON.stringify(cardJson);
-  const base64 = btoa(unescape(encodeURIComponent(jsonString)));
+  const base64 = utf8ToBase64(jsonString);
 
   // SillyTavern writes both 'chara' (V2) and 'ccv3' (V3) tEXt chunks.
   // V3 takes precedence during reading; V2 is for older software compatibility.
@@ -284,7 +304,7 @@ export function extractJsonFromPng(
 
         if (kw === keyword) {
           try {
-            const jsonString = decodeURIComponent(escape(atob(value)));
+            const jsonString = base64ToUtf8(value);
             return JSON.parse(jsonString);
           } catch {
             throw new Error(`PNG 中的 ${keyword} 数据解析失败（base64/JSON 格式无效）`);

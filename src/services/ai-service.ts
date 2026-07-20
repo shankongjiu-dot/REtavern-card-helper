@@ -79,7 +79,16 @@ function looksLikeJsonStart(text: string): boolean {
  * Used as a fallback when finish_reason is missing (e.g., connection cut off by timeout).
  */
 function looksTruncated(text: string): boolean {
-  if (!text || text.length < 50) return true;
+  if (!text || text.length < 50) {
+    // 短内容可能是合法的紧凑 JSON，先尝试解析
+    if (text) {
+      try {
+        JSON.parse(text.trim().replace(/^```json?\n?/, '').replace(/\n?```$/, ''));
+        return false;
+      } catch { /* not valid JSON, fall through to truncated */ }
+    }
+    return true;
+  }
 
   let content = text.trimEnd();
 
@@ -552,6 +561,9 @@ async function streamAIOnce(
       }
       return { fullText, finishReason };
     } catch (err: unknown) {
+      // 已向消费者投递了部分内容后不能重试：模型会从头重新生成，
+      // 拼接两次不同生成的内容会产生乱码。
+      if (deliveredLength > 0) throw err;
       if (attempt < maxRetries && isRetryableError(err)) {
         lastError = err instanceof Error ? err : new Error('网络请求失败');
         await new Promise(r => setTimeout(r, retryDelay(attempt)));

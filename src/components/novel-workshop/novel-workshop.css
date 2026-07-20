@@ -144,6 +144,27 @@
   gap: 14px;
 }
 
+/* Two-column config rows (gate/budget, mode/hint, chunk/help). */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.form-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
 .novel-import-dock {
   margin-bottom: 14px;
 }
@@ -1394,6 +1415,11 @@
 
 @media (max-width: 720px) {
   .novel-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Config rows stack to a single column on phones. */
+  .grid-2 {
     grid-template-columns: 1fr;
   }
 }

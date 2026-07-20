@@ -132,7 +132,7 @@ function FieldDiffContent({
     const added = after.filter((x) => !before.includes(x));
     const common = before.filter((x) => after.includes(x));
     return (
-      <div className="grid grid-cols-2 gap-2 mt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
         <div>
           <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.before')}</div>
           <div className="flex flex-wrap gap-1">
@@ -233,7 +233,7 @@ function FieldDiffContent({
           </button>
         </div>
         {htmlMode === 'source' ? (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.before')}</div>
               <pre className="text-[10px] p-2 rounded whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto font-mono" style={{ background: 'var(--color-surface-base)', color: mutedText }}>
@@ -248,7 +248,7 @@ function FieldDiffContent({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.before')}</div>
               <iframe
@@ -315,7 +315,7 @@ function FieldDiffContent({
   const before = typeof diff.before === 'string' ? diff.before : String(diff.before ?? '');
   const after = typeof diff.after === 'string' ? diff.after : String(diff.after ?? '');
   return (
-    <div className="grid grid-cols-2 gap-2 mt-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
       <div>
         <div className="text-[10px] mb-1" style={{ color: faintText }}>{t('optimizeCompare.before')}</div>
         <pre

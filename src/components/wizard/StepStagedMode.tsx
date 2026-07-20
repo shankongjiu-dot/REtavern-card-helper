@@ -1,5 +1,5 @@
 /**
- * StepStagedMode - 分阶段模式（步骤5，可选启用）
+ * StepStagedMode - 分阶段模式（步骤6，可选启用）
  *
  * 参考卡「高考冲刺100天」的写卡流程：
  *   1. 选剧情标签（纯爱 / NTR / 双路线）
@@ -33,7 +33,7 @@ import type {
   MvuConfig,
   LorebookEntry,
 } from '../../constants/defaults';
-import { STAGED_COMPATIBLE_TEMPLATE_IDS } from './StepMvuVariables';
+import { STAGED_COMPATIBLE_TEMPLATE_IDS } from './mvu-templates';
 
 interface StepStagedModeProps {
   stagedMode: StagedModeConfig;
@@ -341,12 +341,12 @@ export function StepStagedMode({
         </div>
       )}
       {/* 头部：禁用按钮 + NSFW 开关 */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="mobile-stack-header flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="text-xl font-bold text-[var(--text-color)]">{t('stagedMode.title')}</h2>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">{t('stagedMode.intro')}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -459,16 +459,16 @@ export function StepStagedMode({
                     const key = `${ci}-${si}`;
                     return (
                       <div key={si} className="rounded border border-[color-mix(in_srgb,var(--color-border-default)_40%,transparent)] p-2 bg-[color-mix(in_srgb,var(--input-bg)_50%,transparent)]">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="mobile-stage-row flex items-center gap-2 mb-1">
                           <TextInput
                             value={stage.name}
                             onChange={(e) => updateStage(ci, si, { name: e.target.value })}
-                            className="flex-1 text-xs"
+                            className="flex-1 text-xs min-w-0"
                           />
                           <TextInput
                             value={stage.condition}
                             onChange={(e) => updateStage(ci, si, { condition: e.target.value })}
-                            className="w-28 text-xs font-mono"
+                            className="w-28 text-xs font-mono shrink-0"
                           />
                           <Button
                             variant="ghost"

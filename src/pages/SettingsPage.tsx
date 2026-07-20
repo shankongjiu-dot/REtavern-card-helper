@@ -231,7 +231,7 @@ export function SettingsPage() {
         </div>
 
         {/* Row 4: Temperature + Max Tokens + Retry */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium" style={{ color: 'color-mix(in srgb, var(--text-color) 80%, transparent)' }}>
               {t('settings.temperatureLabel')}: <span className="text-primary-muted">{settings.temperature.toFixed(1)}</span>

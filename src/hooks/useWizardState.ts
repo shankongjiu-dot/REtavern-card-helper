@@ -24,6 +24,20 @@ type DraftState = WizardDraft;
 const DRAFT_SAVE_DELAY = 500; // ms
 
 /**
+ * Migrate a V4 draft step number to V5 (8-step) step number.
+ *
+ * V4 flow (7 steps): name(1) → chars(2) → worldbook(3) → mvu(4) → staged(5) → firstmsg(6) → export(7)
+ * V5 flow (8 steps): name(1) → skeleton(2) → chars(3) → detail(4) → mvu(5) → staged(6) → firstmsg(7) → export(8)
+ */
+function migrateStepV4ToV5(oldStep: number, _draft: Partial<WizardDraft>): number {
+  // If the old draft already has world book entries but no characters,
+  // they were on step 3 (worldbook). In V5 this maps to step 4 (detail).
+  // If they have characters but no entries yet, they were on step 2.
+  const stepMap: Record<number, number> = { 1: 1, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8 };
+  return stepMap[oldStep] ?? Math.min(oldStep, 1);
+}
+
+/**
  * Normalize a loaded draft by merging with defaults.
  * Handles data from older versions or IndexedDB deserialization where
  * fields may be missing or undefined.
@@ -52,6 +66,12 @@ function normalizeDraft(raw: Partial<DraftState>): DraftState {
     alternate_greetings: raw.alternate_greetings ?? defaults.alternate_greetings,
     mvu: raw.mvu ? { ...defaults.mvu, ...raw.mvu } : defaults.mvu,
     useMvuExport: raw.useMvuExport ?? defaults.useMvuExport,
+    worldRules: raw.worldRules ?? defaults.worldRules,
+    // Shared UI state between Step 2 & Step 4 — fall back to defaults for old drafts
+    skeletonTopic: raw.skeletonTopic ?? defaults.skeletonTopic,
+    skeletonCount: raw.skeletonCount ?? defaults.skeletonCount,
+    worldbookBatchCount: raw.worldbookBatchCount ?? defaults.worldbookBatchCount,
+    skeletonModeEnabled: raw.skeletonModeEnabled ?? defaults.skeletonModeEnabled,
   };
   return merged;
 }
@@ -103,6 +123,14 @@ export function useWizardState(editId?: number, initialDraftId?: string) {
           if (saved && saved.version === WIZARD_DRAFT_VERSION) {
             setDraft(normalizeDraft(saved.data as Partial<DraftState>));
             setCurrentStep(saved.currentStep || 1);
+          } else if (saved && saved.version === 4) {
+            // V4 → V5 migration: remap steps and add worldRules
+            const migratedData = saved.data as Partial<DraftState>;
+            const oldStep = saved.currentStep || 1;
+            const newStep = migrateStepV4ToV5(oldStep, migratedData);
+            setDraft(normalizeDraft({ ...migratedData, worldRules: migratedData.worldRules ?? '' }));
+            setCurrentStep(newStep);
+            addToast('info', t('draftMigrated', { oldVersion: 'V4', newVersion: 'V5' }));
           } else if (saved) {
             // Stale draft from an older app version: discard it to avoid shape mismatches.
             await clearAutoDraft();
@@ -183,25 +211,28 @@ export function useWizardState(editId?: number, initialDraftId?: string) {
     switch (step) {
       case 1:
         return draft.cardName?.trim() ? null : '卡片名称不能为空';
-      case 2: {
+      case 2:
+        // Step 2: Skeleton world book — always optional
+        return null;
+      case 3: {
+        // Step 3: Characters — at least one named character required
         const hasValidChar = draft.characters.some((c) => c.name?.trim());
         return hasValidChar ? null : '至少需要一个有名称的角色';
       }
-      case 3:
-        // World Book step is optional; entries without trigger keys are allowed
-        // so users can freely manage staged/dispatcher entries.
-        return null;
       case 4:
-        // MVU Variables — always optional
+        // Step 4: Detail world book — optional
         return null;
       case 5:
-        // Staged worldbook — optional
+        // Step 5: MVU Variables — always optional
         return null;
       case 6:
-        // First message — required
-        return draft.firstMessage?.trim() ? null : '开场白不能为空';
+        // Step 6: Staged mode — optional
+        return null;
       case 7:
-        // Polish & Export — always valid
+        // Step 7: First message — required
+        return draft.firstMessage?.trim() ? null : '开场白不能为空';
+      case 8:
+        // Step 8: Polish & Export — always valid
         return null;
       default:
         return null;

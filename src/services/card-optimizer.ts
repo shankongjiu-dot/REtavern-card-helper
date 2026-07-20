@@ -367,18 +367,17 @@ export function buildApplyPatch(
     );
     for (const opt of result.lorebookEntries) {
       if (!editableComments.has(opt.comment)) continue;
-      current.forEach((existing, idx) => {
-        if (existing.comment !== opt.comment) return;
-        current[idx] = {
-          ...existing,
-          ...(opt.content !== undefined ? { content: opt.content } : {}),
-          ...(opt.keys !== undefined ? { keys: opt.keys } : {}),
-          ...(opt.secondary_keys !== undefined ? { secondary_keys: opt.secondary_keys } : {}),
-          ...(opt.selective !== undefined ? { selective: opt.selective } : {}),
-          ...(opt.constant !== undefined ? { constant: opt.constant } : {}),
-          ...(opt.name ? { name: opt.name } : {}),
-        };
-      });
+      const idx = current.findIndex(e => e.comment === opt.comment);
+      if (idx === -1) continue;
+      current[idx] = {
+        ...current[idx],
+        ...(opt.content !== undefined ? { content: opt.content } : {}),
+        ...(opt.keys !== undefined ? { keys: opt.keys } : {}),
+        ...(opt.secondary_keys !== undefined ? { secondary_keys: opt.secondary_keys } : {}),
+        ...(opt.selective !== undefined ? { selective: opt.selective } : {}),
+        ...(opt.constant !== undefined ? { constant: opt.constant } : {}),
+        ...(opt.name ? { name: opt.name } : {}),
+      };
     }
     return { lorebookEntries: current };
   }

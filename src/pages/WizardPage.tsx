@@ -22,8 +22,9 @@ import { StepPolishExport } from '../components/wizard/StepPolishExport';
 import { generateId, createEmptyDraft, createEmptyLorebookEntry, createEmptyMvuConfig, MVU_LOREBOOK_ENTRY_NAMES } from '../constants/defaults';
 import type { LorebookEntry, WizardCharacter, WizardDraft, StagedModeConfig } from '../constants/defaults';
 import { consumeAnalysisLorebookImport } from '../services/novel-analysis-service';
-import { consumeWorkshopLorebookImport, variableBlueprintsToMvuSections } from '../services/novel-workshop-bridge';
+import { consumeWorkshopLorebookImport, mergeVariableBlueprintsIntoMvu } from '../services/novel-workshop-bridge';
 import { findStagedLorebookEntryIndices } from '../services/card-exporter';
+import { escapeEjsDoubleQuoted } from '../services/staged-lorebook-builder';
 import { useTranslation } from '../i18n/I18nContext';
 import { logger } from '../services/logger';
 
@@ -285,11 +286,29 @@ export function WizardPage() {
     const payload = consumeAnalysisLorebookImport();
     if (!payload || payload.entries.length === 0) return;
 
+    // Resolve a stable card name first — used both for the draft and as the
+    // bookName argument in the staged-lorebook dispatcher (which we generated
+    // with a __NOVEL_ANALYSIS__ placeholder in novel-analysis-service).
+    // Escape per EJS double-quoted JS string rules so a `"` or `\` in the card
+    // name can't break out of getWorldInfo("bookName", ...) in the dispatcher.
+    const resolvedCardName = draft.cardName || payload.title || t('wizard.cardNameFallback');
+    const sanitizedBookName = escapeEjsDoubleQuoted(resolvedCardName || t('wizard.cardNameFallback'));
+    const finalEntries = payload.entries.map((entry) => ({
+      ...entry,
+      content: entry.content?.replaceAll('__NOVEL_ANALYSIS__', sanitizedBookName) ?? entry.content,
+    }));
+
+    // Convert any MVU variable blueprints (剧情.进度 enum, 彩蛋.{id} booleans)
+    // into MvuSchemaSections and merge into the existing MVU config.
+    const currentMvu = draft.mvu ?? createEmptyMvuConfig();
+    const mergedMvu = mergeVariableBlueprintsIntoMvu(currentMvu, payload.variableBlueprints);
+
     updateDraft({
-      cardName: draft.cardName || payload.title || t('wizard.cardNameFallback'),
-      lorebookEntries: [...draft.lorebookEntries, ...payload.entries],
+      cardName: resolvedCardName,
+      lorebookEntries: [...draft.lorebookEntries, ...finalEntries],
+      mvu: mergedMvu,
     });
-    setCurrentStep(3);
+    setCurrentStep(4); // Jump to world book detail (step 4)
     addToast('success', t('wizard.importedNovelSuccess', { count: String(payload.entries.length) }));
     // Use replaceState instead of navigate() to avoid triggering a React Router
     // re-render in the same tick as updateDraft/setCurrentStep. A combined URL +
@@ -297,7 +316,7 @@ export function WizardPage() {
     // catches, causing WizardPage to unmount and remount fresh (losing the draft
     // update, since debounced auto-save hasn't flushed to IndexedDB yet).
     window.history.replaceState({}, '', '/wizard');
-  }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, updateDraft, setCurrentStep, addToast, t]);
+  }, [loading, editId, location.search, draft.cardName, draft.lorebookEntries, draft.mvu, updateDraft, setCurrentStep, addToast, t]);
 
   // ── Consume Workshop lorebook import on mount ──
   useEffect(() => {
@@ -308,16 +327,11 @@ export function WizardPage() {
     if (!payload || payload.entries.length === 0) return;
 
     const mergedEntries = [...draft.lorebookEntries, ...payload.entries];
-    const mvuSections = variableBlueprintsToMvuSections(payload.variableBlueprints);
     const currentMvu = draft.mvu ?? createEmptyMvuConfig();
-    const existingSectionNames = new Set(currentMvu.schemaSections.map((s) => s.name));
-    const newSections = mvuSections.filter((s) => !existingSectionNames.has(s.name));
-    const mergedMvu = newSections.length > 0
-      ? { ...currentMvu, enabled: true, schemaSections: [...currentMvu.schemaSections, ...newSections] }
-      : currentMvu;
+    const mergedMvu = mergeVariableBlueprintsIntoMvu(currentMvu, payload.variableBlueprints);
 
     const wsParams = new URLSearchParams(location.search);
-    const targetStep = wsParams.get('step') ? parseInt(wsParams.get('step')!) : 3;
+    const targetStep = wsParams.get('step') ? parseInt(wsParams.get('step')!) : 5; // Default to MVU step (step 5)
 
     updateDraft({
       cardName: draft.cardName || payload.title || t('wizard.cardNameFallback'),
@@ -344,10 +358,7 @@ export function WizardPage() {
     .map((c) => `${c.name}: ${c.description || '(no description)'}`)
     .join('\n\n');
 
-  const characterSummaries = draft.characters
-    .filter((c) => c.name)
-    .map((c) => c.name)
-    .join(', ');
+  // characterSummaries removed — replaced by characterContext (full descriptions)
 
   const worldbookContext = draft.lorebookEntries
     .filter(e => e.enabled !== false && (e.name || e.content))
@@ -368,9 +379,9 @@ ${e.content || ''}`)
     updateDraft(draftWithCharacterEntries);
   }, [draftWithCharacterEntries, updateDraft]);
 
-  /** Navigate to next step, injecting entries when leaving Step 2. */
+  /** Navigate to next step, injecting entries when leaving Step 3 (characters). */
   const handleNext = useCallback(() => {
-    if (currentStep === 2) {
+    if (currentStep === 3) {
       injectCharacterEntries();
     }
     const error = goNext();
@@ -404,18 +415,31 @@ ${e.content || ''}`)
         updates.tags = empty.tags;
         break;
       case 2:
-        updates.characters = empty.characters;
+        // Skeleton world book — clear entries, rules, and shared UI state
+        updates.lorebookEntries = empty.lorebookEntries;
+        updates.worldRules = empty.worldRules ?? '';
+        updates.skeletonTopic = empty.skeletonTopic ?? '';
+        updates.skeletonCount = empty.skeletonCount ?? 8;
+        updates.worldbookBatchCount = empty.worldbookBatchCount ?? 8;
+        updates.skeletonModeEnabled = empty.skeletonModeEnabled ?? true;
         break;
       case 3:
-        updates.lorebookEntries = empty.lorebookEntries;
+        // Characters
+        updates.characters = empty.characters;
         break;
       case 4:
+        // World book detail
+        updates.lorebookEntries = empty.lorebookEntries;
+        break;
+      case 5:
+        // MVU variables
         updates.mvu = empty.mvu;
         updates.lorebookEntries = draft.lorebookEntries.filter(
           (e) => !MVU_LOREBOOK_ENTRY_NAMES.includes(e.name) && !MVU_LOREBOOK_ENTRY_NAMES.includes(e.comment || ''),
         );
         break;
-      case 5:
+      case 6:
+        // Staged mode
         updates.stagedMode = empty.stagedMode;
         updates.worldbookNsfw = empty.worldbookNsfw;
         {
@@ -423,13 +447,14 @@ ${e.content || ''}`)
           updates.lorebookEntries = draft.lorebookEntries.filter((_, idx) => !stagedIndices.has(idx));
         }
         break;
-      case 6:
+      case 7:
+        // First message
         updates.firstMessage = empty.firstMessage;
         updates.alternate_greetings = empty.alternate_greetings;
         updates.post_history_instructions = empty.post_history_instructions;
         updates.creator_notes = empty.creator_notes;
         break;
-      case 7:
+      case 8:
       default:
         // 导出页无内部状态需要清空
         return;
@@ -705,6 +730,15 @@ ${e.content || ''}`)
   const namedCharacterCount = draft.characters.filter(c => c.name?.trim()).length;
   const isGenerating = batchGenerating || generatingIndex !== null || modifyingIndex !== null;
 
+  /** Full character context (name + description) for world book detail step.
+   *  Must be called before any early return to keep hook order stable. */
+  const characterContext = useMemo(() => {
+    return draft.characters
+      .filter(c => c.name && c.description?.trim())
+      .map(c => `【${c.name}】\n${c.description!.slice(0, 2000)}`)
+      .join('\n\n---\n\n');
+  }, [draft.characters]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -725,6 +759,32 @@ ${e.content || ''}`)
           />
         );
       case 2:
+        // ── Step 2: 世界书骨架（角色前，建立世界观框架）──
+        // Shared UI state (topic / counts / mode) is persisted to the draft so
+        // that navigating to step 4 picks up exactly what the user set up here.
+        return (
+          <StepWorldBook
+            entries={draft.lorebookEntries}
+            onEntriesChange={(entries) => updateDraft({ lorebookEntries: entries })}
+            worldRules={draft.worldRules ?? ''}
+            onWorldRulesChange={(worldRules) => updateDraft({ worldRules })}
+            nsfw={draft.worldbookNsfw}
+            onNsfwChange={(nsfw) => updateDraft({ worldbookNsfw: nsfw })}
+            mode="skeleton"
+            cardName={draft.cardName}
+            topicValue={draft.skeletonTopic ?? ''}
+            onTopicChangePersist={(skeletonTopic) => updateDraft({ skeletonTopic })}
+            skeletonCountValue={draft.skeletonCount ?? 8}
+            onSkeletonCountPersist={(skeletonCount) => updateDraft({ skeletonCount })}
+            batchCountValue={draft.worldbookBatchCount ?? 8}
+            onBatchCountPersist={(worldbookBatchCount) => updateDraft({ worldbookBatchCount })}
+            skeletonModeValue={draft.skeletonModeEnabled ?? true}
+            onSkeletonModePersist={(skeletonModeEnabled) => updateDraft({ skeletonModeEnabled })}
+            onJumpToStep={setCurrentStep}
+          />
+        );
+      case 3:
+        // ── Step 3: 角色配置（参考骨架世界书生成角色）──
         return (
           <StepCharacters
             characters={draft.characters}
@@ -745,20 +805,34 @@ ${e.content || ''}`)
             streamingChunkCallbackRef={streamingChunkCallbackRef}
           />
         );
-      case 3:
+      case 4:
+        // ── Step 4: 世界书细节（参考已生成的角色补充细节）──
+        // Reads back the shared UI state persisted from step 2 so the topic,
+        // counts, and skeleton-mode toggle remain consistent across steps.
         return (
           <StepWorldBook
             entries={draft.lorebookEntries}
-            cardName={draft.cardName}
-            characterSummaries={characterSummaries}
-            existingWorldbookContext={worldbookContext}
-            onUpdate={(entries) => updateDraft({ lorebookEntries: entries })}
+            onEntriesChange={(entries) => updateDraft({ lorebookEntries: entries })}
+            worldRules={draft.worldRules ?? ''}
+            onWorldRulesChange={(worldRules) => updateDraft({ worldRules })}
             nsfw={draft.worldbookNsfw}
             onNsfwChange={(nsfw) => updateDraft({ worldbookNsfw: nsfw })}
+            characterContext={characterContext}
+            mode="detail"
+            cardName={draft.cardName}
             mvu={draft.mvu}
+            topicValue={draft.skeletonTopic ?? ''}
+            onTopicChangePersist={(skeletonTopic) => updateDraft({ skeletonTopic })}
+            skeletonCountValue={draft.skeletonCount ?? 8}
+            onSkeletonCountPersist={(skeletonCount) => updateDraft({ skeletonCount })}
+            batchCountValue={draft.worldbookBatchCount ?? 8}
+            onBatchCountPersist={(worldbookBatchCount) => updateDraft({ worldbookBatchCount })}
+            skeletonModeValue={draft.skeletonModeEnabled ?? true}
+            onSkeletonModePersist={(skeletonModeEnabled) => updateDraft({ skeletonModeEnabled })}
+            onJumpToStep={setCurrentStep}
           />
         );
-      case 4:
+      case 5:
         return (
           <StepMvuVariables
             mvu={draft.mvu ?? createEmptyMvuConfig()}
@@ -791,7 +865,7 @@ ${e.content || ''}`)
             }}
           />
         );
-      case 5:
+      case 6:
         return (
           <StepStagedMode
             stagedMode={draft.stagedMode ?? { enabled: false, templateId: 'pure-love', dispatcherPrefix: '分阶段人设', characters: [] }}
@@ -817,7 +891,7 @@ ${e.content || ''}`)
             onNsfwChange={(nsfw) => updateDraft({ worldbookNsfw: nsfw })}
           />
         );
-      case 6:
+      case 7:
         return (
           <StepFirstMessage
             firstMessage={draft.firstMessage}
@@ -830,7 +904,7 @@ ${e.content || ''}`)
             mvu={draft.mvu}
           />
         );
-      case 7:
+      case 8:
         return (
           <StepPolishExport
             draft={draft}
@@ -849,8 +923,8 @@ ${e.content || ''}`)
     }
   };
 
-  // Build extra actions for step 2
-  const step2ExtraActions = currentStep === 2 && namedCharacterCount > 0 ? (
+  // Build extra actions for step 3 (characters)
+  const step3ExtraActions = currentStep === 3 && namedCharacterCount > 0 ? (
     <Button
       variant="secondary"
       onClick={handleBatchGenerateCharacters}
@@ -882,7 +956,7 @@ ${e.content || ''}`)
         onClearStep={handleClearCurrentStep}
         stepError={stepError}
         saving={saving}
-        extraActions={step2ExtraActions}
+        extraActions={step3ExtraActions}
       >
         {renderStep()}
       </WizardShell>

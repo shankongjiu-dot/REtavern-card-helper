@@ -28,7 +28,7 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
   const { t } = useTranslation();
   const isFirst = currentStep === 1;
   const isLast = currentStep === WIZARD_STEPS.length;
-  const stepKeys = ['wizard.stepName','wizard.stepCharacters','wizard.stepWorldBook','wizard.stepMvu','wizard.stepStagedMode','wizard.stepFirstMessage','wizard.stepExport'];
+  const stepKeys = ['wizard.stepName','wizard.stepWorldSkeleton','wizard.stepCharacters','wizard.stepWorldBook','wizard.stepMvu','wizard.stepStagedMode','wizard.stepFirstMessage','wizard.stepExport'];
   const borderColor = 'color-mix(in srgb, var(--text-color) 5%, transparent)';
 
   return (
@@ -36,13 +36,13 @@ export function WizardShell({ currentStep, onPrev, onNext, onSave, onSaveDraft, 
       {/* Step indicator bar */}
       <div className="mb-4 sm:mb-8">
         <div className="overflow-x-auto scrollbar-none -mx-3 sm:mx-0 px-3 sm:px-0 pb-2 sm:pb-0">
-          <div className="flex items-center justify-between min-w-[420px] sm:min-w-0">
+          <div className="flex items-center justify-between min-w-[360px] sm:min-w-0">
             {WIZARD_STEPS.map((step, i) => {
               const isCompleted = step.id < currentStep;
               const isCurrent = step.id === currentStep;
 
               return (
-                <div key={step.id} className="flex items-center">
+                <div key={step.id} className="flex items-center shrink-0">
                   <div className="flex flex-col items-center">
                     <div
                       className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold transition-all duration-300

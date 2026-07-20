@@ -457,7 +457,7 @@ export function DialogueCreator() {
           </div>
 
           {/* Input */}
-          <div className="shrink-0 border-t px-3 sm:px-4 py-2.5 sm:py-3" style={{ borderColor }}>
+          <div className="shrink-0 border-t px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" style={{ borderColor }}>
             <div className="flex gap-2 items-end">
               <textarea
                 ref={(el) => { textareaRef(el); (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}

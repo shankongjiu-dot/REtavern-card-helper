@@ -1,5 +1,5 @@
 /**
- * Step 4: First Message - supports multiple greetings (primary + alternates).
+ * Step 7: First Message - supports multiple greetings (primary + alternates).
  * Supports AI generation with real-time streaming progress, word count control,
  * custom writing requirements, and empty response detection with auto-retry.
  */
@@ -174,14 +174,14 @@ export function StepFirstMessage({
   return (
     <div>
       <div className="flex flex-col gap-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="mobile-stack-header flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="text-xl font-bold text-[var(--text-color)]">{t('firstMessage.title')}</h2>
             <p className="text-sm text-[var(--color-text-secondary)] mt-1">
               {t('firstMessage.subtitle')}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="secondary"
               size="sm"

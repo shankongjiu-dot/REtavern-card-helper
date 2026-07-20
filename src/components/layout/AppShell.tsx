@@ -1,9 +1,9 @@
 /**
  * AppShell - Main layout component with sidebar navigation and content area.
  * Features glassmorphism design with subtle background blur.
- * Mobile: collapsible sidebar with hamburger menu and overlay.
+ * Mobile: collapsible sidebar with hamburger menu, overlay, and swipe gestures.
  */
-import { Suspense, useState, useCallback, useEffect } from 'react';
+import { Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useTranslation } from '../../i18n/I18nContext';
@@ -14,6 +14,8 @@ export function AppShell() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   // 路由变化时，延迟一帧再更新侧栏收缩状态。
   // 让重的 WizardPage 先完成卸载/挂载，侧栏宽度动画在下一帧才开始，
@@ -38,12 +40,33 @@ export function AppShell() {
     setSidebarCollapsed((prev) => !prev);
   }, []);
 
+  // Swipe gestures: left-edge swipe to open, left swipe on overlay to close
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    // Only trigger if horizontal swipe is dominant
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    if (deltaX > 0 && touchStartX.current < 30) {
+      // Swipe right from left edge → open sidebar
+      setSidebarOpen(true);
+    } else if (deltaX < 0 && sidebarOpen) {
+      // Swipe left while sidebar open → close
+      setSidebarOpen(false);
+    }
+  }, [sidebarOpen]);
+
   return (
-    <div className="flex w-full h-full">
+    <div className="flex w-full h-full" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 md:hidden"
+          className="fixed inset-0 z-40 md:hidden animate-fade-in"
           style={{ backgroundColor: 'var(--color-surface-overlay)' }}
           onClick={closeSidebar}
         />

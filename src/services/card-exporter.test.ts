@@ -252,3 +252,220 @@ describe('findStagedLorebookEntryIndices', () => {
     expect(indices.has(1)).toBe(false);
   });
 });
+
+// ── H11 regression: v.path must be escaped in buildFirstMessage's setvar calls ──
+//
+// buildFirstMessage emits EJS setvar calls in first_mes:
+//   <%_ setvar('stat_data.${v.path}', <value>); _%>
+// v.path comes from MvuVariable.path which is a free-text <input> in
+// StepMvuVariables.tsx and is populated without sanitization by
+// mergeVariableBlueprintsIntoMvu (AI-generated). A `'`, `\`, or `%>` in the
+// path would otherwise break out of the single-quoted JS string literal and
+// allow EJS code injection (same vector as H7-H10).
+
+describe('assembleCard — H11 EJS v.path escaping in first_mes setvar calls', () => {
+  it('escapes single quote in v.path for number-typed variable', () => {
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: "好感度'); evilCode(); //", zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    // The raw, unescaped payload must NOT appear in first_mes (would mean injection succeeded)
+    expect(firstMes).not.toContain("stat_data.好感度'); evilCode(); //");
+    // The escaped form (single quote escaped to \') must be present
+    expect(firstMes).toContain("stat_data.好感度\\'); evilCode(); //");
+  });
+
+  it('escapes single quote in v.path for boolean-typed variable', () => {
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: "存活'); evil(); //", zodType: 'z.boolean()', initialValue: true, prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    expect(firstMes).not.toContain("stat_data.存活'); evil(); //");
+    expect(firstMes).toContain("stat_data.存活\\'); evil(); //");
+  });
+
+  it('escapes single quote in v.path for string-typed variable (value also escaped)', () => {
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: "名字'); evil(); //", zodType: 'z.string()', initialValue: '艾伦', prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    expect(firstMes).not.toContain("stat_data.名字'); evil(); //");
+    expect(firstMes).toContain("stat_data.名字\\'); evil(); //");
+  });
+
+  it('escapes backslash at end of v.path (critical case)', () => {
+    // A trailing backslash would escape the closing quote and break syntax.
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: '角色.x\\', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    // Trailing backslash must be doubled (so \\' in output, which is \\\\ in regex)
+    expect(firstMes).toMatch(/stat_data\.角色\.x\\\\'/);
+  });
+
+  it('escapes %> sequence in v.path to prevent EJS close tag injection', () => {
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: '角色.x%>y', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    // %> must be escaped so it doesn't terminate the EJS scriptlet early
+    expect(firstMes).not.toContain('stat_data.角色.x%>y');
+    expect(firstMes).toContain('stat_data.角色.x%\\>y');
+  });
+
+  it('escapes newline in v.path', () => {
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: '角色.x\ny', zodType: 'z.coerce.number()', initialValue: 0, prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    // Newline must be escaped to \n (backslash-n) so it doesn't break the JS literal
+    expect(firstMes).not.toContain('stat_data.角色.x\ny');
+    expect(firstMes).toContain('stat_data.角色.x\\ny');
+  });
+
+  it('normal v.path still produces valid setvar call', () => {
+    // Sanity check: legitimate variable paths must continue to work.
+    const draft = makeDraft({
+      cardName: '测试',
+      mvu: {
+        enabled: true,
+        mode: 'expert',
+        schemaSections: [{
+          name: '角色',
+          variables: [
+            { path: '角色.好感度', zodType: 'z.coerce.number()', initialValue: 50, prefix: '', description: '' },
+            { path: '角色.存活', zodType: 'z.boolean()', initialValue: true, prefix: '', description: '' },
+            { path: '角色.名字', zodType: 'z.string()', initialValue: '艾伦', prefix: '', description: '' },
+          ],
+        }],
+        updateRules: [],
+        ejsConfigs: [],
+        ejsPreprocessContent: '',
+        schemaTsContent: '',
+        initvarYamlContent: '',
+        updateRulesYamlContent: '',
+        statusBarHtml: '',
+        statusBarStyle: 'compact-panel',
+      },
+    });
+    const card = assembleCard(draft);
+    const firstMes = card.data.first_mes;
+    expect(firstMes).toContain("setvar('stat_data.角色.好感度', 50)");
+    expect(firstMes).toContain("setvar('stat_data.角色.存活', true)");
+    expect(firstMes).toContain("setvar('stat_data.角色.名字', '艾伦')");
+  });
+});

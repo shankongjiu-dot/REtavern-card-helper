@@ -195,13 +195,13 @@ h1, h2, h3, h4, h5, h6 {
    ═══════════════════════════════════════════════════════════════════════ */
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translate3d(-12px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes scaleIn {
@@ -220,8 +220,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -3px, 0); }
 }
 
 @keyframes slideUp {
@@ -263,8 +263,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translate3d(16px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 /* ─── Animation Classes ─────────────────────────────────────────────── */
@@ -683,14 +683,7 @@ select:focus {
 /* Scroll containers: optimize scroll performance */
 main {
   -webkit-overflow-scrolling: touch;
-}
-
-/* Long scrollable panels */
-.max-h-\[70vh\],
-.max-h-\[300px\],
-.max-h-\[200px\],
-.max-h-\[160px\] {
-  will-change: scroll-position;
+  overscroll-behavior: contain;
 }
 
 /* Button active state: only animate transform (compositor-only) */
@@ -743,23 +736,16 @@ button:active:not(:disabled) {
    Theme Text Color Override
    ═══════════════════════════════════════════════════════════════════════ */
 
-main h1,
-main h2,
-main h3,
-main h4,
-main h5,
-main h6,
-main p,
-main span,
-main div,
-main label,
-main li,
-main td,
-main th,
-main a,
-aside p,
-aside span,
-aside div:not(.relative) {
+/* Apply theme text color with low specificity so explicit color classes win */
+:where(main h1, main h2, main h3, main h4, main h5, main h6,
+main p, main label, main li, main td, main th,
+aside p):not([class*="text-"]) {
+  color: var(--text-color);
+  text-shadow: var(--text-shadow);
+}
+
+/* Broader fallback for unclassed containers */
+:where(main div, main span, main a, aside span, aside div:not(.relative)):not([class*="text-"]):not([style*="color"]) {
   color: var(--text-color);
   text-shadow: var(--text-shadow);
 }
@@ -905,6 +891,61 @@ select:disabled {
   .animate-badge-pop { animation-duration: 0.25s; }
   .animate-float { animation-duration: 4s; }
   .animate-pulse-slow { animation-duration: 4s; }
+
+  /* ── Mobile layout adaptations ─────────────────────────────────── */
+
+  /* Section header rows: stack title above actions on narrow screens */
+  main .mobile-stack-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.625rem;
+  }
+  main .mobile-stack-header > *:last-child {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* Modal: reduce padding on small screens */
+  .mobile-modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .mobile-modal-content > .mobile-modal-header {
+    padding: 0.75rem 1rem;
+  }
+  .mobile-modal-content > .mobile-modal-body {
+    padding: 1rem;
+  }
+
+  /* Grids: collapse multi-column grids to fewer columns on mobile */
+  .mobile-grid-collapse-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .mobile-grid-collapse-1 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Tabs with many items: allow horizontal scroll */
+  .mobile-tabs-scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .mobile-tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Stage row: stack inputs vertically; buttons wrap to next line */
+  .mobile-stage-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .mobile-stage-row > * {
+    width: 100%;
+  }
 }
 
 /* Medium screens */
@@ -922,7 +963,11 @@ select:disabled {
 
 /* Touch-friendly */
 @media (pointer: coarse) {
-  button, a, [role="button"] {
+  /* Only enforce minimum touch targets on standalone interactive elements,
+     not inside dense grids/tables where 44px would break layout */
+  nav button, nav a,
+  .mobile-header button,
+  footer button, footer a {
     min-height: 44px;
     min-width: 44px;
   }
@@ -931,4 +976,48 @@ select:disabled {
     width: 8px;
     height: 8px;
   }
+}
+
+/* ─── Safe Area Insets (notched devices) ─────────────────────────────── */
+@supports (padding: env(safe-area-inset-left)) {
+  .glass-header {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  aside {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  main > div:last-child {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* ─── Mobile sidebar swipe hint ──────────────────────────────────────── */
+@media (max-width: 767px) {
+  aside {
+    width: min(80vw, 260px) !important;
+    box-shadow: var(--shadow-xl);
+  }
+}
+
+/* ─── Smooth interactive feedback for cards ──────────────────────────── */
+.glass-card,
+.card-surface {
+  transform: translateZ(0);
+}
+
+.glass-card:active,
+.card-surface:active {
+  transform: scale(0.995) translateZ(0);
+}
+
+/* ─── Improved focus-visible for keyboard navigation ─────────────────── */
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
