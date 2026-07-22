@@ -488,6 +488,7 @@ async function streamAIOnce(
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
+      let reasoningText = '';
       let buffer = '';
       let finishReason: string | null = null;
 
@@ -506,6 +507,15 @@ async function streamAIOnce(
           if (line.startsWith('data:')) {
             const data = line.slice(5).trim();
             if (data === '[DONE]') {
+              // Fallback: some reasoning models (e.g. DeepSeek-R1) only populate
+              // reasoning_content and never send content. Use it as last resort.
+              if (!fullText.trim() && reasoningText.trim()) {
+                fullText = reasoningText;
+                if (fullText.length > deliveredLength) {
+                  onChunk(fullText.slice(deliveredLength), existingFullText + fullText);
+                  deliveredLength = fullText.length;
+                }
+              }
               if (!fullText.trim()) {
                 throw new Error('AI 返回了空内容（流式响应无数据）');
               }
@@ -537,7 +547,14 @@ async function streamAIOnce(
                 textFromContentParts(parsed.response) ||
                 textFromContentParts(parsed.choices?.[0]?.message?.content);
 
-
+              // Accumulate reasoning_content separately as a fallback for
+              // reasoning models that may never populate content.
+              const reasoning =
+                textFromContentParts(choice?.delta?.reasoning_content) ||
+                textFromContentParts(choice?.message?.reasoning_content);
+              if (reasoning) {
+                reasoningText += reasoning;
+              }
 
               if (content) {
                 fullText += content;
@@ -556,6 +573,14 @@ async function streamAIOnce(
         }
       }
 
+      // Fallback for stream end without [DONE]: use reasoning_content if content was empty
+      if (!fullText.trim() && reasoningText.trim()) {
+        fullText = reasoningText;
+        if (fullText.length > deliveredLength) {
+          onChunk(fullText.slice(deliveredLength), existingFullText + fullText);
+          deliveredLength = fullText.length;
+        }
+      }
       if (!fullText.trim()) {
         throw new Error('AI 返回了空内容（流结束但无数据）');
       }
