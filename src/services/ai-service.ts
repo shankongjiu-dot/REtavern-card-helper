@@ -331,7 +331,10 @@ function extractAIContent(data: unknown): string {
     textFromContentParts(message?.content) ||
     textFromContentParts(firstChoice?.text) ||
     textFromContentParts(record?.output_text) ||
-    textFromContentParts((record?.message as Record<string, unknown> | undefined)?.content);
+    textFromContentParts((record?.message as Record<string, unknown> | undefined)?.content) ||
+    // Fallback: reasoning models (e.g. DeepSeek-R1) may only populate reasoning_content
+    textFromContentParts(message?.reasoning_content) ||
+    textFromContentParts(firstChoice?.reasoning_content);
 
   return content.trim();
 }
