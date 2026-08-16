@@ -46,11 +46,7 @@ export function useCardLibrary() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    loadCards().then(() => {
-      if (cancelled) return; // 卸载后不再触发 re-render（loadCards 内部已 setState，但 finally 已执行）
-    });
-    return () => { cancelled = true; };
+    loadCards();
   }, [loadCards]);
 
   /**
@@ -129,11 +125,6 @@ export function useCardLibrary() {
     await loadCards();
   }, [loadCards]);
 
-  /** Get a card by ID */
-  const getCard = useCallback(async (id: number): Promise<CardRecord | undefined> => {
-    return (await db.cards.get(id)) as CardRecord | undefined;
-  }, []);
-
   /** Soft delete a card (move to trash) */
   const deleteCard = useCallback(async (id: number) => {
     await db.cards.update(id, { deletedAt: new Date() });
@@ -173,14 +164,5 @@ export function useCardLibrary() {
     await loadCards();
   }, [loadCards]);
 
-  /** Search cards by name */
-  const searchCards = useCallback(async (query: string) => {
-    const all = await db.cards.toArray();
-    const filtered = all.filter((c: { name: string }) =>
-      c.name.toLowerCase().includes(query.toLowerCase())
-    );
-    return filtered as CardRecord[];
-  }, []);
-
-  return { cards, trashCards, loading, saveCard, getCard, deleteCard, restoreCard, permanentDelete, emptyTrash, searchCards, loadCards, updateCardCover };
+  return { cards, trashCards, loading, saveCard, deleteCard, restoreCard, permanentDelete, emptyTrash, loadCards, updateCardCover };
 }

@@ -424,7 +424,7 @@ function buildFirstMessage(draft: WizardDraft): string {
 
   // 如果有 MVU 变量且需要设置初始值，在开头添加 EJS setvar 调用
   // 与参考卡「银帷骑士团」一致：通过 setvar 设置初始值，不依赖 InitVar
-  if (draft.mvu?.enabled && draft.mvu.schemaSections.length > 0) {
+  if (draft.mvu?.enabled && (draft.mvu.schemaSections?.length ?? 0) > 0) {
     const setvarCalls: string[] = [];
     for (const section of draft.mvu.schemaSections) {
       for (const v of section.variables) {

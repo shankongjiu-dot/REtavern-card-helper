@@ -11,6 +11,7 @@ import { AIProgressPanel, type AIProgressStatus } from '../shared/AIProgressPane
 import { useAIGenerate } from '../../hooks/useAIGenerate';
 import { useTranslation } from '../../i18n/I18nContext';
 import type { MvuConfig } from '../../constants/defaults';
+import { WRITING_STYLES } from '../../constants/defaults';
 
 interface StepFirstMessageProps {
   firstMessage: string;
@@ -60,6 +61,7 @@ export function StepFirstMessage({
   const [pendingResult, setPendingResult] = useState<string | null>(null);
   const [targetWordCount, setTargetWordCount] = useState(0);
   const [writingRequirements, setWritingRequirements] = useState('');
+  const [writingStyleId, setWritingStyleId] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +73,11 @@ export function StepFirstMessage({
   }, []);
 
   const greetings = useMemo(() => [firstMessage, ...alternateGreetings], [firstMessage, alternateGreetings]);
+
+  const selectedWritingStyle = useMemo(
+    () => WRITING_STYLES.find((s) => s.id === writingStyleId)?.content,
+    [writingStyleId],
+  );
 
   const getCurrentText = useCallback(() => {
     return greetings[activeIndex] ?? '';
@@ -122,6 +129,7 @@ export function StepFirstMessage({
         targetWordCount || undefined,
         worldbookContext,
         writingRequirements || undefined,
+        selectedWritingStyle,
       );
 
       // ── Empty response detection ──────────────────────────────────────
@@ -149,7 +157,7 @@ export function StepFirstMessage({
       setAiStatus('error');
       setAiError(err instanceof Error ? err.message : t('common.error'));
     }
-  }, [cardName, characterDescriptions, generateFirstMessageStreaming, targetWordCount, worldbookContext, writingRequirements, t]);
+  }, [cardName, characterDescriptions, generateFirstMessageStreaming, targetWordCount, worldbookContext, writingRequirements, selectedWritingStyle, t]);
 
   // Ref so the 1s retry setTimeout always invokes the latest handleStreamGenerate
   const handleStreamGenerateRef = useRef(handleStreamGenerate);
@@ -256,6 +264,35 @@ export function StepFirstMessage({
             <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{writingRequirements.length}{t('common.words')}</span>
           )}
         </div>
+      </div>
+
+      {/* 文风选择器 */}
+      <div className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-primary)_8%,transparent)] p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-[var(--color-primary)]">✍️ {t('firstMessage.writingStyleLabel')}</h3>
+          {writingStyleId && (
+            <span className="text-[10px] px-2 py-0.5 rounded bg-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] text-[var(--color-primary)]">
+              {WRITING_STYLES.find((s) => s.id === writingStyleId)?.label}
+            </span>
+          )}
+        </div>
+        <select
+          value={writingStyleId}
+          onChange={(e) => setWritingStyleId(e.target.value)}
+          className="w-full rounded-lg border border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--input-bg)_80%,transparent)] px-3 py-2 text-xs text-themed focus:border-[var(--color-primary)] focus:outline-none cursor-pointer"
+        >
+          <option value="">{t('firstMessage.writingStyleNone')}</option>
+          {Array.from(new Set(WRITING_STYLES.map((s) => s.category))).map((category) => (
+            <optgroup key={category} label={category}>
+              {WRITING_STYLES.filter((s) => s.category === category).map((style) => (
+                <option key={style.id} value={style.id}>{style.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <p className="text-[11px] text-[var(--color-text-muted)]">
+          💡 {t('firstMessage.writingStyleTip')}
+        </p>
       </div>
 
       {/* AI 生成按钮 — 开场白内容要求下方居中 */}

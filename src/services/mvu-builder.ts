@@ -402,18 +402,14 @@ export function buildUpdateRulesYaml(rules: MvuUpdateRule[]): string {
   return lines.join('\n');
 }
 
-interface GroupedRule extends MvuUpdateRule {
-  _displayPath: string;
-}
-
-function groupRulesByPath(rules: MvuUpdateRule[]): Record<string, GroupedRule[]> {
+function groupRulesByPath(rules: MvuUpdateRule[]): Record<string, MvuUpdateRule[]> {
   // Object.create(null)：避免 `result['__proto__']` 读出 Object.prototype 后
   // `push` 抛 TypeError（路径来自用户/AI 输入），且赋值不触发 __proto__ setter
-  const result: Record<string, GroupedRule[]> = Object.create(null) as Record<string, GroupedRule[]>;
+  const result: Record<string, MvuUpdateRule[]> = Object.create(null) as Record<string, MvuUpdateRule[]>;
   for (const r of rules) {
     const rootKey = r.path.split('.')[0];
     if (!result[rootKey]) result[rootKey] = [];
-    result[rootKey].push({ ...r, _displayPath: r.path });
+    result[rootKey].push(r);
   }
   return result;
 }
@@ -530,7 +526,9 @@ export function buildVariableList(sections: MvuSchemaSection[]): string {
       if (v.prefix === '$') continue;
       const displayPath = v.path.replace(/\./g, ' > ');
       const prefix = v.prefix === '_' ? '[只读] ' : '';
-      lines.push(`${prefix}${displayPath}: ${v.description}`);
+      // 描述落在世界书 EJS 模板文本区，`<%` 会开标签；与 buildDispatcherContent 一致地中和
+      const safeDescription = (v.description || '').replace(/<%/g, '<%%');
+      lines.push(`${prefix}${displayPath}: ${safeDescription}`);
     }
   }
   return lines.join('\n');
@@ -612,10 +610,11 @@ function appendCompactRuleFields(lines: string[], r: MvuUpdateRule, indent: numb
 export function buildVariableOutputFormat(sections: MvuSchemaSection[], rules: MvuUpdateRule[] = []): string {
   const variableListLines: string[] = [];
   for (const section of sections) {
-    variableListLines.push(`  ${section.name}:`);
+    // 段名/变量路径落在世界书 EJS 模板文本区，`<%` 会开标签；与 buildDispatcherContent 一致地中和
+    variableListLines.push(`  ${(section.name || '').replace(/<%/g, '<%%')}:`);
     for (const v of section.variables) {
       if (v.prefix === '$') continue;
-      variableListLines.push(`    ${v.path}: ${formatYamlScalar(v.initialValue ?? '')}`);
+      variableListLines.push(`    ${v.path.replace(/<%/g, '<%%')}: ${formatYamlScalar(v.initialValue ?? '')}`);
     }
   }
 

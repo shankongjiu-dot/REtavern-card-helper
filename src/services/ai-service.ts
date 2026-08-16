@@ -66,11 +66,6 @@ export function cancelActiveAIRequests(): number {
   return count;
 }
 
-/** 是否有在途 AI 请求（供 UI 决定是否显示「停止」按钮）。 */
-export function hasActiveAIRequests(): boolean {
-  return activeControllers.size > 0;
-}
-
 /**
  * 开启一次可取消的请求周期。signal 需同时覆盖 fetch 握手与响应体读取
  * （流式 SSE 的 reader.read() 也要能被中止），所以 release 必须在
@@ -882,7 +877,9 @@ async function streamAIOnce(
         // 确保流式 reader 在任何路径下（成功返回、抛错、重试）都被释放，
         // 避免底层 TCP 连接保持打开状态直至 GC（长时间运行的 SPA 中可能累积资源）
         try {
-          reader.cancel();
+          // 流处于 errored 状态（如用户点「停止」后 abort）时 cancel() 返回 rejected promise，
+          // 必须捕获异步 rejection，否则每次停止都会产生 unhandled rejection
+          void reader.cancel().catch(() => {});
         } catch {
           // reader 已关闭或被释放，忽略
         }

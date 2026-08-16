@@ -687,7 +687,7 @@ ${WORLDBOOK_TITLE_CONTENT_RULES}
  * First message generation prompt (Step 7).
  * Generates an opening message for the character.
  */
-export const FIRST_MESSAGE_PROMPT = (cardName: string, characterDescriptions: string, sceneHint: string, targetWordCount?: number, worldbookContext?: string, writingRequirements?: string, _lang: Language = 'zh') => {
+export const FIRST_MESSAGE_PROMPT = (cardName: string, characterDescriptions: string, sceneHint: string, targetWordCount?: number, worldbookContext?: string, writingRequirements?: string, _lang: Language = 'zh', writingStyle?: string) => {
   const lengthInstruction = targetWordCount
     ? `字数控制在 ${targetWordCount} 字左右（允许上下浮动 10%）。`
     : '至少写 1500-2000 字以上，内容越丰富越好。参考高质量危城卡开场白长度（4631字），写得越长越详细越好。';
@@ -697,8 +697,13 @@ export const FIRST_MESSAGE_PROMPT = (cardName: string, characterDescriptions: st
     ? `\n\n## ⚠️ 最高优先级：用户指定的开场白内容要求\n\n以下是用户对开场白内容的**明确要求**，你**必须**按照这些要求来写，**绝对不可忽略或偏离**：\n\n${writingRequirements}\n\n**重要**：以上要求优先于角色设定。如果角色设定与用户要求冲突，以用户要求为准。你必须让开场白的内容、场景、情节与上述要求匹配。\n`
     : '';
 
+  // ── 文风润色：用户选择的文风预设，AI 据此对文本进行风格润色 ──
+  const styleBlock = writingStyle
+    ? `\n\n## ✍️ 文风润色要求\n\n用户选择了以下文风，你**必须**严格按照该文风的语言风格、叙事节奏和美学要求来撰写开场白：\n\n${writingStyle}\n\n**重要**：文风决定的是"怎么写"（语言风格、叙事手法、修辞方式），而不是"写什么"（情节内容）。在保持角色设定和内容要求不变的前提下，让文本呈现出上述文风的特征。\n`
+    : '';
+
   return {
-    system: `角色卡开场白（第一条消息）撰写任务。${requirementsBlock}
+    system: `角色卡开场白（第一条消息）撰写任务。${requirementsBlock}${styleBlock}
 
 ## 开场白的写作规范：
 
@@ -733,6 +738,7 @@ export const FIRST_MESSAGE_PROMPT = (cardName: string, characterDescriptions: st
 请只输出消息正文，不要加引号、标题或其他标签。`,
     user: `为以下角色卡撰写开场白：
 ${writingRequirements ? `\n⚠️⚠️⚠️ 最重要：用户要求开场白的内容必须围绕以下要求展开，不得偏离：\n${writingRequirements}\n⚠️⚠️⚠️\n` : ''}
+${writingStyle ? `\n✍️ 文风要求：请严格按照用户选择的文风润色文本，让语言风格、叙事节奏和修辞方式符合该文风特征。\n` : ''}
 名称：${cardName}
 角色设定（作为背景参考，但开场白的具体情节必须符合上方的用户要求）：
 ${characterDescriptions || '(暂无角色描述，请自由发挥)'}

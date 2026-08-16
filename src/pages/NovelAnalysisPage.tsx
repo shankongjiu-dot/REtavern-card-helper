@@ -37,7 +37,8 @@ function downloadText(filename: string, content: string) {
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  // 延迟 revoke：立即 revoke 在部分浏览器（Firefox/Safari 旧版）会导致下载文件为空
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {

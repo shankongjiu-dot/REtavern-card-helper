@@ -125,23 +125,6 @@ export function useAIGenerate() {
   }, []);
 
   /**
-   * Generate a character profile (non-streaming).
-   * @param otherCharactersContext - Optional context about other already-created characters
-   * @returns Parsed character object or raw text if parse fails
-   */
-  const generateCharacter = useCallback(async (
-    characterName: string,
-    hint: string,
-    otherCharactersContext?: string,
-    alignment?: string,
-    nsfw?: boolean,
-    threeFacesContext?: string,
-  ): Promise<string> => {
-    const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw, lang, threeFacesContext);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.85, presetMode: 'force', max_tokens: 12000 });
-  }, [lang]);
-
-  /**
    * Generate a character profile with streaming.
    * Calls onChunk for each token as it arrives.
    * @returns Full text when complete
@@ -158,43 +141,6 @@ export function useAIGenerate() {
     const prompts = CHARACTER_GENERATE_PROMPT(characterName, hint, otherCharactersContext, alignment, nsfw, lang, threeFacesContext);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.85, presetMode: 'force', max_tokens: 12000 });
   }, [lang]);
-
-  /**
-   * Generate character and parse as JSON.
-   * Returns parsed object with name and description.
-   */
-  const generateCharacterParsed = useCallback(async (
-    characterName: string,
-    hint: string,
-    otherCharactersContext?: string,
-    alignment?: string,
-    nsfw?: boolean,
-    threeFacesContext?: string,
-  ) => {
-    const text = await generateCharacter(characterName, hint, otherCharactersContext, alignment, nsfw, threeFacesContext);
-    const parsed = parseAIJson(text) as AIGeneratedCharacter | null;
-
-    if (!parsed) {
-      // JSON 解析失败——尝试从截断/畸形文本中结构化提取 description 字段
-      // （处理 AI 在 JSON 字符串值中生成未转义引号的常见情况）
-      const extracted = extractStringFieldFromRaw(text, 'description');
-      if (extracted && extracted.length > 20) {
-        return sanitizeCharacterResult(characterName, { description: extracted });
-      }
-      // 最终兜底：剥离 markdown 围栏后保留全部原文，避免内容丢失
-      const cleanText = stripMarkdownFences(text).trim();
-      if (cleanText.length > 20) {
-        return sanitizeCharacterResult(characterName, { description: cleanText });
-      }
-      return { description: text };
-    }
-
-    return sanitizeCharacterResult(characterName, {
-      name: parsed.name,
-      description: parsed.description,
-      constant: parsed.constant,
-    });
-  }, [generateCharacter]);
 
   /**
    * Generate character with streaming and parse as JSON.
@@ -279,15 +225,6 @@ export function useAIGenerate() {
   }, [lang]);
 
   /**
-   * Generate lorebook entries in batch (Step 4 - 世界书细节).
-   * @returns Raw text response
-   */
-  const generateLorebook = useCallback(async (cardName: string, characterSummaries: string, topic: string, batchCount: number, nsfw?: boolean, worldAnchor?: string, existingEntriesContext?: string, rules?: string): Promise<string> => {
-    const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, nsfw, worldAnchor, lang, existingEntriesContext, rules);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.8, presetMode: 'force' });
-  }, [lang]);
-
-  /**
    * Generate lorebook entries with streaming.
    */
   const generateLorebookStreaming = useCallback(async (
@@ -304,16 +241,6 @@ export function useAIGenerate() {
     const prompts = LOREBOOK_GENERATE_PROMPT(cardName, characterSummaries, topic, batchCount, nsfw, worldAnchor, lang, existingEntriesContext, rules);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.8, presetMode: 'force' });
   }, [lang]);
-
-  /**
-   * Generate lorebook entries and parse as JSON array.
-   * Returns entries with all V2 spec + SillyTavern runtime fields.
-   */
-  const generateLorebookParsed = useCallback(async (cardName: string, characterSummaries: string, topic: string, batchCount: number, nsfw?: boolean, worldAnchor?: string, existingEntriesContext?: string, rules?: string) => {
-    const text = await generateLorebook(cardName, characterSummaries, topic, batchCount, nsfw, worldAnchor, existingEntriesContext, rules);
-    const parsed = parseAIJson(text) as AIGeneratedLorebookEntry[] | null;
-    return parsed || [];
-  }, [generateLorebook]);
 
   /**
    * Generate lorebook entries with streaming and parse as JSON array.
@@ -336,19 +263,6 @@ export function useAIGenerate() {
 
 
 
-  /** Generate first message */
-  const generateFirstMessage = useCallback(async (
-    cardName: string,
-    characterDescriptions: string,
-    sceneHint: string,
-    targetWordCount?: number,
-    worldbookContext?: string,
-    writingRequirements?: string,
-  ): Promise<string> => {
-    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang);
-    return callAIWithPrompt(prompts.system, prompts.user, { temperature: 0.9, presetMode: 'force', max_tokens: 12000 });
-  }, [lang]);
-
   /** Generate first message with streaming */
   const generateFirstMessageStreaming = useCallback(async (
     cardName: string,
@@ -358,8 +272,9 @@ export function useAIGenerate() {
     targetWordCount?: number,
     worldbookContext?: string,
     writingRequirements?: string,
+    writingStyle?: string,
   ): Promise<string> => {
-    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang);
+    const prompts = FIRST_MESSAGE_PROMPT(cardName, characterDescriptions, sceneHint, targetWordCount, worldbookContext, writingRequirements, lang, writingStyle);
     return callAIWithPromptStreaming(prompts.system, prompts.user, onChunk, { temperature: 0.9, presetMode: 'force', max_tokens: 12000 });
   }, [lang]);
 
@@ -529,18 +444,13 @@ export function useAIGenerate() {
   }, [lang]);
 
   return {
-    generateCharacter,
     generateCharacterStreaming,
-    generateCharacterParsed,
     generateCharacterParsedStreaming,
     generateWorldAnchorEntriesStreaming,
     reviseLorebookEntriesStreaming,
-    generateLorebook,
     generateLorebookStreaming,
-    generateLorebookParsed,
     generateLorebookParsedStreaming,
     generateEntryFromText,
-    generateFirstMessage,
     generateFirstMessageStreaming,
     organizeEntries,
     generateEntryKeys,
@@ -641,12 +551,6 @@ export function useAIGenerate() {
       userPrompt: string,
     ): Promise<string> => {
       return callAIWithPrompt(systemPrompt, userPrompt, { temperature: 0.7, presetMode: 'force' });
-    }, []),
-    generateTextWithoutPreset: useCallback(async (
-      systemPrompt: string,
-      userPrompt: string,
-    ): Promise<string> => {
-      return callAIWithPrompt(systemPrompt, userPrompt, { temperature: 0.7, presetMode: 'none' });
     }, []),
     generateTextWithoutPresetStreaming: useCallback(async (
       systemPrompt: string,

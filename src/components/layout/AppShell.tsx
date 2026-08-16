@@ -105,7 +105,7 @@ export function AppShell() {
         )}
 
         <div className="w-full px-3 sm:px-5 lg:px-8 py-4 sm:py-7 flex-1 min-h-0 flex flex-col overflow-y-auto">
-          <div key={location.key} className="route-transition flex-1 flex flex-col min-h-0">
+          <div key={location.pathname} className="route-transition flex-1 flex flex-col min-h-0">
             <Suspense fallback={<RouteFallback />}>
               <Outlet />
             </Suspense>

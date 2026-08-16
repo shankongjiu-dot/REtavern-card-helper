@@ -53,6 +53,8 @@ export function DraftsPage() {
     try {
       const list = await listManualDrafts();
       setDrafts(list);
+    } catch {
+      setDrafts([]);
     } finally {
       setLoading(false);
     }
